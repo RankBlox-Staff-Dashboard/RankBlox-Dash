@@ -1,68 +1,43 @@
 import React from "react";
-import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import { Feather } from "@expo/vector-icons";
-import { BlurView } from "expo-blur";
-import { Platform, StyleSheet } from "react-native";
-import HomeStackNavigator from "@/navigation/HomeStackNavigator";
-import ProfileStackNavigator from "@/navigation/ProfileStackNavigator";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { ActivityIndicator, View } from "react-native";
+
+import PublicStackNavigator from "@/navigation/PublicStackNavigator";
+import StaffTabNavigator from "@/navigation/StaffTabNavigator";
+import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 
-export type MainTabParamList = {
-  HomeTab: undefined;
-  ProfileTab: undefined;
+export type RootStackParamList = {
+  PublicStack: undefined;
+  StaffTabs: undefined;
 };
 
-const Tab = createBottomTabNavigator<MainTabParamList>();
+const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function MainTabNavigator() {
-  const { theme, isDark } = useTheme();
+  const { isAuthenticated, isLoading } = useAuth();
+  const { theme } = useTheme();
+
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: theme.backgroundRoot }}>
+        <ActivityIndicator size="large" color={theme.link} />
+      </View>
+    );
+  }
 
   return (
-    <Tab.Navigator
-      initialRouteName="HomeTab"
+    <Stack.Navigator
       screenOptions={{
-        tabBarActiveTintColor: theme.tabIconSelected,
-        tabBarInactiveTintColor: theme.tabIconDefault,
-        tabBarStyle: {
-          position: "absolute",
-          backgroundColor: Platform.select({
-            ios: "transparent",
-            android: theme.backgroundRoot,
-          }),
-          borderTopWidth: 0,
-          elevation: 0,
-        },
-        tabBarBackground: () =>
-          Platform.OS === "ios" ? (
-            <BlurView
-              intensity={100}
-              tint={isDark ? "dark" : "light"}
-              style={StyleSheet.absoluteFill}
-            />
-          ) : null,
         headerShown: false,
+        animation: "fade",
       }}
     >
-      <Tab.Screen
-        name="HomeTab"
-        component={HomeStackNavigator}
-        options={{
-          title: "Home",
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="home" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="ProfileTab"
-        component={ProfileStackNavigator}
-        options={{
-          title: "Profile",
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="user" size={size} color={color} />
-          ),
-        }}
-      />
-    </Tab.Navigator>
+      {isAuthenticated ? (
+        <Stack.Screen name="StaffTabs" component={StaffTabNavigator} />
+      ) : (
+        <Stack.Screen name="PublicStack" component={PublicStackNavigator} />
+      )}
+    </Stack.Navigator>
   );
 }
