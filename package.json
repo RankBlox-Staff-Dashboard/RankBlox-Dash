@@ -8,6 +8,8 @@
     "android": "npx expo start --android",
     "ios": "npx expo start --ios",
     "web": "npx expo start --web",
+    "build:web": "npx expo export --platform web",
+    "build:web:staff": "PUBLIC_URL=/staff npx expo export --platform web",
     "lint": "npx expo lint",
     "check:format": "prettier --check \"**/*.{js,ts,tsx,css,json}\"",
     "format": "prettier --write \"**/*.{js,ts,tsx,css,json}\""

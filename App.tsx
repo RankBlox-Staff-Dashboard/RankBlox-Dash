@@ -1,5 +1,5 @@
 import React from "react";
-import { StyleSheet } from "react-native";
+import { StyleSheet, Platform } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
@@ -10,6 +10,7 @@ import MainTabNavigator from "@/navigation/MainTabNavigator";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/context/AuthContext";
 import { DataProvider } from "@/context/DataContext";
+import { WebAlertProvider } from "@/components/WebAlert";
 
 export default function App() {
   return (
@@ -19,9 +20,11 @@ export default function App() {
           <KeyboardProvider>
             <AuthProvider>
               <DataProvider>
-                <NavigationContainer>
-                  <MainTabNavigator />
-                </NavigationContainer>
+                <WebAlertProvider>
+                  <NavigationContainer>
+                    <MainTabNavigator />
+                  </NavigationContainer>
+                </WebAlertProvider>
               </DataProvider>
             </AuthProvider>
             <StatusBar style="auto" />

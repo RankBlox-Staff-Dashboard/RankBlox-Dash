@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from "react";
-import { View, StyleSheet, Pressable, Alert } from "react-native";
+import { View, StyleSheet, Pressable, Platform } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation, CommonActions } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -10,7 +10,9 @@ import Animated, {
   withTiming,
   withSpring,
 } from "react-native-reanimated";
-import * as Haptics from "expo-haptics";
+
+import { useHaptics } from "@/hooks/useHaptics";
+import { alert } from "@/components/WebAlert";
 
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
@@ -25,6 +27,7 @@ export default function PinLoginScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const { login } = useAuth();
+  const { impact, notification, ImpactFeedbackStyle, NotificationFeedbackType } = useHaptics();
   const [pin, setPin] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const shakeX = useSharedValue(0);
@@ -32,7 +35,7 @@ export default function PinLoginScreen() {
   const handleDigitPress = useCallback(async (digit: string) => {
     if (pin.length >= PIN_LENGTH || isLoading) return;
 
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    impact(ImpactFeedbackStyle.Light);
     const newPin = pin + digit;
     setPin(newPin);
 
@@ -41,7 +44,7 @@ export default function PinLoginScreen() {
       const result = await login(newPin);
 
       if (result.success) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        notification(NotificationFeedbackType.Success);
         navigation.dispatch(
           CommonActions.reset({
             index: 0,
@@ -49,7 +52,7 @@ export default function PinLoginScreen() {
           })
         );
       } else {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        notification(NotificationFeedbackType.Error);
         shakeX.value = withSequence(
           withTiming(-10, { duration: 50 }),
           withTiming(10, { duration: 50 }),
@@ -65,13 +68,13 @@ export default function PinLoginScreen() {
 
   const handleDelete = useCallback(() => {
     if (pin.length > 0 && !isLoading) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      impact(ImpactFeedbackStyle.Light);
       setPin(pin.slice(0, -1));
     }
   }, [pin, isLoading]);
 
   const handleForgotCode = () => {
-    Alert.alert(
+    alert(
       "Forgot PIN?",
       "Please contact your manager to reset your PIN code.",
       [{ text: "OK" }]
@@ -237,6 +240,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     zIndex: 10,
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+      },
+      default: {},
+    }),
   },
   content: {
     flex: 1,
@@ -283,6 +292,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+        transition: "transform 0.1s ease, background-color 0.1s ease",
+        userSelect: "none",
+      },
+      default: {},
+    }),
   },
   keyPlaceholder: {
     width: 72,
@@ -294,6 +311,12 @@ const styles = StyleSheet.create({
   forgotButton: {
     marginTop: Spacing["2xl"],
     paddingVertical: Spacing.md,
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+      },
+      default: {},
+    }),
   },
   footer: {
     paddingHorizontal: Spacing.xl,

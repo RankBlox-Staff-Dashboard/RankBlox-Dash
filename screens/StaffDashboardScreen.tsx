@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, StyleSheet, Pressable, RefreshControl } from "react-native";
+import { View, StyleSheet, Pressable, RefreshControl, Platform } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
@@ -235,6 +235,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: "center",
     gap: Spacing.sm,
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+        transition: "opacity 0.15s ease, transform 0.15s ease",
+      },
+      default: {},
+    }),
   },
   quickActionIcon: {
     width: 48,
@@ -261,6 +268,13 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.sm,
     borderWidth: 1,
     marginBottom: Spacing.sm,
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+        transition: "opacity 0.15s ease",
+      },
+      default: {},
+    }),
   },
   updateContent: {
     flex: 1,

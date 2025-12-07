@@ -1,5 +1,5 @@
 import React, { ReactNode } from "react";
-import { StyleSheet, Pressable, ViewStyle, StyleProp } from "react-native";
+import { StyleSheet, Pressable, ViewStyle, StyleProp, Platform } from "react-native";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -112,6 +112,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: Spacing.xl,
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+        transition: "transform 0.15s ease, opacity 0.15s ease",
+        outlineStyle: "none",
+      },
+      default: {},
+    }),
   },
   buttonText: {
     fontWeight: "600",

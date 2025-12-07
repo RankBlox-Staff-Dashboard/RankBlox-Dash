@@ -1,5 +1,5 @@
 import React, { ReactNode } from "react";
-import { StyleSheet, Pressable, ViewStyle, StyleProp, View } from "react-native";
+import { StyleSheet, Pressable, ViewStyle, StyleProp, View, Platform } from "react-native";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -84,6 +84,7 @@ export function Card({ children, onPress, style, elevation = 1 }: CardProps) {
       onPressOut={handlePressOut}
       style={[
         styles.card,
+        styles.pressableCard,
         {
           backgroundColor: getBackgroundColor(),
           borderColor: theme.border,
@@ -102,5 +103,19 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     borderRadius: BorderRadius.sm,
     borderWidth: 1,
+    ...Platform.select({
+      web: {
+        transition: "transform 0.15s ease, box-shadow 0.15s ease",
+      },
+      default: {},
+    }),
+  },
+  pressableCard: {
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+      },
+      default: {},
+    }),
   },
 });

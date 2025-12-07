@@ -1,8 +1,10 @@
-import { ScrollView, ScrollViewProps, StyleSheet } from "react-native";
+import { ScrollView, ScrollViewProps, StyleSheet, Platform, View } from "react-native";
 
 import { useTheme } from "@/hooks/useTheme";
 import { useScreenInsets } from "@/hooks/useScreenInsets";
 import { Spacing } from "@/constants/theme";
+
+const MAX_CONTENT_WIDTH = 800;
 
 export function ScreenScrollView({
   children,
@@ -13,7 +15,7 @@ export function ScreenScrollView({
   const { theme } = useTheme();
   const { paddingTop, paddingBottom, scrollInsetBottom } = useScreenInsets();
 
-  return (
+  const content = (
     <ScrollView
       style={[
         styles.container,
@@ -26,14 +28,21 @@ export function ScreenScrollView({
           paddingBottom,
         },
         styles.contentContainer,
+        Platform.OS === "web" && styles.webContentContainer,
         contentContainerStyle,
       ]}
       scrollIndicatorInsets={{ bottom: scrollInsetBottom }}
       {...scrollViewProps}
     >
-      {children}
+      {Platform.OS === "web" ? (
+        <View style={styles.webInnerContainer}>{children}</View>
+      ) : (
+        children
+      )}
     </ScrollView>
   );
+
+  return content;
 }
 
 const styles = StyleSheet.create({
@@ -42,5 +51,12 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     paddingHorizontal: Spacing.xl,
+  },
+  webContentContainer: {
+    alignItems: "center",
+  },
+  webInnerContainer: {
+    width: "100%",
+    maxWidth: MAX_CONTENT_WIDTH,
   },
 });

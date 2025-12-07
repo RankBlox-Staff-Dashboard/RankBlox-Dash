@@ -25,7 +25,14 @@
     },
     "web": {
       "output": "single",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.png",
+      "name": "Staff Hub",
+      "shortName": "StaffHub",
+      "description": "Staff management and communication hub",
+      "backgroundColor": "#F9FAFB",
+      "themeColor": "#2563EB",
+      "bundler": "metro",
+      "baseUrl": "/staff"
     },
     "plugins": [
       [

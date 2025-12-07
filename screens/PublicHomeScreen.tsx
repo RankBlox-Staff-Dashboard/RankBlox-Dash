@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, StyleSheet, TextInput, Pressable, RefreshControl } from "react-native";
+import { View, StyleSheet, TextInput, Pressable, RefreshControl, Platform } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -178,6 +178,13 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.sm,
     borderWidth: 1,
     marginBottom: Spacing.sm,
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+        transition: "opacity 0.15s ease, transform 0.15s ease",
+      },
+      default: {},
+    }),
   },
   categoryIcon: {
     width: 48,
@@ -194,6 +201,13 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     borderRadius: BorderRadius.sm,
     marginBottom: Spacing.sm,
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+        transition: "opacity 0.15s ease",
+      },
+      default: {},
+    }),
   },
   featuredTitle: {
     color: "#FFFFFF",

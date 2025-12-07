@@ -39,13 +39,19 @@ export default function StaffTabNavigator() {
         tabBarActiveTintColor: isDark ? Colors.dark.primary : Colors.light.primary,
         tabBarInactiveTintColor: theme.tabIconDefault,
         tabBarStyle: {
-          position: "absolute",
+          position: Platform.OS === "web" ? "relative" : "absolute",
           backgroundColor: Platform.select({
             ios: "transparent",
             android: theme.backgroundRoot,
+            web: theme.backgroundDefault,
+            default: theme.backgroundRoot,
           }),
-          borderTopWidth: 0,
+          borderTopWidth: Platform.OS === "web" ? 1 : 0,
+          borderTopColor: theme.border,
           elevation: 0,
+          ...(Platform.OS === "web" && {
+            boxShadow: "0 -2px 10px rgba(0, 0, 0, 0.05)",
+          }),
         },
         tabBarBackground: () =>
           Platform.OS === "ios" ? (

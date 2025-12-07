@@ -1,5 +1,5 @@
 import React from "react";
-import { View, StyleSheet, Pressable } from "react-native";
+import { View, StyleSheet, Pressable, Platform } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -133,6 +133,13 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     borderRadius: BorderRadius.sm,
     borderWidth: 1,
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+        transition: "background-color 0.15s ease",
+      },
+      default: {},
+    }),
   },
   conversationContent: {
     flex: 1,
@@ -181,5 +188,12 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.full,
     marginTop: Spacing.lg,
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+        transition: "opacity 0.15s ease",
+      },
+      default: {},
+    }),
   },
 });
