@@ -5,8 +5,9 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc",
-    "start": "node dist/server.js"
+    "build": "npm rebuild better-sqlite3 && tsc",
+    "start": "node dist/server.js",
+    "postinstall": "npm rebuild better-sqlite3"
   },
   "keywords": [],
   "author": "",
