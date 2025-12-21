@@ -1,0 +1,7 @@
+# Vercel Frontend Environment Variables
+# Copy these to Vercel Dashboard → Settings → Environment Variables
+
+# Backend API URL
+VITE_API_URL=https://your-backend-name.onrender.com/api
+# ⚠️ IMPORTANT: Replace 'your-backend-name' with your actual Render backend service name
+

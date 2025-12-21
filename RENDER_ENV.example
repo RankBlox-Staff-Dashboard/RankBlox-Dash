@@ -1,0 +1,25 @@
+# Render Backend Environment Variables
+# Copy these to Render Dashboard → Environment Variables
+
+# Database Configuration
+DATABASE_URL=postgresql://session_88kg_user:RDZ2tfqz8PViityji56kJZTJL6IHzvmq@dpg-d5484hv5r7bs73e8v6f0-a.virginia-postgres.render.com/session_88kg
+
+# Discord OAuth Configuration
+DISCORD_CLIENT_ID=1413264592368435382
+DISCORD_CLIENT_SECRET=Io4D-j14356IFptF-vB4ohghJtwNvbZp
+DISCORD_REDIRECT_URI=https://your-backend-name.onrender.com/api/auth/discord/callback
+# ⚠️ IMPORTANT: Replace 'your-backend-name' with your actual Render service name
+
+# JWT Security
+JWT_SECRET=scpnox-staff-jwt-secret-2024-secure
+
+# Roblox Group Configuration
+ROBLOX_GROUP_ID=32350433
+
+# Server Configuration
+PORT=10000
+NODE_ENV=production
+
+# Frontend URL (for OAuth redirects)
+FRONTEND_URL=https://staffapp-opal.vercel.app
+
