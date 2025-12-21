@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { authenticateToken } from '../middleware/auth';
+import { authenticateToken, requireActiveStatus } from '../middleware/auth';
 import { requireAdmin, requirePermission } from '../middleware/permissions';
 import { dbGet, dbAll, dbRun } from '../utils/db-helpers';
 import { PermissionFlag } from '../utils/types';
@@ -7,6 +7,7 @@ import { updateUserPermission } from '../services/permissions';
 
 const router = Router();
 router.use(authenticateToken);
+router.use(requireActiveStatus); // Management requires active status
 router.use(requireAdmin); // All management routes require admin
 
 /**

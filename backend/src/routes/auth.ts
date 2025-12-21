@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { exchangeDiscordCode, getDiscordUser, getDiscordOAuthUrl } from '../services/discord';
-import { generateToken } from '../middleware/auth';
+import { generateToken, authenticateToken } from '../middleware/auth';
 import { dbGet, dbRun } from '../utils/db-helpers';
 import { v4 as uuidv4 } from 'uuid';
 import { initializeUserPermissions } from '../services/permissions';
@@ -21,7 +21,15 @@ router.get('/discord', (req: Request, res: Response) => {
  */
 router.get('/discord/callback', async (req: Request, res: Response) => {
   const code = req.query.code as string;
-  const state = req.query.state as string;
+  const error = req.query.error as string | undefined;
+
+  // Handle Discord OAuth errors
+  if (error) {
+    console.error('Discord OAuth error:', error);
+    return res.redirect(
+      `${process.env.FRONTEND_URL || 'http://localhost:5173'}/login?error=oauth_error&message=${encodeURIComponent(error)}`
+    );
+  }
 
   if (!code) {
     return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/login?error=no_code`);
@@ -31,12 +39,14 @@ router.get('/discord/callback', async (req: Request, res: Response) => {
     // Exchange code for access token
     const accessToken = await exchangeDiscordCode(code);
     if (!accessToken) {
+      console.error('Failed to exchange Discord code for token');
       return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/login?error=token_exchange_failed`);
     }
 
     // Get Discord user info
     const discordUser = await getDiscordUser(accessToken);
     if (!discordUser) {
+      console.error('Failed to fetch Discord user info');
       return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/login?error=user_fetch_failed`);
     }
 
@@ -78,47 +88,52 @@ router.get('/discord/callback', async (req: Request, res: Response) => {
     }
 
     // Redirect to frontend with token
-    res.redirect(
-      `${process.env.FRONTEND_URL || 'http://localhost:5173'}/auth/callback?token=${token}`
-    );
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    res.redirect(`${frontendUrl}/auth/callback?token=${token}`);
   } catch (error: any) {
     console.error('Discord OAuth error:', error);
     console.error('Error details:', error.message, error.stack);
-    res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/login?error=server_error`);
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    res.redirect(`${frontendUrl}/login?error=server_error&message=${encodeURIComponent(error.message || 'Unknown error')}`);
   }
 });
 
 /**
- * Get current user profile
+ * Get current user profile (accessible to all authenticated users, including pending)
  */
-router.get('/me', async (req: Request, res: Response) => {
+router.get('/me', authenticateToken, async (req: Request, res: Response) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Authentication required' });
   }
 
-  const user = await dbGet<any>('SELECT * FROM users WHERE id = $1', [req.user.id]);
+  try {
+    const user = await dbGet<any>('SELECT * FROM users WHERE id = $1', [req.user.id]);
 
-  if (!user) {
-    return res.status(404).json({ error: 'User not found' });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({
+      id: user.id,
+      discord_id: user.discord_id,
+      discord_username: user.discord_username,
+      roblox_id: user.roblox_id,
+      roblox_username: user.roblox_username,
+      rank: user.rank,
+      rank_name: user.rank_name,
+      status: user.status,
+      created_at: user.created_at,
+    });
+  } catch (error) {
+    console.error('Error fetching user:', error);
+    res.status(500).json({ error: 'Failed to fetch user' });
   }
-
-  res.json({
-    id: user.id,
-    discord_id: user.discord_id,
-    discord_username: user.discord_username,
-    roblox_id: user.roblox_id,
-    roblox_username: user.roblox_username,
-    rank: user.rank,
-    rank_name: user.rank_name,
-    status: user.status,
-    created_at: user.created_at,
-  });
 });
 
 /**
  * Logout
  */
-router.post('/logout', async (req: Request, res: Response) => {
+router.post('/logout', authenticateToken, async (req: Request, res: Response) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Authentication required' });
   }
@@ -134,4 +149,3 @@ router.post('/logout', async (req: Request, res: Response) => {
 });
 
 export default router;
-

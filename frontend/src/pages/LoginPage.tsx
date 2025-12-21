@@ -6,7 +6,7 @@ import { verificationAPI } from '../services/api';
 export function LoginPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { user, loading, isVerified, checkVerification } = useAuth();
+  const { user, loading, isVerified, checkVerification, refreshUser } = useAuth();
   const [step, setStep] = useState<'login' | 'verify'>('login');
   const [emojiCode, setEmojiCode] = useState<string>('');
   const [codeLoading, setCodeLoading] = useState(false);
@@ -15,22 +15,49 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Check if we have a token from OAuth callback
-    const token = searchParams.get('token');
-    if (token) {
-      localStorage.setItem('token', token);
-      window.location.href = '/';
-      return;
+    // Check for OAuth errors
+    const errorParam = searchParams.get('error');
+    const messageParam = searchParams.get('message');
+    
+    if (errorParam) {
+      let errorMessage = 'Login failed';
+      
+      switch (errorParam) {
+        case 'no_code':
+          errorMessage = 'No authorization code received from Discord';
+          break;
+        case 'token_exchange_failed':
+          errorMessage = 'Failed to authenticate with Discord. Please try again.';
+          break;
+        case 'user_fetch_failed':
+          errorMessage = 'Failed to fetch user information from Discord';
+          break;
+        case 'server_error':
+          errorMessage = messageParam || 'Server error occurred during login';
+          break;
+        case 'oauth_error':
+          errorMessage = messageParam || 'Discord OAuth error occurred';
+          break;
+        case 'no_token':
+          errorMessage = 'No authentication token received';
+          break;
+        default:
+          errorMessage = messageParam || 'An error occurred during login';
+      }
+      
+      setError(errorMessage);
+      // Clear error from URL
+      navigate('/login', { replace: true });
     }
 
     // If user is logged in and verified, redirect to dashboard
     if (user && isVerified) {
-      navigate('/');
+      navigate('/', { replace: true });
       return;
     }
 
     // If user is logged in but not verified, show verification step
-    if (user && !isVerified) {
+    if (user && !isVerified && user.status === 'pending_verification') {
       setStep('verify');
     }
   }, [user, isVerified, navigate, searchParams]);
@@ -51,7 +78,12 @@ export function LoginPage() {
       const response = await verificationAPI.requestCode();
       setEmojiCode(response.data.emoji_code);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to generate verification code');
+      const errorMsg = err.response?.data?.error || 'Failed to generate verification code';
+      setError(errorMsg);
+      // If unauthorized, refresh user state
+      if (err.response?.status === 401) {
+        await refreshUser();
+      }
     } finally {
       setCodeLoading(false);
     }
@@ -67,10 +99,13 @@ export function LoginPage() {
       setVerifying(true);
       setError(null);
       await verificationAPI.verify(robloxUsername, emojiCode);
+      // Refresh user data to get updated status
+      await refreshUser();
       await checkVerification();
       navigate('/');
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Verification failed. Make sure the emoji code is in your Roblox bio/status.');
+      const errorMsg = err.response?.data?.error || 'Verification failed. Make sure the emoji code is in your Roblox bio/status.';
+      setError(errorMsg);
     } finally {
       setVerifying(false);
     }
@@ -90,6 +125,12 @@ export function LoginPage() {
         <div className="bg-dark-card rounded-lg p-8 border border-dark-border max-w-md w-full">
           <h1 className="text-3xl font-bold text-white mb-2">AHS Staff Dashboard</h1>
           <p className="text-gray-400 mb-8">Sign in to access your staff dashboard</p>
+
+          {error && (
+            <div className="bg-red-500/10 border border-red-500/50 text-red-400 p-4 rounded-lg mb-4">
+              {error}
+            </div>
+          )}
 
           <button
             onClick={handleDiscordLogin}
@@ -171,4 +212,3 @@ export function LoginPage() {
     </div>
   );
 }
-

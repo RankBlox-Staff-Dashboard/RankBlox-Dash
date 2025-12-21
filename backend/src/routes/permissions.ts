@@ -4,6 +4,7 @@ import { getUserPermissionsArray } from '../services/permissions';
 
 const router = Router();
 router.use(authenticateToken);
+// Permissions can be checked by any authenticated user (pending or active)
 
 /**
  * Get current user's permissions

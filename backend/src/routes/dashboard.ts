@@ -1,10 +1,11 @@
 import { Router, Request, Response } from 'express';
-import { authenticateToken } from '../middleware/auth';
+import { authenticateToken, requireActiveStatus } from '../middleware/auth';
 import { requirePermission, requireAdmin } from '../middleware/permissions';
 import { dbGet, dbAll, dbRun } from '../utils/db-helpers';
 
 const router = Router();
 router.use(authenticateToken);
+router.use(requireActiveStatus); // Dashboard requires active status
 
 /**
  * Get current week start (Monday)

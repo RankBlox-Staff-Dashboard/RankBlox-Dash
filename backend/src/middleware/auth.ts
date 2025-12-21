@@ -11,11 +11,16 @@ declare global {
         id: number;
         discordId: string;
         rank: number | null;
+        status?: string;
       };
     }
   }
 }
 
+/**
+ * Authenticate token - allows all authenticated users (pending_verification, active, etc.)
+ * Use requireActiveStatus for routes that need active users only
+ */
 export async function authenticateToken(
   req: Request,
   res: Response,
@@ -49,14 +54,14 @@ export async function authenticateToken(
       return;
     }
 
-    // Get user to ensure they're still active
+    // Get user info
     const user = await dbGet<{ id: number; discord_id: string; rank: number | null; status: string }>(
       'SELECT id, discord_id, rank, status FROM users WHERE id = $1',
       [decoded.userId]
     );
 
-    if (!user || user.status !== 'active') {
-      res.status(403).json({ error: 'Account is not active' });
+    if (!user) {
+      res.status(404).json({ error: 'User not found' });
       return;
     }
 
@@ -64,6 +69,7 @@ export async function authenticateToken(
       id: user.id,
       discordId: user.discord_id,
       rank: user.rank,
+      status: user.status,
     };
 
     next();
@@ -74,6 +80,30 @@ export async function authenticateToken(
     }
     res.status(500).json({ error: 'Authentication error' });
   }
+}
+
+/**
+ * Middleware to require active status (for protected routes like dashboard, tickets, etc.)
+ */
+export function requireActiveStatus(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): void {
+  if (!req.user) {
+    res.status(401).json({ error: 'Authentication required' });
+    return;
+  }
+
+  if (req.user.status !== 'active') {
+    res.status(403).json({ 
+      error: 'Account verification required',
+      status: req.user.status 
+    });
+    return;
+  }
+
+  next();
 }
 
 export function generateToken(userId: number, discordId: string, rank: number | null): string {
@@ -91,4 +121,3 @@ export function generateToken(userId: number, discordId: string, rank: number | 
   // Token expires in 7 days
   return jwt.sign(payload, jwtSecret, { expiresIn: '7d' });
 }
-
