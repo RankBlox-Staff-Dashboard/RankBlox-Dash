@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { exchangeDiscordCode, getDiscordUser, getDiscordOAuthUrl } from '../services/discord';
 import { generateToken } from '../middleware/auth';
-import { db } from '../models/database';
+import { dbGet, dbRun } from '../utils/db-helpers';
 import { v4 as uuidv4 } from 'uuid';
 import { initializeUserPermissions } from '../services/permissions';
 
@@ -41,27 +41,21 @@ router.get('/discord/callback', async (req: Request, res: Response) => {
     }
 
     // Find or create user
-    let user = db
-      .prepare('SELECT * FROM users WHERE discord_id = ?')
-      .get(discordUser.id) as any;
+    let user = await dbGet<any>('SELECT * FROM users WHERE discord_id = $1', [discordUser.id]);
 
     if (!user) {
       // Create new user
-      const result = db
-        .prepare(
-          'INSERT INTO users (discord_id, discord_username, status) VALUES (?, ?, ?)'
-        )
-        .run(discordUser.id, discordUser.username, 'pending_verification');
-
-      user = db
-        .prepare('SELECT * FROM users WHERE id = ?')
-        .get(result.lastInsertRowid) as any;
+      const result = await dbRun(
+        'INSERT INTO users (discord_id, discord_username, status) VALUES ($1, $2, $3) RETURNING *',
+        [discordUser.id, discordUser.username, 'pending_verification']
+      );
+      user = result.rows[0];
     } else {
       // Update username if changed
-      db.prepare('UPDATE users SET discord_username = ? WHERE id = ?').run(
+      await dbRun('UPDATE users SET discord_username = $1 WHERE id = $2', [
         discordUser.username,
-        user.id
-      );
+        user.id,
+      ]);
       user.discord_username = discordUser.username;
     }
 
@@ -71,9 +65,10 @@ router.get('/discord/callback', async (req: Request, res: Response) => {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
 
-    db.prepare(
-      'INSERT OR REPLACE INTO sessions (id, user_id, token, expires_at) VALUES (?, ?, ?, ?)'
-    ).run(sessionId, user.id, token, expiresAt.toISOString());
+    await dbRun(
+      'INSERT INTO sessions (id, user_id, token, expires_at) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO UPDATE SET user_id = $2, token = $3, expires_at = $4',
+      [sessionId, user.id, token, expiresAt.toISOString()]
+    );
 
     // Initialize permissions if user just verified Roblox
     if (user.status === 'active' && user.rank !== null) {
@@ -98,9 +93,7 @@ router.get('/me', async (req: Request, res: Response) => {
     return res.status(401).json({ error: 'Authentication required' });
   }
 
-  const user = db
-    .prepare('SELECT * FROM users WHERE id = ?')
-    .get(req.user.id) as any;
+  const user = await dbGet<any>('SELECT * FROM users WHERE id = $1', [req.user.id]);
 
   if (!user) {
     return res.status(404).json({ error: 'User not found' });
@@ -122,7 +115,7 @@ router.get('/me', async (req: Request, res: Response) => {
 /**
  * Logout
  */
-router.post('/logout', (req: Request, res: Response) => {
+router.post('/logout', async (req: Request, res: Response) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Authentication required' });
   }
@@ -131,7 +124,7 @@ router.post('/logout', (req: Request, res: Response) => {
   const token = authHeader && authHeader.split(' ')[1];
 
   if (token) {
-    db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
+    await dbRun('DELETE FROM sessions WHERE token = $1', [token]);
   }
 
   res.json({ message: 'Logged out successfully' });

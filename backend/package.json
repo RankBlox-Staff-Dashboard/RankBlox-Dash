@@ -5,9 +5,8 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "npm rebuild better-sqlite3 && tsc",
-    "start": "node dist/server.js",
-    "postinstall": "npm rebuild better-sqlite3"
+    "build": "tsc",
+    "start": "node dist/server.js"
   },
   "keywords": [],
   "author": "",
@@ -18,7 +17,7 @@
     "dotenv": "^16.3.1",
     "jsonwebtoken": "^9.0.2",
     "axios": "^1.6.2",
-    "better-sqlite3": "^9.2.2",
+    "pg": "^8.11.3",
     "node-cron": "^3.0.3",
     "uuid": "^9.0.1"
   },
@@ -28,7 +27,7 @@
     "@types/jsonwebtoken": "^9.0.5",
     "@types/node": "^20.10.6",
     "@types/node-cron": "^3.0.11",
-    "@types/better-sqlite3": "^7.6.8",
+    "@types/pg": "^8.10.9",
     "@types/uuid": "^9.0.7",
     "typescript": "^5.3.3",
     "tsx": "^4.7.0"

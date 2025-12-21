@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { JwtPayload } from '../utils/types';
-import { db } from '../models/database';
+import { dbGet } from '../utils/db-helpers';
 
 // Extend Express Request to include user
 declare global {
@@ -16,11 +16,11 @@ declare global {
   }
 }
 
-export function authenticateToken(
+export async function authenticateToken(
   req: Request,
   res: Response,
   next: NextFunction
-): void {
+): Promise<void> {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
@@ -39,9 +39,10 @@ export function authenticateToken(
     const decoded = jwt.verify(token, jwtSecret) as JwtPayload;
     
     // Verify session still exists and is valid
-    const session = db
-      .prepare('SELECT * FROM sessions WHERE id = ? AND expires_at > datetime("now")')
-      .get(decoded.userId.toString()) as { id: string; user_id: number; token: string; expires_at: string } | undefined;
+    const session = await dbGet<{ id: string; user_id: number; token: string; expires_at: Date }>(
+      'SELECT * FROM sessions WHERE id = $1 AND expires_at > NOW()',
+      [decoded.userId.toString()]
+    );
 
     if (!session) {
       res.status(401).json({ error: 'Session expired or invalid' });
@@ -49,9 +50,10 @@ export function authenticateToken(
     }
 
     // Get user to ensure they're still active
-    const user = db
-      .prepare('SELECT id, discord_id, rank, status FROM users WHERE id = ?')
-      .get(decoded.userId) as { id: number; discord_id: string; rank: number | null; status: string } | undefined;
+    const user = await dbGet<{ id: number; discord_id: string; rank: number | null; status: string }>(
+      'SELECT id, discord_id, rank, status FROM users WHERE id = $1',
+      [decoded.userId]
+    );
 
     if (!user || user.status !== 'active') {
       res.status(403).json({ error: 'Account is not active' });
