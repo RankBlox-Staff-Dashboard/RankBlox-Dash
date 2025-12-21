@@ -13,7 +13,7 @@ JWT_SECRET=scpnox-staff-jwt-secret-2024-secure
 ROBLOX_GROUP_ID=32350433
 PORT=10000
 NODE_ENV=production
-FRONTEND_URL=https://staffapp-opal.vercel.app
+FRONTEND_URL=https://staff.ahscampus.com
 ```
 
 ---
@@ -62,7 +62,7 @@ VITE_API_URL=https://staffapp-9q1t.onrender.com/api
 **Render:**
 ```
 DISCORD_REDIRECT_URI=https://staffapp-9q1t.onrender.com/api/auth/discord/callback
-FRONTEND_URL=https://staffapp-opal.vercel.app
+FRONTEND_URL=https://staff.ahscampus.com
 ```
 
 **Vercel:**

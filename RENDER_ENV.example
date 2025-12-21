@@ -20,5 +20,5 @@ PORT=10000
 NODE_ENV=production
 
 # Frontend URL (for OAuth redirects)
-FRONTEND_URL=https://staffapp-opal.vercel.app
+FRONTEND_URL=https://staff.ahscampus.com
 

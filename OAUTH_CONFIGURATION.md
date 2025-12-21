@@ -2,7 +2,7 @@
 
 ## Current Setup
 
-**Frontend URL:** `https://staffapp-opal.vercel.app`
+**Frontend URL:** `https://staff.ahscampus.com`
 
 ## Important: Backend Must Be Deployed Separately
 
@@ -61,7 +61,7 @@ If your backend is at `https://ahs-staff-backend.railway.app`:
 **Backend Environment Variables:**
 ```
 DISCORD_REDIRECT_URI=https://ahs-staff-backend.railway.app/api/auth/discord/callback
-FRONTEND_URL=https://staffapp-opal.vercel.app
+FRONTEND_URL=https://staff.ahscampus.com
 ```
 
 **Discord Developer Portal:**

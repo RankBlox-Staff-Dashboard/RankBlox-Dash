@@ -49,7 +49,7 @@ JWT_SECRET=scpnox-staff-jwt-secret-2024-secure
 ROBLOX_GROUP_ID=32350433
 PORT=10000
 DATABASE_PATH=./data/staff.db
-FRONTEND_URL=https://staffapp-opal.vercel.app
+FRONTEND_URL=https://staff.ahscampus.com
 NODE_ENV=production
 ```
 
