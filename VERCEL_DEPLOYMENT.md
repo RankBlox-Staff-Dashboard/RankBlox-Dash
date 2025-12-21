@@ -8,7 +8,7 @@
 
 **Framework Preset:** `Vite` (or `Other` if Vite isn't available)
 
-**Root Directory:** `./frontend`
+**Root Directory:** `frontend`
 
 **Build Command:** `npm run build`
 - Or use: `npm run vercel-build`
