@@ -7,8 +7,7 @@ DATABASE_URL=postgresql://session_88kg_user:RDZ2tfqz8PViityji56kJZTJL6IHzvmq@dpg
 # Discord OAuth Configuration
 DISCORD_CLIENT_ID=1413264592368435382
 DISCORD_CLIENT_SECRET=Io4D-j14356IFptF-vB4ohghJtwNvbZp
-DISCORD_REDIRECT_URI=https://your-backend-name.onrender.com/api/auth/discord/callback
-# ⚠️ IMPORTANT: Replace 'your-backend-name' with your actual Render service name
+DISCORD_REDIRECT_URI=https://staffapp-9q1t.onrender.com/api/auth/discord/callback
 
 # JWT Security
 JWT_SECRET=scpnox-staff-jwt-secret-2024-secure

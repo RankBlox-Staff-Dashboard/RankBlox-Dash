@@ -8,19 +8,12 @@ Copy these to: **Render Dashboard → Your Service → Environment**
 DATABASE_URL=postgresql://session_88kg_user:RDZ2tfqz8PViityji56kJZTJL6IHzvmq@dpg-d5484hv5r7bs73e8v6f0-a.virginia-postgres.render.com/session_88kg
 DISCORD_CLIENT_ID=1413264592368435382
 DISCORD_CLIENT_SECRET=Io4D-j14356IFptF-vB4ohghJtwNvbZp
-DISCORD_REDIRECT_URI=https://your-backend-name.onrender.com/api/auth/discord/callback
+DISCORD_REDIRECT_URI=https://staffapp-9q1t.onrender.com/api/auth/discord/callback
 JWT_SECRET=scpnox-staff-jwt-secret-2024-secure
 ROBLOX_GROUP_ID=32350433
 PORT=10000
 NODE_ENV=production
 FRONTEND_URL=https://staffapp-opal.vercel.app
-```
-
-**⚠️ Important:** Replace `your-backend-name` in `DISCORD_REDIRECT_URI` with your actual Render service name.
-
-Example: If your Render service is named `ahs-staff-backend`, then:
-```
-DISCORD_REDIRECT_URI=https://ahs-staff-backend.onrender.com/api/auth/discord/callback
 ```
 
 ---
@@ -30,14 +23,7 @@ DISCORD_REDIRECT_URI=https://ahs-staff-backend.onrender.com/api/auth/discord/cal
 Copy these to: **Vercel Dashboard → Your Project → Settings → Environment Variables**
 
 ```env
-VITE_API_URL=https://your-backend-name.onrender.com/api
-```
-
-**⚠️ Important:** Replace `your-backend-name` with your actual Render backend service name.
-
-Example: If your Render service is named `ahs-staff-backend`, then:
-```
-VITE_API_URL=https://ahs-staff-backend.onrender.com/api
+VITE_API_URL=https://staffapp-9q1t.onrender.com/api
 ```
 
 ---
@@ -49,11 +35,13 @@ VITE_API_URL=https://ahs-staff-backend.onrender.com/api
 3. Go to **OAuth2** → **General**
 4. Under **Redirects**, add:
    ```
-   https://your-backend-name.onrender.com/api/auth/discord/callback
+   https://staffapp-9q1t.onrender.com/api/auth/discord/callback
    ```
 5. Click **Save Changes**
 
 **⚠️ Important:** The redirect URI in Discord MUST exactly match the `DISCORD_REDIRECT_URI` in your Render environment variables.
+
+**✅ Your actual redirect URI:** `https://staffapp-9q1t.onrender.com/api/auth/discord/callback`
 
 ---
 
@@ -69,23 +57,21 @@ VITE_API_URL=https://ahs-staff-backend.onrender.com/api
 
 ---
 
-## Example Values (Replace with Your Actual Service Name)
-
-If your Render backend service is named `ahs-staff-backend`:
+## Your Actual Configuration Values
 
 **Render:**
 ```
-DISCORD_REDIRECT_URI=https://ahs-staff-backend.onrender.com/api/auth/discord/callback
+DISCORD_REDIRECT_URI=https://staffapp-9q1t.onrender.com/api/auth/discord/callback
 FRONTEND_URL=https://staffapp-opal.vercel.app
 ```
 
 **Vercel:**
 ```
-VITE_API_URL=https://ahs-staff-backend.onrender.com/api
+VITE_API_URL=https://staffapp-9q1t.onrender.com/api
 ```
 
 **Discord Developer Portal:**
 ```
-https://ahs-staff-backend.onrender.com/api/auth/discord/callback
+https://staffapp-9q1t.onrender.com/api/auth/discord/callback
 ```
 
