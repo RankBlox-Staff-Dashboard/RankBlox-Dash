@@ -43,8 +43,11 @@ export async function exchangeDiscordCode(code: string): Promise<string | null> 
 
     const data = response.data as DiscordTokenResponse;
     return data.access_token;
-  } catch (error) {
-    console.error('Error exchanging Discord code:', error);
+  } catch (error: any) {
+    console.error('Error exchanging Discord code:', error.response?.data || error.message);
+    if (error.response?.data) {
+      console.error('Discord API Error:', JSON.stringify(error.response.data, null, 2));
+    }
     return null;
   }
 }

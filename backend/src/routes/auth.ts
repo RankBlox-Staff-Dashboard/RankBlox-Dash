@@ -79,8 +79,9 @@ router.get('/discord/callback', async (req: Request, res: Response) => {
     res.redirect(
       `${process.env.FRONTEND_URL || 'http://localhost:5173'}/auth/callback?token=${token}`
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error('Discord OAuth error:', error);
+    console.error('Error details:', error.message, error.stack);
     res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/login?error=server_error`);
   }
 });
