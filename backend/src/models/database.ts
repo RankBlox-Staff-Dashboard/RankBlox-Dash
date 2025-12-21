@@ -129,6 +129,6 @@ export function initializeDatabase() {
 }
 
 // Export database instance
-export { db };
-export default db;
+// Using any type to avoid TS4023 error with better-sqlite3 types
+export { db as db };
 

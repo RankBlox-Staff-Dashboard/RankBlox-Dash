@@ -9,7 +9,9 @@ export function ProfileCard() {
 
   // Discord avatar URL format: https://cdn.discordapp.com/avatars/{user_id}/{avatar_hash}.png
   // Since we don't have the avatar hash, we'll use the default avatar endpoint
-  const avatarUrl = `https://cdn.discordapp.com/embed/avatars/${parseInt(user.discord_id) % 5}.png`;
+  // Discord default avatars are 0-4, calculate based on last digit of Discord ID
+  const avatarIndex = parseInt(user.discord_id.slice(-1)) % 5;
+  const avatarUrl = `https://cdn.discordapp.com/embed/avatars/${avatarIndex}.png`;
 
   return (
     <div className="bg-dark-card rounded-lg p-6 border border-dark-border">

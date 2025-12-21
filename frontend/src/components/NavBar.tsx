@@ -14,12 +14,15 @@ const navigation = [
 
 export function NavBar() {
   const location = useLocation();
-  const { user } = useAuth();
-  const { hasPermission } = usePermissions();
+  const { user, loading: authLoading } = useAuth();
+  const { hasPermission, loading: permissionsLoading } = usePermissions();
 
   const isAdmin = user?.rank && user.rank >= 16 && user.rank <= 255;
 
   const visibleNav = navigation.filter((item) => {
+    // Don't filter if still loading
+    if (authLoading || permissionsLoading) return true;
+    
     if (item.adminOnly && !isAdmin) return false;
     if (item.permission && !hasPermission(item.permission as any)) return false;
     return true;

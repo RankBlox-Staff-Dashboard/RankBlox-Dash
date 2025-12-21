@@ -22,6 +22,7 @@ export function usePermissions() {
   }, []);
 
   const hasPermission = (permission: PermissionFlag): boolean => {
+    if (loading) return false; // Don't grant permissions while loading
     return permissions.includes(permission);
   };
 
