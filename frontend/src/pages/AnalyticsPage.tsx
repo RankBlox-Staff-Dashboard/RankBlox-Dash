@@ -17,7 +17,7 @@ export function AnalyticsPage() {
         setAnalytics(response.data);
       } catch (error: any) {
         if (error.response?.status === 403) {
-          // User doesn't have permission, that's ok
+          // User doesn't have permission, that's very okay
         } else {
           console.error('Error fetching analytics:', error);
         }
