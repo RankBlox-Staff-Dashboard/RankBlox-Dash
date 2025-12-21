@@ -1,10 +1,22 @@
 import { Router, Request, Response } from 'express';
 import { authenticateToken } from '../middleware/auth';
 import { requirePermission } from '../middleware/permissions';
-import { db } from '../models/database';
+import { dbGet, dbAll, dbRun } from '../utils/db-helpers';
 
 const router = Router();
 router.use(authenticateToken);
+
+/**
+ * Get current week start (Monday)
+ */
+function getCurrentWeekStart(): string {
+  const now = new Date();
+  const day = now.getDay();
+  const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+  const monday = new Date(now.setDate(diff));
+  monday.setHours(0, 0, 0, 0);
+  return monday.toISOString().split('T')[0];
+}
 
 /**
  * List tickets
@@ -24,13 +36,13 @@ router.get('/', requirePermission('VIEW_TICKETS'), async (req: Request, res: Res
     const params: any[] = [];
 
     if (status) {
-      query += ' WHERE t.status = ?';
+      query += ' WHERE t.status = $1';
       params.push(status);
     }
 
     query += ' ORDER BY t.created_at DESC';
 
-    const tickets = db.prepare(query).all(...params) as any[];
+    const tickets = await dbAll<any>(query, params);
 
     res.json(tickets);
   } catch (error) {
@@ -51,9 +63,10 @@ router.post('/:id/claim', requirePermission('CLAIM_TICKETS'), async (req: Reques
     const ticketId = parseInt(req.params.id);
 
     // Check if ticket exists and is available
-    const ticket = db
-      .prepare('SELECT * FROM tickets WHERE id = ?')
-      .get(ticketId) as any;
+    const ticket = await dbGet<any>(
+      'SELECT * FROM tickets WHERE id = $1',
+      [ticketId]
+    );
 
     if (!ticket) {
       return res.status(404).json({ error: 'Ticket not found' });
@@ -64,31 +77,30 @@ router.post('/:id/claim', requirePermission('CLAIM_TICKETS'), async (req: Reques
     }
 
     // Update ticket
-    db.prepare(
-      'UPDATE tickets SET claimed_by = ?, status = ? WHERE id = ?'
-    ).run(req.user.id, 'claimed', ticketId);
+    await dbRun(
+      'UPDATE tickets SET claimed_by = $1, status = $2 WHERE id = $3',
+      [req.user.id, 'claimed', ticketId]
+    );
 
     // Increment user's tickets_claimed count for current week
-    const weekStart = new Date();
-    const day = weekStart.getDay();
-    const diff = weekStart.getDate() - day + (day === 0 ? -6 : 1);
-    const monday = new Date(weekStart.setDate(diff));
-    monday.setHours(0, 0, 0, 0);
-    const weekStartStr = monday.toISOString().split('T')[0];
+    const weekStartStr = getCurrentWeekStart();
 
     // Check if activity log exists
-    let activityLog = db
-      .prepare('SELECT * FROM activity_logs WHERE user_id = ? AND week_start = ?')
-      .get(req.user.id, weekStartStr) as any;
+    let activityLog = await dbGet<any>(
+      'SELECT * FROM activity_logs WHERE user_id = $1 AND week_start = $2',
+      [req.user.id, weekStartStr]
+    );
 
     if (activityLog) {
-      db.prepare(
-        'UPDATE activity_logs SET tickets_claimed = tickets_claimed + 1 WHERE user_id = ? AND week_start = ?'
-      ).run(req.user.id, weekStartStr);
+      await dbRun(
+        'UPDATE activity_logs SET tickets_claimed = tickets_claimed + 1 WHERE user_id = $1 AND week_start = $2',
+        [req.user.id, weekStartStr]
+      );
     } else {
-      db.prepare(
-        'INSERT INTO activity_logs (user_id, week_start, tickets_claimed) VALUES (?, ?, 1)'
-      ).run(req.user.id, weekStartStr);
+      await dbRun(
+        'INSERT INTO activity_logs (user_id, week_start, tickets_claimed, messages_sent, tickets_resolved) VALUES ($1, $2, 1, 0, 0)',
+        [req.user.id, weekStartStr]
+      );
     }
 
     res.json({ message: 'Ticket claimed successfully' });
@@ -110,9 +122,10 @@ router.post('/:id/resolve', requirePermission('CLAIM_TICKETS'), async (req: Requ
     const ticketId = parseInt(req.params.id);
 
     // Check if ticket exists and is claimed by user
-    const ticket = db
-      .prepare('SELECT * FROM tickets WHERE id = ?')
-      .get(ticketId) as any;
+    const ticket = await dbGet<any>(
+      'SELECT * FROM tickets WHERE id = $1',
+      [ticketId]
+    );
 
     if (!ticket) {
       return res.status(404).json({ error: 'Ticket not found' });
@@ -127,29 +140,27 @@ router.post('/:id/resolve', requirePermission('CLAIM_TICKETS'), async (req: Requ
     }
 
     // Update ticket
-    db.prepare('UPDATE tickets SET status = ? WHERE id = ?').run('resolved', ticketId);
+    await dbRun('UPDATE tickets SET status = $1 WHERE id = $2', ['resolved', ticketId]);
 
     // Increment user's tickets_resolved count for current week
-    const weekStart = new Date();
-    const day = weekStart.getDay();
-    const diff = weekStart.getDate() - day + (day === 0 ? -6 : 1);
-    const monday = new Date(weekStart.setDate(diff));
-    monday.setHours(0, 0, 0, 0);
-    const weekStartStr = monday.toISOString().split('T')[0];
+    const weekStartStr = getCurrentWeekStart();
 
     // Check if activity log exists
-    let activityLog = db
-      .prepare('SELECT * FROM activity_logs WHERE user_id = ? AND week_start = ?')
-      .get(req.user.id, weekStartStr) as any;
+    let activityLog = await dbGet<any>(
+      'SELECT * FROM activity_logs WHERE user_id = $1 AND week_start = $2',
+      [req.user.id, weekStartStr]
+    );
 
     if (activityLog) {
-      db.prepare(
-        'UPDATE activity_logs SET tickets_resolved = tickets_resolved + 1 WHERE user_id = ? AND week_start = ?'
-      ).run(req.user.id, weekStartStr);
+      await dbRun(
+        'UPDATE activity_logs SET tickets_resolved = tickets_resolved + 1 WHERE user_id = $1 AND week_start = $2',
+        [req.user.id, weekStartStr]
+      );
     } else {
-      db.prepare(
-        'INSERT INTO activity_logs (user_id, week_start, tickets_resolved) VALUES (?, ?, 1)'
-      ).run(req.user.id, weekStartStr);
+      await dbRun(
+        'INSERT INTO activity_logs (user_id, week_start, tickets_resolved, messages_sent, tickets_claimed) VALUES ($1, $2, 1, 0, 0)',
+        [req.user.id, weekStartStr]
+      );
     }
 
     res.json({ message: 'Ticket resolved successfully' });
@@ -160,4 +171,3 @@ router.post('/:id/resolve', requirePermission('CLAIM_TICKETS'), async (req: Requ
 });
 
 export default router;
-

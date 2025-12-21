@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { authenticateToken } from '../middleware/auth';
 import { requireAdmin, requirePermission } from '../middleware/permissions';
-import { db } from '../models/database';
+import { dbGet, dbAll, dbRun } from '../utils/db-helpers';
 import { PermissionFlag } from '../utils/types';
 import { updateUserPermission } from '../services/permissions';
 
@@ -14,13 +14,11 @@ router.use(requireAdmin); // All management routes require admin
  */
 router.get('/users', async (req: Request, res: Response) => {
   try {
-    const users = db
-      .prepare(
-        `SELECT id, discord_id, discord_username, roblox_username, rank, rank_name, status, created_at
-         FROM users
-         ORDER BY rank DESC, created_at ASC`
-      )
-      .all() as any[];
+    const users = await dbAll<any>(
+      `SELECT id, discord_id, discord_username, roblox_username, rank, rank_name, status, created_at
+       FROM users
+       ORDER BY rank DESC NULLS LAST, created_at ASC`
+    );
 
     res.json(users);
   } catch (error) {
@@ -61,12 +59,12 @@ router.put('/users/:id/permissions', async (req: Request, res: Response) => {
     }
 
     // Check if user exists
-    const user = db.prepare('SELECT id FROM users WHERE id = ?').get(userId);
+    const user = await dbGet<{ id: number }>('SELECT id FROM users WHERE id = $1', [userId]);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    updateUserPermission(userId, permission as PermissionFlag, granted);
+    await updateUserPermission(userId, permission as PermissionFlag, granted);
 
     res.json({ message: 'Permission updated successfully' });
   } catch (error) {
@@ -88,15 +86,15 @@ router.put('/users/:id/status', async (req: Request, res: Response) => {
     }
 
     // Check if user exists
-    const user = db.prepare('SELECT id FROM users WHERE id = ?').get(userId);
+    const user = await dbGet<{ id: number }>('SELECT id FROM users WHERE id = $1', [userId]);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    db.prepare('UPDATE users SET status = ?, updated_at = datetime("now") WHERE id = ?').run(
+    await dbRun('UPDATE users SET status = $1, updated_at = NOW() WHERE id = $2', [
       status,
       userId
-    );
+    ]);
 
     res.json({ message: 'User status updated successfully' });
   } catch (error) {
@@ -110,9 +108,9 @@ router.put('/users/:id/status', async (req: Request, res: Response) => {
  */
 router.get('/tracked-channels', async (req: Request, res: Response) => {
   try {
-    const channels = db
-      .prepare('SELECT * FROM tracked_channels ORDER BY channel_name')
-      .all() as any[];
+    const channels = await dbAll<any>(
+      'SELECT * FROM tracked_channels ORDER BY channel_name'
+    );
 
     res.json(channels);
   } catch (error) {
@@ -133,13 +131,14 @@ router.post('/tracked-channels', async (req: Request, res: Response) => {
     }
 
     try {
-      db.prepare(
-        'INSERT INTO tracked_channels (discord_channel_id, channel_name) VALUES (?, ?)'
-      ).run(discord_channel_id, channel_name);
+      await dbRun(
+        'INSERT INTO tracked_channels (discord_channel_id, channel_name) VALUES ($1, $2)',
+        [discord_channel_id, channel_name]
+      );
 
       res.json({ message: 'Tracked channel added successfully' });
     } catch (error: any) {
-      if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      if (error.code === '23505') { // PostgreSQL unique constraint violation
         return res.status(400).json({ error: 'Channel already tracked' });
       }
       throw error;
@@ -157,9 +156,9 @@ router.delete('/tracked-channels/:id', async (req: Request, res: Response) => {
   try {
     const channelId = parseInt(req.params.id);
 
-    const result = db.prepare('DELETE FROM tracked_channels WHERE id = ?').run(channelId);
+    const result = await dbRun('DELETE FROM tracked_channels WHERE id = $1', [channelId]);
 
-    if (result.changes === 0) {
+    if (result.rowCount === 0) {
       return res.status(404).json({ error: 'Tracked channel not found' });
     }
 
@@ -171,4 +170,3 @@ router.delete('/tracked-channels/:id', async (req: Request, res: Response) => {
 });
 
 export default router;
-

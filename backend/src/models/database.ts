@@ -1,5 +1,8 @@
 import { Pool, QueryResult } from 'pg';
 
+// Re-export QueryResult for use in other files
+export type { QueryResult } from 'pg';
+
 // Create connection pool
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,

@@ -10,7 +10,7 @@ import managementRoutes from './routes/management';
 import permissionsRoutes from './routes/permissions';
 import botRoutes from './routes/bot';
 import cron from 'node-cron';
-import { db } from './models/database';
+import { dbGet, dbRun } from './utils/db-helpers';
 
 dotenv.config();
 
@@ -59,7 +59,7 @@ app.get('/health', (req, res) => {
 /**
  * Weekly quota check and infraction issuance (runs every Monday at 12:00 AM UTC)
  */
-function checkWeeklyQuotas() {
+async function checkWeeklyQuotas() {
   try {
     // Get current week start
     const now = new Date();
@@ -71,42 +71,38 @@ function checkWeeklyQuotas() {
     const lastWeekStart = monday.toISOString().split('T')[0];
 
     // Get all users who didn't meet quota
-    const activityLogs = db
-      .prepare(
-        `SELECT user_id, messages_sent 
-         FROM activity_logs 
-         WHERE week_start = ? AND messages_sent < 150`
-      )
-      .all(lastWeekStart) as { user_id: number; messages_sent: number }[];
+    const result = await dbRun(
+      `SELECT user_id, messages_sent 
+       FROM activity_logs 
+       WHERE week_start = $1 AND messages_sent < 150`,
+      [lastWeekStart]
+    );
+    const activityLogs = result.rows as { user_id: number; messages_sent: number }[];
 
     // Issue infractions
-    activityLogs.forEach((log) => {
+    for (const log of activityLogs) {
       // Check if infraction already issued for this week
-      const existing = db
-        .prepare(
-          `SELECT id FROM infractions 
-           WHERE user_id = ? 
-           AND reason LIKE ? 
-           AND voided = 0 
-           AND created_at > datetime(?, '-7 days')`
-        )
-        .get(
-          log.user_id,
-          `Failed to meet 150 messages this week%`,
-          lastWeekStart
-        );
+      const existing = await dbGet<{ id: number }>(
+        `SELECT id FROM infractions 
+         WHERE user_id = $1 
+         AND reason LIKE $2 
+         AND voided = false 
+         AND created_at > $3::timestamp - interval '7 days'`,
+        [log.user_id, `Failed to meet 150 messages this week%`, lastWeekStart]
+      );
 
       if (!existing) {
-        db.prepare(
+        await dbRun(
           `INSERT INTO infractions (user_id, reason, type, issued_by)
-           VALUES (?, ?, ?, NULL)`
-        ).run(
-          log.user_id,
-          `Failed to meet 150 messages this week. Only sent ${log.messages_sent} messages.`,
-          'warning'
+           VALUES ($1, $2, $3, NULL)`,
+          [
+            log.user_id,
+            `Failed to meet 150 messages this week. Only sent ${log.messages_sent} messages.`,
+            'warning'
+          ]
         );
       }
-    });
+    }
 
     console.log(`Checked weekly quotas and issued ${activityLogs.length} infractions`);
   } catch (error) {

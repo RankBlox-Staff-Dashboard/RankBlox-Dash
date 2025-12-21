@@ -1,11 +1,11 @@
-import { db } from '../models/database';
+import { dbGet, dbRun } from '../utils/db-helpers';
 import { PermissionFlag } from '../utils/types';
 import { getUserPermissions } from '../middleware/permissions';
 
 /**
  * Initialize default permissions for a user based on their rank
  */
-export function initializeUserPermissions(userId: number, rank: number | null): void {
+export async function initializeUserPermissions(userId: number, rank: number | null): Promise<void> {
   if (rank === null) {
     return;
   }
@@ -28,48 +28,53 @@ export function initializeUserPermissions(userId: number, rank: number | null): 
       ]
     : ['VIEW_DASHBOARD', 'VIEW_TICKETS', 'CLAIM_TICKETS', 'VIEW_INFRACTIONS'];
 
-  defaultPermissions.forEach((perm) => {
+  for (const perm of defaultPermissions) {
     // Check if permission already exists
-    const existing = db
-      .prepare('SELECT id FROM permissions WHERE user_id = ? AND permission_flag = ?')
-      .get(userId, perm);
+    const existing = await dbGet<{ id: number }>(
+      'SELECT id FROM permissions WHERE user_id = $1 AND permission_flag = $2',
+      [userId, perm]
+    );
 
     if (!existing) {
-      db.prepare(
-        'INSERT INTO permissions (user_id, permission_flag, granted, overridden) VALUES (?, ?, ?, ?)'
-      ).run(userId, perm, 1, 0);
+      await dbRun(
+        'INSERT INTO permissions (user_id, permission_flag, granted, overridden) VALUES ($1, $2, $3, $4)',
+        [userId, perm, true, false]
+      );
     }
-  });
+  }
 }
 
 /**
  * Update a user's permission (override)
  */
-export function updateUserPermission(
+export async function updateUserPermission(
   userId: number,
   permission: PermissionFlag,
   granted: boolean
-): void {
-  const existing = db
-    .prepare('SELECT id FROM permissions WHERE user_id = ? AND permission_flag = ?')
-    .get(userId, permission);
+): Promise<void> {
+  const existing = await dbGet<{ id: number }>(
+    'SELECT id FROM permissions WHERE user_id = $1 AND permission_flag = $2',
+    [userId, permission]
+  );
 
   if (existing) {
-    db.prepare(
-      'UPDATE permissions SET granted = ?, overridden = ? WHERE user_id = ? AND permission_flag = ?'
-    ).run(granted ? 1 : 0, 1, userId, permission);
+    await dbRun(
+      'UPDATE permissions SET granted = $1, overridden = $2 WHERE user_id = $3 AND permission_flag = $4',
+      [granted, true, userId, permission]
+    );
   } else {
-    db.prepare(
-      'INSERT INTO permissions (user_id, permission_flag, granted, overridden) VALUES (?, ?, ?, ?)'
-    ).run(userId, permission, granted ? 1 : 0, 1);
+    await dbRun(
+      'INSERT INTO permissions (user_id, permission_flag, granted, overridden) VALUES ($1, $2, $3, $4)',
+      [userId, permission, granted, true]
+    );
   }
 }
 
 /**
  * Get all permissions for a user as an array
  */
-export function getUserPermissionsArray(userId: number): PermissionFlag[] {
-  const permissions = getUserPermissions(userId);
+export async function getUserPermissionsArray(userId: number): Promise<PermissionFlag[]> {
+  const permissions = await getUserPermissions(userId);
   return Array.from(permissions);
 }
 

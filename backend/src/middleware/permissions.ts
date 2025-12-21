@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { PermissionFlag } from '../utils/types';
-import { db } from '../models/database';
+import { dbGet, dbAll } from '../utils/db-helpers';
 
 // Default permissions by rank
 const DEFAULT_STAFF_PERMISSIONS: PermissionFlag[] = [
@@ -24,10 +24,11 @@ const DEFAULT_ADMIN_PERMISSIONS: PermissionFlag[] = [
 /**
  * Get all permissions for a user (defaults + overrides)
  */
-export function getUserPermissions(userId: number): Set<PermissionFlag> {
-  const user = db
-    .prepare('SELECT rank FROM users WHERE id = ?')
-    .get(userId) as { rank: number | null } | undefined;
+export async function getUserPermissions(userId: number): Promise<Set<PermissionFlag>> {
+  const user = await dbGet<{ rank: number | null }>(
+    'SELECT rank FROM users WHERE id = $1',
+    [userId]
+  );
 
   if (!user) {
     return new Set();
@@ -48,9 +49,10 @@ export function getUserPermissions(userId: number): Set<PermissionFlag> {
   defaultPermissions.forEach((perm) => permissions.add(perm));
 
   // Apply overrides from database
-  const overrides = db
-    .prepare('SELECT permission_flag, granted FROM permissions WHERE user_id = ?')
-    .all(userId) as { permission_flag: string; granted: number }[];
+  const overrides = await dbAll<{ permission_flag: string; granted: boolean }>(
+    'SELECT permission_flag, granted FROM permissions WHERE user_id = $1',
+    [userId]
+  );
 
   overrides.forEach((override) => {
     if (override.granted) {
@@ -67,13 +69,13 @@ export function getUserPermissions(userId: number): Set<PermissionFlag> {
  * Middleware to check if user has a specific permission
  */
 export function requirePermission(permission: PermissionFlag) {
-  return (req: Request, res: Response, next: NextFunction): void => {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     if (!req.user) {
       res.status(401).json({ error: 'Authentication required' });
       return;
     }
 
-    const permissions = getUserPermissions(req.user.id);
+    const permissions = await getUserPermissions(req.user.id);
 
     if (!permissions.has(permission)) {
       res.status(403).json({ error: 'Insufficient permissions' });
@@ -104,8 +106,8 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction): v
 /**
  * Helper to check permission without middleware
  */
-export function hasPermission(userId: number, permission: PermissionFlag): boolean {
-  const permissions = getUserPermissions(userId);
+export async function hasPermission(userId: number, permission: PermissionFlag): Promise<boolean> {
+  const permissions = await getUserPermissions(userId);
   return permissions.has(permission);
 }
 

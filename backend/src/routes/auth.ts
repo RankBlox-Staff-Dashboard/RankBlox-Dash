@@ -74,7 +74,7 @@ router.get('/discord/callback', async (req: Request, res: Response) => {
 
     // Initialize permissions if user just verified Roblox
     if (user.status === 'active' && user.rank !== null) {
-      initializeUserPermissions(user.id, user.rank);
+      await initializeUserPermissions(user.id, user.rank);
     }
 
     // Redirect to frontend with token
