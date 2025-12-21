@@ -36,7 +36,12 @@ export function LoginPage() {
   }, [user, isVerified, navigate, searchParams]);
 
   const handleDiscordLogin = () => {
-    window.location.href = `${import.meta.env.VITE_API_URL || '/api'}/auth/discord`;
+    const apiUrl = import.meta.env.VITE_API_URL || '/api';
+    // Ensure we have a full URL for the redirect
+    const oauthUrl = apiUrl.startsWith('http') 
+      ? `${apiUrl}/auth/discord`
+      : `${window.location.origin}${apiUrl}/auth/discord`;
+    window.location.href = oauthUrl;
   };
 
   const handleRequestCode = async () => {
