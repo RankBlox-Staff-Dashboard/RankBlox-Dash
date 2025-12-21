@@ -24,15 +24,27 @@ interface DiscordUser {
  * Exchange Discord OAuth code for access token
  */
 export async function exchangeDiscordCode(code: string): Promise<string | null> {
+  // Validate environment variables
+  if (!CLIENT_ID || !CLIENT_SECRET || !REDIRECT_URI) {
+    console.error('Missing Discord OAuth environment variables:', {
+      hasClientId: !!CLIENT_ID,
+      hasClientSecret: !!CLIENT_SECRET,
+      hasRedirectUri: !!REDIRECT_URI,
+      redirectUri: REDIRECT_URI,
+    });
+    return null;
+  }
+
   try {
+    console.log('Exchanging Discord code with redirect_uri:', REDIRECT_URI);
     const response = await axios.post(
       'https://discord.com/api/oauth2/token',
       new URLSearchParams({
-        client_id: CLIENT_ID!,
-        client_secret: CLIENT_SECRET!,
+        client_id: CLIENT_ID,
+        client_secret: CLIENT_SECRET,
         grant_type: 'authorization_code',
         code: code,
-        redirect_uri: REDIRECT_URI!,
+        redirect_uri: REDIRECT_URI,
       }),
       {
         headers: {

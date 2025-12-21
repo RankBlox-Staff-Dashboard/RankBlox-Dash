@@ -65,8 +65,10 @@ router.get('/discord/callback', async (req: Request, res: Response) => {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
 
+    // Delete any existing sessions for this user first, then create new one
+    await dbRun('DELETE FROM sessions WHERE user_id = $1', [user.id]);
     await dbRun(
-      'INSERT INTO sessions (id, user_id, token, expires_at) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO UPDATE SET user_id = $2, token = $3, expires_at = $4',
+      'INSERT INTO sessions (id, user_id, token, expires_at) VALUES ($1, $2, $3, $4)',
       [sessionId, user.id, token, expiresAt.toISOString()]
     );
 

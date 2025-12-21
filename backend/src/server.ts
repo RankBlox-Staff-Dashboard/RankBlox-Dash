@@ -14,9 +14,23 @@ import { db } from './models/database';
 
 dotenv.config();
 
+// Validate environment variables
+import { validateEnv } from './utils/env-validator';
+const envCheck = validateEnv();
+if (!envCheck.valid) {
+  console.error('Missing required environment variables:', envCheck.missing);
+  console.error('Please set the following environment variables:');
+  envCheck.missing.forEach(key => console.error(`  - ${key}`));
+  process.exit(1);
+}
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+
+console.log('Environment check passed');
+console.log('Frontend URL:', FRONTEND_URL);
+console.log('Discord Redirect URI:', process.env.DISCORD_REDIRECT_URI);
 
 // Middleware
 app.use(cors({

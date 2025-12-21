@@ -38,10 +38,10 @@ export async function authenticateToken(
   try {
     const decoded = jwt.verify(token, jwtSecret) as JwtPayload;
     
-    // Verify session still exists and is valid
+    // Verify session still exists and is valid (check by token instead of id)
     const session = await dbGet<{ id: string; user_id: number; token: string; expires_at: Date }>(
-      'SELECT * FROM sessions WHERE id = $1 AND expires_at > NOW()',
-      [decoded.userId.toString()]
+      'SELECT * FROM sessions WHERE token = $1 AND expires_at > NOW()',
+      [token]
     );
 
     if (!session) {

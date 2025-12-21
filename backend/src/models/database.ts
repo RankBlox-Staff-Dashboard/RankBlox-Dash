@@ -44,6 +44,11 @@ export async function initializeDatabase(): Promise<void> {
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )
     `);
+    
+    // Create index on token for faster lookups
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token)
+    `);
 
     // Verification codes table
     await client.query(`
