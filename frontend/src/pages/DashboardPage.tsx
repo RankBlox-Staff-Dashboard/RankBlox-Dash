@@ -1,4 +1,3 @@
-import React from 'react';
 import { ProfileCard } from '../components/ProfileCard';
 import { StatsCard } from '../components/StatsCard';
 import { QuotaProgressBar } from '../components/QuotaProgressBar';

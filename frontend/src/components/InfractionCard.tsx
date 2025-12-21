@@ -1,4 +1,3 @@
-import React from 'react';
 import type { Infraction } from '../types';
 
 interface InfractionCardProps {

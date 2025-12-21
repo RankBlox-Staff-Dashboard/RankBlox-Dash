@@ -1,10 +1,7 @@
-import React from 'react';
-import { useAuth } from '../context/AuthContext';
 import { authAPI } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 
 export function SettingsPage() {
-  const { user } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = async () => {

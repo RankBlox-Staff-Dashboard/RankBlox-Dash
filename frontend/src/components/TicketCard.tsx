@@ -1,4 +1,3 @@
-import React from 'react';
 import type { Ticket } from '../types';
 import { ticketsAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';

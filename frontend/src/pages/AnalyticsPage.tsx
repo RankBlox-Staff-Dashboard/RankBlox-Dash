@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { StatsCard } from '../components/StatsCard';
 import { dashboardAPI } from '../services/api';
 import { useStats } from '../hooks/useStats';
