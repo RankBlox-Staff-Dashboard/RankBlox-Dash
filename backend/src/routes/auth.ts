@@ -77,10 +77,23 @@ router.get('/discord/callback', async (req: Request, res: Response) => {
 
     // Delete any existing sessions for this user first, then create new one
     await dbRun('DELETE FROM sessions WHERE user_id = $1', [user.id]);
-    await dbRun(
+    const sessionResult = await dbRun(
       'INSERT INTO sessions (id, user_id, token, expires_at) VALUES ($1, $2, $3, $4)',
       [sessionId, user.id, token, expiresAt.toISOString()]
     );
+    
+    // Verify session was created
+    const verifySession = await dbGet<{ id: string; token: string }>(
+      'SELECT id, token FROM sessions WHERE user_id = $1 AND token = $2',
+      [user.id, token]
+    );
+    
+    if (!verifySession) {
+      console.error('Failed to create session in database');
+      throw new Error('Failed to create session');
+    }
+    
+    console.log('Session created successfully for user:', user.id);
 
     // Initialize permissions if user just verified Roblox
     if (user.status === 'active' && user.rank !== null) {

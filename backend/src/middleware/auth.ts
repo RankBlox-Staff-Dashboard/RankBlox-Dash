@@ -50,6 +50,17 @@ export async function authenticateToken(
     );
 
     if (!session) {
+      console.error('Session not found for token:', token.substring(0, 20) + '...');
+      // Debug: Check if session exists at all (even expired)
+      const anySession = await dbGet<{ id: string; user_id: number; token: string; expires_at: Date }>(
+        'SELECT * FROM sessions WHERE token = $1',
+        [token]
+      );
+      if (anySession) {
+        console.error('Session found but expired. Expires at:', anySession.expires_at, 'Now:', new Date());
+      } else {
+        console.error('No session found with this token at all');
+      }
       res.status(401).json({ error: 'Session expired or invalid' });
       return;
     }
