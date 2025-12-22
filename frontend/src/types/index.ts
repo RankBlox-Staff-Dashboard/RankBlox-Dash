@@ -1,3 +1,12 @@
+export interface VerificationStatus {
+  discord: boolean;
+  roblox: boolean;
+  active: boolean;
+  rank: boolean;
+  complete: boolean;
+  next_step: 'discord' | 'roblox' | 'activation' | 'rank' | null;
+}
+
 export interface User {
   id: number;
   discord_id: string;
@@ -8,6 +17,8 @@ export interface User {
   rank_name: string | null;
   status: 'active' | 'inactive' | 'pending_verification';
   created_at: string;
+  // Backend-computed verification status - single source of truth
+  verification?: VerificationStatus;
 }
 
 export interface Stats {
