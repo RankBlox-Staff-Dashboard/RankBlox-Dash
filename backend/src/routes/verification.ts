@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { authenticateToken } from '../middleware/auth';
 import { verifyRobloxUser } from '../services/roblox';
-import { dbGet, dbRun } from '../utils/db-helpers';
+import { db } from '../models/database';
 import { initializeUserPermissions } from '../services/permissions';
 
 const router = Router();
@@ -37,10 +37,11 @@ router.post('/roblox/request', async (req: Request, res: Response) => {
 
   try {
     // Check if user already has an active verification code
-    const existing = await dbGet<any>(
-      'SELECT * FROM verification_codes WHERE user_id = $1 AND used = false AND expires_at > NOW()',
-      [req.user.id]
-    );
+    const existing = db
+      .prepare(
+        'SELECT * FROM verification_codes WHERE user_id = ? AND used = 0 AND expires_at > datetime("now")'
+      )
+      .get(req.user.id) as any;
 
     if (existing) {
       return res.json({
@@ -55,10 +56,9 @@ router.post('/roblox/request', async (req: Request, res: Response) => {
     const expiresAt = new Date();
     expiresAt.setMinutes(expiresAt.getMinutes() + 5); // 5 minutes expiry
 
-    await dbRun(
-      'INSERT INTO verification_codes (user_id, emoji_code, expires_at, used) VALUES ($1, $2, $3, $4)',
-      [req.user.id, emojiCode, expiresAt.toISOString(), false]
-    );
+    db.prepare(
+      'INSERT INTO verification_codes (user_id, emoji_code, expires_at, used) VALUES (?, ?, ?, ?)'
+    ).run(req.user.id, emojiCode, expiresAt.toISOString(), 0);
 
     res.json({
       emoji_code: emojiCode,
@@ -87,10 +87,11 @@ router.post('/roblox/verify', async (req: Request, res: Response) => {
 
   try {
     // Find active verification code
-    const codeRecord = await dbGet<any>(
-      'SELECT * FROM verification_codes WHERE user_id = $1 AND emoji_code = $2 AND used = false AND expires_at > NOW()',
-      [req.user.id, emoji_code]
-    );
+    const codeRecord = db
+      .prepare(
+        'SELECT * FROM verification_codes WHERE user_id = ? AND emoji_code = ? AND used = 0 AND expires_at > datetime("now")'
+      )
+      .get(req.user.id, emoji_code) as any;
 
     if (!codeRecord) {
       return res.status(400).json({ error: 'Invalid or expired verification code' });
@@ -106,24 +107,23 @@ router.post('/roblox/verify', async (req: Request, res: Response) => {
     }
 
     // Update user with Roblox info
-    await dbRun(
+    db.prepare(
       `UPDATE users 
-       SET roblox_id = $1, roblox_username = $2, rank = $3, rank_name = $4, status = 'active', updated_at = NOW()
-       WHERE id = $5`,
-      [
-        verificationResult.userId.toString(),
-        verificationResult.username,
-        verificationResult.rank,
-        verificationResult.rankName,
-        req.user.id
-      ]
+       SET roblox_id = ?, roblox_username = ?, rank = ?, rank_name = ?, status = 'active', updated_at = datetime('now')
+       WHERE id = ?`
+    ).run(
+      verificationResult.userId.toString(),
+      verificationResult.username,
+      verificationResult.rank,
+      verificationResult.rankName,
+      req.user.id
     );
 
     // Mark verification code as used
-    await dbRun('UPDATE verification_codes SET used = true WHERE id = $1', [codeRecord.id]);
+    db.prepare('UPDATE verification_codes SET used = 1 WHERE id = ?').run(codeRecord.id);
 
     // Initialize permissions
-    await initializeUserPermissions(req.user.id, verificationResult.rank);
+    initializeUserPermissions(req.user.id, verificationResult.rank);
 
     res.json({
       message: 'Verification successful',
@@ -140,32 +140,23 @@ router.post('/roblox/verify', async (req: Request, res: Response) => {
 /**
  * Check verification status
  */
-router.get('/roblox/status', async (req: Request, res: Response) => {
+router.get('/roblox/status', (req: Request, res: Response) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Authentication required' });
   }
 
-  try {
-    const user = await dbGet<any>(
-      'SELECT roblox_id, roblox_username, rank, rank_name, status FROM users WHERE id = $1',
-      [req.user.id]
-    );
+  const user = db
+    .prepare('SELECT roblox_id, roblox_username, rank, rank_name, status FROM users WHERE id = ?')
+    .get(req.user.id) as any;
 
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    res.json({
-      verified: user.roblox_id !== null,
-      roblox_username: user.roblox_username,
-      rank: user.rank,
-      rank_name: user.rank_name,
-      status: user.status,
-    });
-  } catch (error) {
-    console.error('Error fetching verification status:', error);
-    res.status(500).json({ error: 'Failed to fetch verification status' });
-  }
+  res.json({
+    verified: user.roblox_id !== null,
+    roblox_username: user.roblox_username,
+    rank: user.rank,
+    rank_name: user.rank_name,
+    status: user.status,
+  });
 });
 
 export default router;
+

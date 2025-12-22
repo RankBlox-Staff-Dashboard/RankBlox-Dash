@@ -1,19 +1,7 @@
 import { Router, Request, Response } from 'express';
-import { dbGet, dbAll, dbRun } from '../utils/db-helpers';
+import { db } from '../models/database';
 
 const router = Router();
-
-/**
- * Get current week start (Monday)
- */
-function getCurrentWeekStart(): string {
-  const now = new Date();
-  const day = now.getDay();
-  const diff = now.getDate() - day + (day === 0 ? -6 : 1);
-  const monday = new Date(now.setDate(diff));
-  monday.setHours(0, 0, 0, 0);
-  return monday.toISOString().split('T')[0];
-}
 
 /**
  * Bot activity endpoint - receives activity updates from Discord bot
@@ -27,34 +15,35 @@ router.post('/activity', async (req: Request, res: Response) => {
     }
 
     // Find user by Discord ID
-    const user = await dbGet<{ id: number }>(
-      'SELECT id FROM users WHERE discord_id = $1',
-      [discord_id]
-    );
+    const user = db
+      .prepare('SELECT id FROM users WHERE discord_id = ?')
+      .get(discord_id) as { id: number } | undefined;
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
     // Get current week start
-    const weekStartStr = getCurrentWeekStart();
+    const now = new Date();
+    const day = now.getDay();
+    const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(now.setDate(diff));
+    monday.setHours(0, 0, 0, 0);
+    const weekStartStr = monday.toISOString().split('T')[0];
 
     // Update or create activity log
-    const existing = await dbGet<any>(
-      'SELECT * FROM activity_logs WHERE user_id = $1 AND week_start = $2',
-      [user.id, weekStartStr]
-    );
+    const existing = db
+      .prepare('SELECT * FROM activity_logs WHERE user_id = ? AND week_start = ?')
+      .get(user.id, weekStartStr) as any;
 
     if (existing) {
-      await dbRun(
-        'UPDATE activity_logs SET messages_sent = $1 WHERE user_id = $2 AND week_start = $3',
-        [messages_count, user.id, weekStartStr]
-      );
+      db.prepare(
+        'UPDATE activity_logs SET messages_sent = ? WHERE user_id = ? AND week_start = ?'
+      ).run(messages_count, user.id, weekStartStr);
     } else {
-      await dbRun(
-        'INSERT INTO activity_logs (user_id, week_start, messages_sent, tickets_claimed, tickets_resolved) VALUES ($1, $2, $3, 0, 0)',
-        [user.id, weekStartStr, messages_count]
-      );
+      db.prepare(
+        'INSERT INTO activity_logs (user_id, week_start, messages_sent) VALUES (?, ?, ?)'
+      ).run(user.id, weekStartStr, messages_count);
     }
 
     res.json({ message: 'Activity updated successfully' });
@@ -76,24 +65,24 @@ router.post('/tickets', async (req: Request, res: Response) => {
     }
 
     // Check if ticket already exists
-    const existing = await dbGet<any>(
-      'SELECT * FROM tickets WHERE discord_channel_id = $1',
-      [discord_channel_id]
-    );
+    const existing = db
+      .prepare('SELECT * FROM tickets WHERE discord_channel_id = ?')
+      .get(discord_channel_id) as any;
 
     if (existing) {
       return res.status(400).json({ error: 'Ticket already exists for this channel' });
     }
 
     // Create ticket
-    const result = await dbRun(
-      'INSERT INTO tickets (discord_channel_id, discord_message_id, status) VALUES ($1, $2, $3) RETURNING id',
-      [discord_channel_id, discord_message_id || null, 'open']
-    );
+    const result = db
+      .prepare(
+        'INSERT INTO tickets (discord_channel_id, discord_message_id, status) VALUES (?, ?, ?)'
+      )
+      .run(discord_channel_id, discord_message_id || null, 'open');
 
     res.json({
       message: 'Ticket created successfully',
-      ticket_id: result.rows[0].id,
+      ticket_id: result.lastInsertRowid,
     });
   } catch (error) {
     console.error('Error creating ticket:', error);
@@ -108,10 +97,11 @@ router.get('/user/:discord_id', async (req: Request, res: Response) => {
   try {
     const discordId = req.params.discord_id;
 
-    const user = await dbGet<any>(
-      'SELECT id, discord_id, discord_username, roblox_username, rank, rank_name, status FROM users WHERE discord_id = $1',
-      [discordId]
-    );
+    const user = db
+      .prepare(
+        'SELECT id, discord_id, discord_username, roblox_username, rank, rank_name, status FROM users WHERE discord_id = ?'
+      )
+      .get(discordId) as any;
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
@@ -129,9 +119,9 @@ router.get('/user/:discord_id', async (req: Request, res: Response) => {
  */
 router.get('/tracked-channels', async (req: Request, res: Response) => {
   try {
-    const channels = await dbAll<any>(
-      'SELECT discord_channel_id, channel_name FROM tracked_channels'
-    );
+    const channels = db
+      .prepare('SELECT discord_channel_id, channel_name FROM tracked_channels')
+      .all() as any[];
 
     res.json(channels);
   } catch (error) {
@@ -141,3 +131,4 @@ router.get('/tracked-channels', async (req: Request, res: Response) => {
 });
 
 export default router;
+

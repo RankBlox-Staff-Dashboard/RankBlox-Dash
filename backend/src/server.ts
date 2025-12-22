@@ -10,27 +10,13 @@ import managementRoutes from './routes/management';
 import permissionsRoutes from './routes/permissions';
 import botRoutes from './routes/bot';
 import cron from 'node-cron';
-import { dbGet, dbRun } from './utils/db-helpers';
+import { db } from './models/database';
 
 dotenv.config();
-
-// Validate environment variables
-import { validateEnv } from './utils/env-validator';
-const envCheck = validateEnv();
-if (!envCheck.valid) {
-  console.error('Missing required environment variables:', envCheck.missing);
-  console.error('Please set the following environment variables:');
-  envCheck.missing.forEach(key => console.error(`  - ${key}`));
-  process.exit(1);
-}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
-
-console.log('Environment check passed');
-console.log('Frontend URL:', FRONTEND_URL);
-console.log('Discord Redirect URI:', process.env.DISCORD_REDIRECT_URI);
 
 // Middleware
 app.use(cors({
@@ -59,7 +45,7 @@ app.get('/health', (req, res) => {
 /**
  * Weekly quota check and infraction issuance (runs every Monday at 12:00 AM UTC)
  */
-async function checkWeeklyQuotas() {
+function checkWeeklyQuotas() {
   try {
     // Get current week start
     const now = new Date();
@@ -71,38 +57,42 @@ async function checkWeeklyQuotas() {
     const lastWeekStart = monday.toISOString().split('T')[0];
 
     // Get all users who didn't meet quota
-    const result = await dbRun(
-      `SELECT user_id, messages_sent 
-       FROM activity_logs 
-       WHERE week_start = $1 AND messages_sent < 150`,
-      [lastWeekStart]
-    );
-    const activityLogs = result.rows as { user_id: number; messages_sent: number }[];
+    const activityLogs = db
+      .prepare(
+        `SELECT user_id, messages_sent 
+         FROM activity_logs 
+         WHERE week_start = ? AND messages_sent < 150`
+      )
+      .all(lastWeekStart) as { user_id: number; messages_sent: number }[];
 
     // Issue infractions
-    for (const log of activityLogs) {
+    activityLogs.forEach((log) => {
       // Check if infraction already issued for this week
-      const existing = await dbGet<{ id: number }>(
-        `SELECT id FROM infractions 
-         WHERE user_id = $1 
-         AND reason LIKE $2 
-         AND voided = false 
-         AND created_at > $3::timestamp - interval '7 days'`,
-        [log.user_id, `Failed to meet 150 messages this week%`, lastWeekStart]
-      );
+      const existing = db
+        .prepare(
+          `SELECT id FROM infractions 
+           WHERE user_id = ? 
+           AND reason LIKE ? 
+           AND voided = 0 
+           AND created_at > datetime(?, '-7 days')`
+        )
+        .get(
+          log.user_id,
+          `Failed to meet 150 messages this week%`,
+          lastWeekStart
+        );
 
       if (!existing) {
-        await dbRun(
+        db.prepare(
           `INSERT INTO infractions (user_id, reason, type, issued_by)
-           VALUES ($1, $2, $3, NULL)`,
-          [
-            log.user_id,
-            `Failed to meet 150 messages this week. Only sent ${log.messages_sent} messages.`,
-            'warning'
-          ]
+           VALUES (?, ?, ?, NULL)`
+        ).run(
+          log.user_id,
+          `Failed to meet 150 messages this week. Only sent ${log.messages_sent} messages.`,
+          'warning'
         );
       }
-    }
+    });
 
     console.log(`Checked weekly quotas and issued ${activityLogs.length} infractions`);
   } catch (error) {

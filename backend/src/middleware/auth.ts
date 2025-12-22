@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { JwtPayload } from '../utils/types';
-import { dbGet } from '../utils/db-helpers';
+import { db } from '../models/database';
 
 // Extend Express Request to include user
 declare global {
@@ -11,26 +11,20 @@ declare global {
         id: number;
         discordId: string;
         rank: number | null;
-        status?: string;
       };
     }
   }
 }
 
-/**
- * Authenticate token - allows all authenticated users (pending_verification, active, etc.)
- * Use requireActiveStatus for routes that need active users only
- */
-export async function authenticateToken(
+export function authenticateToken(
   req: Request,
   res: Response,
   next: NextFunction
-): Promise<void> {
-  const authHeader = (req.headers['authorization'] || req.headers['Authorization']) as string | undefined;
+): void {
+  const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
   if (!token) {
-    console.error('No token provided in request. Headers:', Object.keys(req.headers));
     res.status(401).json({ error: 'Authentication required' });
     return;
   }
@@ -44,25 +38,23 @@ export async function authenticateToken(
   try {
     const decoded = jwt.verify(token, jwtSecret) as JwtPayload;
     
-    // Get user info first
-    const user = await dbGet<{ id: number; discord_id: string; rank: number | null; status: string }>(
-      'SELECT id, discord_id, rank, status FROM users WHERE id = $1',
-      [decoded.userId]
-    );
-
-    if (!user) {
-      res.status(404).json({ error: 'User not found' });
-      return;
-    }
-
-    // Verify session still exists and is valid (check by token and user_id)
-    const session = await dbGet<{ id: string; user_id: number; token: string; expires_at: Date }>(
-      'SELECT * FROM sessions WHERE token = $1 AND user_id = $2 AND expires_at > NOW()',
-      [token, decoded.userId]
-    );
+    // Verify session still exists and is valid
+    const session = db
+      .prepare('SELECT * FROM sessions WHERE id = ? AND expires_at > datetime("now")')
+      .get(decoded.userId.toString()) as { id: string; user_id: number; token: string; expires_at: string } | undefined;
 
     if (!session) {
       res.status(401).json({ error: 'Session expired or invalid' });
+      return;
+    }
+
+    // Get user to ensure they're still active
+    const user = db
+      .prepare('SELECT id, discord_id, rank, status FROM users WHERE id = ?')
+      .get(decoded.userId) as { id: number; discord_id: string; rank: number | null; status: string } | undefined;
+
+    if (!user || user.status !== 'active') {
+      res.status(403).json({ error: 'Account is not active' });
       return;
     }
 
@@ -70,7 +62,6 @@ export async function authenticateToken(
       id: user.id,
       discordId: user.discord_id,
       rank: user.rank,
-      status: user.status,
     };
 
     next();
@@ -81,30 +72,6 @@ export async function authenticateToken(
     }
     res.status(500).json({ error: 'Authentication error' });
   }
-}
-
-/**
- * Middleware to require active status (for protected routes like dashboard, tickets, etc.)
- */
-export function requireActiveStatus(
-  req: Request,
-  res: Response,
-  next: NextFunction
-): void {
-  if (!req.user) {
-    res.status(401).json({ error: 'Authentication required' });
-    return;
-  }
-
-  if (req.user.status !== 'active') {
-    res.status(403).json({ 
-      error: 'Account verification required',
-      status: req.user.status 
-    });
-    return;
-  }
-
-  next();
 }
 
 export function generateToken(userId: number, discordId: string, rank: number | null): string {
@@ -122,3 +89,4 @@ export function generateToken(userId: number, discordId: string, rank: number | 
   // Token expires in 7 days
   return jwt.sign(payload, jwtSecret, { expiresIn: '7d' });
 }
+
