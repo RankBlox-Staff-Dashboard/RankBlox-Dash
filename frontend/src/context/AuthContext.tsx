@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
-import { authAPI, verificationAPI } from '../services/api';
+import { authAPI } from '../services/api';
 import type { User, VerificationStatus } from '../types';
 
 interface AuthContextType {
@@ -33,6 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [verification, setVerification] = useState<VerificationStatus | null>(null);
 
   const logout = useCallback(() => {
+    authAPI.logout().catch(() => {});
     if (typeof window !== 'undefined') {
       localStorage.removeItem('token');
     }
@@ -48,16 +49,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshUser = useCallback(async (): Promise<User | null> => {
     try {
-      if (typeof window === 'undefined') return null;
-      
-      const token = localStorage.getItem('token');
-      if (!token) {
-        setUser(null);
-        setVerification(null);
-        setLoading(false);
-        return null;
-      }
-
       const response = await authAPI.getMe();
       const userData = response.data;
       

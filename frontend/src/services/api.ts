@@ -16,9 +16,11 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  // Send cookies for session/refresh token rotation
+  withCredentials: true,
 });
 
-// Add token to requests
+// Add token to requests (backward compatibility for existing storage)
 api.interceptors.request.use((config) => {
   if (typeof window !== 'undefined') {
     const token = localStorage.getItem('token');
@@ -31,16 +33,44 @@ api.interceptors.request.use((config) => {
 
 // Track if we're already redirecting to prevent loops
 let isRedirecting = false;
+let refreshPromise: Promise<string | null> | null = null;
 
-// Handle auth errors
+async function triggerRefresh(): Promise<string | null> {
+  try {
+    const result = await authAPI.refresh();
+    const token = result.data?.token as string | undefined;
+    if (token && typeof window !== 'undefined') {
+      localStorage.setItem('token', token);
+    }
+    return token || null;
+  } catch (err) {
+    return null;
+  }
+}
+
+// Handle auth errors with silent refresh
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    // Only handle 401 errors for automatic redirect
-    // 403 errors mean user is authenticated but not authorized (e.g., not verified)
-    if (error.response?.status === 401) {
+  async (error) => {
+    const { config, response } = error;
+    const status = response?.status;
+
+    if (status === 401 && config && !(config as any).__isRetryRequest) {
+      (config as any).__isRetryRequest = true;
+      if (!refreshPromise) {
+        refreshPromise = triggerRefresh().finally(() => {
+          refreshPromise = null;
+        });
+      }
+      const newToken = await refreshPromise;
+
+      if (newToken) {
+        config.headers = config.headers || {};
+        config.headers.Authorization = `Bearer ${newToken}`;
+        return api(config);
+      }
+
       if (typeof window !== 'undefined' && !isRedirecting) {
-        // Check if we're NOT already on login-related pages to prevent loops
         const currentPath = window.location.pathname;
         const isAuthPage = currentPath === '/login' || 
                           currentPath.startsWith('/auth/') ||
@@ -49,10 +79,7 @@ api.interceptors.response.use(
         if (!isAuthPage) {
           isRedirecting = true;
           localStorage.removeItem('token');
-          // Use replace to prevent back button issues
           window.location.replace('/login');
-          
-          // Reset flag after a delay (in case redirect doesn't happen)
           setTimeout(() => { isRedirecting = false; }, 2000);
         }
       }
@@ -64,6 +91,7 @@ api.interceptors.response.use(
 // Auth API
 export const authAPI = {
   getMe: () => api.get<User>('/auth/me'),
+  refresh: () => api.post<{ token: string; expires_in: number }>('/auth/refresh'),
   logout: () => api.post('/auth/logout'),
 };
 
