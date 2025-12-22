@@ -4,7 +4,6 @@ import { JwtPayload } from '../utils/types';
 import { db } from '../models/database';
 import crypto from 'crypto';
 import { isImmuneRank } from '../utils/immunity';
-import { logSecurityEvent, getClientIp, getUserAgent } from '../utils/security';
 
 // Extended user info attached to request
 interface AuthenticatedUser {
@@ -57,14 +56,6 @@ export async function authenticateToken(
   const token = getBearerToken(req) ?? getCookieToken(req);
 
   if (!token) {
-    logSecurityEvent({
-      type: 'AUTH_FAILURE',
-      ip: getClientIp(req),
-      path: req.path,
-      method: req.method,
-      userAgent: getUserAgent(req),
-      details: 'No token provided',
-    });
     res.status(401).json({ error: 'Authentication required', code: 'NO_TOKEN' });
     return;
   }
@@ -91,14 +82,6 @@ export async function authenticateToken(
     }
 
     if (!session) {
-      logSecurityEvent({
-        type: 'SESSION_EXPIRED',
-        ip: getClientIp(req),
-        path: req.path,
-        method: req.method,
-        userAgent: getUserAgent(req),
-        details: 'Session not found or expired',
-      });
       res.status(401).json({ error: 'Session expired or invalid', code: 'SESSION_EXPIRED' });
       return;
     }
@@ -106,15 +89,6 @@ export async function authenticateToken(
     // Defensive consistency check: token must map to the same user in DB session
     if (decoded.userId !== session.user_id) {
       // If this ever happens it's an integrity issue; treat token as invalid.
-      logSecurityEvent({
-        type: 'TOKEN_USER_MISMATCH',
-        ip: getClientIp(req),
-        path: req.path,
-        method: req.method,
-        userAgent: getUserAgent(req),
-        userId: decoded.userId,
-        details: `Token userId ${decoded.userId} does not match session userId ${session.user_id}`,
-      });
       res.status(403).json({ error: 'Invalid token', code: 'TOKEN_USER_MISMATCH' });
       return;
     }
@@ -155,26 +129,10 @@ export async function authenticateToken(
     next();
   } catch (error) {
     if (error instanceof jwt.JsonWebTokenError) {
-      logSecurityEvent({
-        type: 'TOKEN_INVALID',
-        ip: getClientIp(req),
-        path: req.path,
-        method: req.method,
-        userAgent: getUserAgent(req),
-        details: 'JWT verification failed',
-      });
       res.status(401).json({ error: 'Invalid token', code: 'INVALID_TOKEN' });
       return;
     }
     if (error instanceof jwt.TokenExpiredError) {
-      logSecurityEvent({
-        type: 'SESSION_EXPIRED',
-        ip: getClientIp(req),
-        path: req.path,
-        method: req.method,
-        userAgent: getUserAgent(req),
-        details: 'JWT token expired',
-      });
       res.status(401).json({ error: 'Token expired', code: 'TOKEN_EXPIRED' });
       return;
     }

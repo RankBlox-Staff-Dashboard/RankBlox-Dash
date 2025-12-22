@@ -1,7 +1,6 @@
 import { ChatInputCommandInteraction, SlashCommandBuilder, ChannelType, EmbedBuilder, PermissionFlagsBits } from 'discord.js';
 import { botAPI } from '../services/api';
 import { isImmuneRank } from '../utils/immunity';
-import { checkCooldown, setCooldown, formatCooldownMessage } from '../utils/cooldowns';
 
 export const data = new SlashCommandBuilder()
   .setName('ticket')
@@ -26,19 +25,6 @@ export const data = new SlashCommandBuilder()
 
 export async function execute(interaction: ChatInputCommandInteraction) {
   const subcommand = interaction.options.getSubcommand();
-
-  // Check cooldown (except for info which is just informational)
-  if (subcommand !== 'info') {
-    const remainingCooldown = checkCooldown('ticket', interaction.user.id);
-    if (remainingCooldown > 0) {
-      return interaction.reply({
-        content: `⏳ ${formatCooldownMessage(remainingCooldown)}`,
-        ephemeral: true,
-      });
-    }
-    // Set cooldown after checking
-    setCooldown('ticket', interaction.user.id);
-  }
 
   switch (subcommand) {
     case 'create':

@@ -2,13 +2,17 @@ import { Router, Request, Response } from 'express';
 import { authenticateToken, requireVerified } from '../middleware/auth';
 import { requirePermission } from '../middleware/permissions';
 import { db } from '../models/database';
-import { parsePositiveInt } from '../utils/security';
 
 const router = Router();
 
 // All ticket routes require full verification
 router.use(authenticateToken);
 router.use(requireVerified);
+
+function parsePositiveInt(value: string): number | null {
+  const n = Number.parseInt(value, 10);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
 
 /**
  * List tickets
@@ -58,7 +62,7 @@ router.post('/:id/claim', requirePermission('CLAIM_TICKETS'), async (req: Reques
   try {
     const ticketId = parsePositiveInt(req.params.id);
     if (!ticketId) {
-      return res.status(400).json({ error: 'Invalid ticket ID' });
+      return res.status(400).json({ error: 'Invalid ticket id' });
     }
 
     // Race-safe claim: only claim if currently open
@@ -114,7 +118,7 @@ router.post('/:id/resolve', requirePermission('CLAIM_TICKETS'), async (req: Requ
   try {
     const ticketId = parsePositiveInt(req.params.id);
     if (!ticketId) {
-      return res.status(400).json({ error: 'Invalid ticket ID' });
+      return res.status(400).json({ error: 'Invalid ticket id' });
     }
 
     // Race-safe resolve: only resolve if claimed by this user and still claimed

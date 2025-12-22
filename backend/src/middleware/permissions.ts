@@ -2,7 +2,6 @@ import { Request, Response, NextFunction } from 'express';
 import { PermissionFlag } from '../utils/types';
 import { db } from '../models/database';
 import { isImmuneRank } from '../utils/immunity';
-import { logSecurityEvent, getClientIp, getUserAgent } from '../utils/security';
 
 // Default permissions by rank
 const DEFAULT_STAFF_PERMISSIONS: PermissionFlag[] = [
@@ -84,15 +83,6 @@ export function requirePermission(permission: PermissionFlag) {
 
     // Immune ranks (254-255) bypass status restrictions
     if (req.user.status !== 'active' && !isImmuneRank(req.user.rank)) {
-      logSecurityEvent({
-        type: 'PERMISSION_DENIED',
-        ip: getClientIp(req),
-        userId: req.user.id,
-        path: req.path,
-        method: req.method,
-        userAgent: getUserAgent(req),
-        details: `Inactive account attempted ${permission}`,
-      });
       res.status(403).json({ error: 'Account is not active' });
       return;
     }
@@ -100,15 +90,6 @@ export function requirePermission(permission: PermissionFlag) {
     const permissions = await getUserPermissions(req.user.id);
 
     if (!permissions.has(permission)) {
-      logSecurityEvent({
-        type: 'PERMISSION_DENIED',
-        ip: getClientIp(req),
-        userId: req.user.id,
-        path: req.path,
-        method: req.method,
-        userAgent: getUserAgent(req),
-        details: `Missing permission: ${permission}`,
-      });
       res.status(403).json({ error: 'Insufficient permissions' });
       return;
     }
@@ -128,29 +109,11 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction): v
 
   // Immune ranks (254-255) bypass status restrictions
   if (req.user.status !== 'active' && !isImmuneRank(req.user.rank)) {
-    logSecurityEvent({
-      type: 'ADMIN_ACCESS_DENIED',
-      ip: getClientIp(req),
-      userId: req.user.id,
-      path: req.path,
-      method: req.method,
-      userAgent: getUserAgent(req),
-      details: 'Inactive account attempted admin access',
-    });
     res.status(403).json({ error: 'Account is not active' });
     return;
   }
 
   if (!req.user.rank || req.user.rank < 24 || req.user.rank > 255) {
-    logSecurityEvent({
-      type: 'ADMIN_ACCESS_DENIED',
-      ip: getClientIp(req),
-      userId: req.user.id,
-      path: req.path,
-      method: req.method,
-      userAgent: getUserAgent(req),
-      details: `Insufficient rank: ${req.user.rank}`,
-    });
     res.status(403).json({ error: 'Admin access required' });
     return;
   }

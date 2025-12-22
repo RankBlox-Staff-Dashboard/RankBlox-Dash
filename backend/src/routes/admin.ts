@@ -1,7 +1,5 @@
 import { Router, Request, Response } from 'express';
 import { pool, initializeDatabase } from '../models/database';
-import { timingSafeEqual, logSecurityEvent, getClientIp, getUserAgent } from '../utils/security';
-import { strictAdminRateLimit } from '../middleware/rateLimits';
 
 const router = Router();
 
@@ -9,44 +7,23 @@ function requireAdminResetToken(req: Request): boolean {
   const expected = process.env.ADMIN_RESET_TOKEN;
   if (!expected || expected.trim().length === 0) return false;
   const got = (req.header('x-admin-reset-token') || '').trim();
-  if (got.length === 0) return false;
-  // Use timing-safe comparison to prevent timing attacks
-  return timingSafeEqual(got, expected.trim());
+  return got.length > 0 && got === expected;
 }
 
 /**
  * DANGEROUS: wipe all application tables.
  *
  * Protected by:
- * - Rate limit: 5 requests per hour
  * - env: ADMIN_RESET_TOKEN (must be set)
  * - header: X-Admin-Reset-Token: <token>
  * - body: { confirm: "RESET" }
  */
-router.post('/reset-database', strictAdminRateLimit, async (req: Request, res: Response) => {
-  // Log all reset attempts for security auditing
-  logSecurityEvent({
-    type: 'ADMIN_RESET_ATTEMPT',
-    ip: getClientIp(req),
-    path: req.path,
-    method: req.method,
-    userAgent: getUserAgent(req),
-    details: 'Database reset endpoint accessed',
-  });
-
+router.post('/reset-database', async (req: Request, res: Response) => {
   if (!process.env.ADMIN_RESET_TOKEN) {
     return res.status(501).json({ error: 'Reset is not enabled on this server' });
   }
 
   if (!requireAdminResetToken(req)) {
-    logSecurityEvent({
-      type: 'ADMIN_RESET_ATTEMPT',
-      ip: getClientIp(req),
-      path: req.path,
-      method: req.method,
-      userAgent: getUserAgent(req),
-      details: 'Invalid admin reset token provided',
-    });
     return res.status(403).json({ error: 'Forbidden' });
   }
 
