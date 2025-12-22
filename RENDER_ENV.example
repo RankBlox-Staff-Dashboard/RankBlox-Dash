@@ -19,6 +19,9 @@ ROBLOX_GROUP_ID=32350433
 PORT=10000
 NODE_ENV=production
 
+# Bot -> Backend shared secret (required for /api/bot/* routes)
+BOT_API_TOKEN=your-long-random-token
+
 # Frontend URL (for OAuth redirects)
 FRONTEND_URL=https://staff.ahscampus.com
 

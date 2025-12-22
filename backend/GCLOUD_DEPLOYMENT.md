@@ -92,6 +92,7 @@ gcloud run services update staff-backend \
     DISCORD_REDIRECT_URI="https://YOUR-SERVICE-URL.run.app/api/auth/discord/callback" \
     JWT_SECRET="your-secret-here" \
     ROBLOX_GROUP_ID="32350433" \
+    BOT_API_TOKEN="your-long-random-token" \
     FRONTEND_URL="https://staffap.netlify.app" \
     NODE_ENV="production"
 ```

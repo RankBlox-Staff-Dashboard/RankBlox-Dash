@@ -47,6 +47,7 @@ DISCORD_CLIENT_SECRET=Io4D-j14356IFptF-vB4ohghJtwNvbZp
 DISCORD_REDIRECT_URI=https://your-service-name.onrender.com/api/auth/discord/callback
 JWT_SECRET=scpnox-staff-jwt-secret-2024-secure
 ROBLOX_GROUP_ID=32350433
+BOT_API_TOKEN=your-long-random-token
 PORT=10000
 DATABASE_PATH=./data/staff.db
 FRONTEND_URL=https://staff.ahscampus.com

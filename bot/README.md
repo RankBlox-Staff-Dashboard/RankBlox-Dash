@@ -9,6 +9,7 @@ Create a `.env` file in this directory:
 ```env
 DISCORD_BOT_TOKEN=your_bot_token_here
 BACKEND_API_URL=http://localhost:3000/api
+BOT_API_TOKEN=your_long_random_token  # Must match backend BOT_API_TOKEN (required for /api/bot/*)
 GUILD_ID=your_guild_id_here  # Optional, for faster command registration
 ```
 

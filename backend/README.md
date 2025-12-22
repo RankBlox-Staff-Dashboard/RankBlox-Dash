@@ -12,6 +12,7 @@ DISCORD_CLIENT_SECRET=your_discord_client_secret
 DISCORD_REDIRECT_URI=http://localhost:3000/api/auth/discord/callback
 JWT_SECRET=your_jwt_secret
 ROBLOX_GROUP_ID=32350433
+BOT_API_TOKEN=your_long_random_token  # Must match the bot's BOT_API_TOKEN (required for /api/bot/*)
 PORT=3000
 DATABASE_PATH=./data/staff.db
 FRONTEND_URL=http://localhost:5173
