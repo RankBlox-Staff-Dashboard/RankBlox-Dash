@@ -1,50 +1,104 @@
 'use client';
 
 import Image from 'next/image';
+import { MessageSquare, AlertTriangle, ClipboardList, Users } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { RankBadge } from './RankBadge';
+import { useStats } from '@/hooks/useStats';
+import { Card } from './ui/Card';
 
 export function ProfileCard() {
   const { user } = useAuth();
+  const { stats } = useStats();
 
   if (!user) return null;
 
-  // Discord avatar URL format: https://cdn.discordapp.com/avatars/{user_id}/{avatar_hash}.png
-  // Since we don't have the avatar hash, we'll use the default avatar endpoint
-  // Discord default avatars are 0-4, calculate based on last digit of Discord ID
-  const avatarIndex = parseInt(user.discord_id.slice(-1)) % 5;
-  const avatarUrl = `https://cdn.discordapp.com/embed/avatars/${avatarIndex}.png`;
+  // Discord avatar URL - use avatar hash if available, otherwise default
+  const avatarUrl = user.discord_avatar 
+    ? `https://cdn.discordapp.com/avatars/${user.discord_id}/${user.discord_avatar}.png?size=128`
+    : `https://cdn.discordapp.com/embed/avatars/${parseInt(user.discord_id.slice(-1)) % 5}.png`;
+
+  const getRankColor = () => {
+    if (!user?.rank) return 'bg-green-600';
+    if (user.rank >= 16 && user.rank <= 255) return 'bg-red-600';
+    if (user.rank >= 8) return 'bg-purple-600';
+    return 'bg-green-600';
+  };
 
   return (
-    <div className="bg-dark-card rounded-lg p-6 border border-dark-border">
-      <div className="flex items-center space-x-4">
-        <Image
-          src={avatarUrl}
-          alt={user.discord_username}
-          width={64}
-          height={64}
-          className="w-16 h-16 rounded-full"
-          unoptimized
-        />
-        <div className="flex-1">
-          <h2 className="text-2xl font-bold text-white">
+    <Card className="p-5">
+      {/* Profile Header */}
+      <div className="flex items-center gap-4 mb-5">
+        <div className="relative">
+          <Image
+            src={avatarUrl}
+            alt={user.discord_username}
+            width={56}
+            height={56}
+            className="w-14 h-14 rounded-full ring-2 ring-white/20"
+            unoptimized
+          />
+          <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-black" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h2 className="text-lg font-bold text-white truncate">
             Welcome, Staff {user.discord_username}
           </h2>
-          <div className="flex items-center space-x-2 mt-2">
-            <RankBadge rank={user.rank} rankName={user.rank_name} />
-            <span className="text-sm text-gray-400">•</span>
-            <span className={`text-sm font-semibold ${user.status === 'active' ? 'text-green-400' : 'text-yellow-400'}`}>
-              {user.status === 'active' ? 'Active' : user.status}
+          <div className="flex items-center gap-2 mt-1">
+            <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${getRankColor()} text-white`}>
+              {user.rank_name || 'Staff'}
+            </span>
+            <span className="text-white/40">•</span>
+            <span className={`text-sm font-medium ${user.status === 'active' ? 'text-green-400' : 'text-yellow-400'}`}>
+              {user.status === 'active' ? 'Active' : user.status || 'Active'}
             </span>
           </div>
-          {user.roblox_username && (
-            <p className="text-sm text-gray-400 mt-1">
-              Roblox: {user.roblox_username}
-            </p>
-          )}
         </div>
       </div>
-    </div>
+
+      {/* Stats Grid */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="flex items-center gap-3 p-3 rounded-2xl bg-white/5">
+          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-blue-500/20 ring-1 ring-blue-400/30">
+            <MessageSquare className="w-5 h-5 text-blue-300" />
+          </div>
+          <div>
+            <div className="text-xs text-white/50 font-medium">Messages</div>
+            <div className="text-base font-bold text-white">
+              {stats?.messages_sent ?? 0}/{stats?.messages_quota ?? 150}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 p-3 rounded-2xl bg-white/5">
+          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-yellow-500/20 ring-1 ring-yellow-400/30">
+            <AlertTriangle className="w-5 h-5 text-yellow-300" />
+          </div>
+          <div>
+            <div className="text-xs text-white/50 font-medium">Infractions</div>
+            <div className="text-base font-bold text-white">{stats?.infractions ?? 0}</div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 p-3 rounded-2xl bg-white/5">
+          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-emerald-500/20 ring-1 ring-emerald-400/30">
+            <ClipboardList className="w-5 h-5 text-emerald-300" />
+          </div>
+          <div>
+            <div className="text-xs text-white/50 font-medium">Claimed</div>
+            <div className="text-base font-bold text-white">{stats?.tickets_claimed ?? 0}</div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 p-3 rounded-2xl bg-white/5">
+          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-purple-500/20 ring-1 ring-purple-400/30">
+            <Users className="w-5 h-5 text-purple-300" />
+          </div>
+          <div>
+            <div className="text-xs text-white/50 font-medium">Closed</div>
+            <div className="text-base font-bold text-white">{stats?.tickets_resolved ?? 0}</div>
+          </div>
+        </div>
+      </div>
+    </Card>
   );
 }
-

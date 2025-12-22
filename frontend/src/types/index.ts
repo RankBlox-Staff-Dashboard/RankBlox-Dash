@@ -11,6 +11,7 @@ export interface User {
   id: number;
   discord_id: string;
   discord_username: string;
+  discord_avatar: string | null;
   roblox_id: string | null;
   roblox_username: string | null;
   rank: number | null;
