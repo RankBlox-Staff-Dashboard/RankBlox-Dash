@@ -81,7 +81,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
           `https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${userData.roblox_id}&size=150x150&format=Png&isCircular=false`
         );
         if (avatarResponse.ok) {
-          const avatarData = await avatarResponse.json();
+          const avatarData = await avatarResponse.json() as { data?: { imageUrl?: string }[] };
           if (avatarData.data && avatarData.data.length > 0 && avatarData.data[0].imageUrl) {
             thumbnailUrl = avatarData.data[0].imageUrl;
           }
