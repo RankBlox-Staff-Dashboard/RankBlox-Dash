@@ -44,29 +44,7 @@ export async function authenticateToken(
   try {
     const decoded = jwt.verify(token, jwtSecret) as JwtPayload;
     
-    // Verify session still exists and is valid (check by token instead of id)
-    const session = await dbGet<{ id: string; user_id: number; token: string; expires_at: Date }>(
-      'SELECT * FROM sessions WHERE token = $1 AND expires_at > NOW()',
-      [token]
-    );
-
-    if (!session) {
-      console.error('Session not found for token:', token.substring(0, 20) + '...');
-      // Debug: Check if session exists at all (even expired)
-      const anySession = await dbGet<{ id: string; user_id: number; token: string; expires_at: Date }>(
-        'SELECT * FROM sessions WHERE token = $1',
-        [token]
-      );
-      if (anySession) {
-        console.error('Session found but expired. Expires at:', anySession.expires_at, 'Now:', new Date());
-      } else {
-        console.error('No session found with this token at all');
-      }
-      res.status(401).json({ error: 'Session expired or invalid' });
-      return;
-    }
-
-    // Get user info
+    // Get user info first
     const user = await dbGet<{ id: number; discord_id: string; rank: number | null; status: string }>(
       'SELECT id, discord_id, rank, status FROM users WHERE id = $1',
       [decoded.userId]
@@ -74,6 +52,17 @@ export async function authenticateToken(
 
     if (!user) {
       res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    // Verify session still exists and is valid (check by token and user_id)
+    const session = await dbGet<{ id: string; user_id: number; token: string; expires_at: Date }>(
+      'SELECT * FROM sessions WHERE token = $1 AND user_id = $2 AND expires_at > NOW()',
+      [token, decoded.userId]
+    );
+
+    if (!session) {
+      res.status(401).json({ error: 'Session expired or invalid' });
       return;
     }
 
