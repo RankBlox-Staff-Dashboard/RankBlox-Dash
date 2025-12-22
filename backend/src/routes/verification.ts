@@ -107,9 +107,10 @@ router.post('/roblox/verify', async (req: Request, res: Response) => {
     }
 
     // Update user with Roblox info
+    // Note: `rank` must be escaped with backticks because it's a MySQL reserved keyword
     await db.prepare(
       `UPDATE users 
-       SET roblox_id = ?, roblox_username = ?, rank = ?, rank_name = ?, status = 'active', updated_at = NOW()
+       SET roblox_id = ?, roblox_username = ?, \`rank\` = ?, rank_name = ?, status = 'active', updated_at = NOW()
        WHERE id = ?`
     ).run(
       verificationResult.userId.toString(),
@@ -145,8 +146,9 @@ router.get('/roblox/status', async (req: Request, res: Response) => {
     return res.status(401).json({ error: 'Authentication required' });
   }
 
+  // Note: `rank` must be escaped with backticks because it's a MySQL reserved keyword
   const user = await db
-    .prepare('SELECT roblox_id, roblox_username, rank, rank_name, status FROM users WHERE id = ?')
+    .prepare('SELECT roblox_id, roblox_username, `rank`, rank_name, status FROM users WHERE id = ?')
     .get(req.user.id) as any;
 
   res.json({

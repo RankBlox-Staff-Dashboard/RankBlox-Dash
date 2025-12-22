@@ -74,8 +74,9 @@ export async function authenticateToken(
     console.log('Session found, user_id:', session.user_id);
 
     // Get user info (allow all statuses including pending_verification)
+    // Note: `rank` must be escaped with backticks because it's a MySQL reserved keyword
     const user = await db
-      .prepare('SELECT id, discord_id, rank, status FROM users WHERE id = ?')
+      .prepare('SELECT id, discord_id, `rank`, status FROM users WHERE id = ?')
       .get(decoded.userId) as { id: number; discord_id: string; rank: number | null; status: string } | undefined;
 
     if (!user) {
