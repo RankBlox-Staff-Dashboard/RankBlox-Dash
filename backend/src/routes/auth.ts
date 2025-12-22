@@ -24,20 +24,20 @@ router.get('/discord/callback', async (req: Request, res: Response) => {
   const state = req.query.state as string;
 
   if (!code) {
-    return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/login?error=no_code`);
+    return res.redirect(`${process.env.FRONTEND_URL || 'https://staffap.netlify.app'}/login?error=no_code`);
   }
 
   try {
     // Exchange code for access token
     const accessToken = await exchangeDiscordCode(code);
     if (!accessToken) {
-      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/login?error=token_exchange_failed`);
+      return res.redirect(`${process.env.FRONTEND_URL || 'https://staffap.netlify.app'}/login?error=token_exchange_failed`);
     }
 
     // Get Discord user info
     const discordUser = await getDiscordUser(accessToken);
     if (!discordUser) {
-      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/login?error=user_fetch_failed`);
+      return res.redirect(`${process.env.FRONTEND_URL || 'https://staffap.netlify.app'}/login?error=user_fetch_failed`);
     }
 
     // Find or create user
@@ -96,11 +96,11 @@ router.get('/discord/callback', async (req: Request, res: Response) => {
 
     // Redirect to frontend with token
     res.redirect(
-      `${process.env.FRONTEND_URL || 'http://localhost:5173'}/auth/callback?token=${token}`
+      `${process.env.FRONTEND_URL || 'https://staffap.netlify.app'}/auth/callback?token=${token}`
     );
   } catch (error) {
     console.error('Discord OAuth error:', error);
-    res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/login?error=server_error`);
+    res.redirect(`${process.env.FRONTEND_URL || 'https://staffap.netlify.app'}/login?error=server_error`);
   }
 });
 

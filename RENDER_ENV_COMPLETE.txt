@@ -31,8 +31,8 @@ PORT=10000
 NODE_ENV=production
 
 # Frontend URL (for OAuth redirects and CORS)
-# This should match your Vercel deployment URL
-FRONTEND_URL=https://staff.ahscampus.com
+# This should match your Netlify deployment URL
+FRONTEND_URL=https://staffap.netlify.app
 
 
 # ====================================================
