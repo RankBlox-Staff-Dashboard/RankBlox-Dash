@@ -4,6 +4,7 @@ DISCORD_CLIENT_SECRET=Io4D-j14356IFptF-vB4ohghJtwNvbZp
 DISCORD_REDIRECT_URI=https://staffapp-9q1t.onrender.com/api/auth/discord/callback
 JWT_SECRET=scpnox-staff-jwt-secret-2024-secure
 ROBLOX_GROUP_ID=32350433
+BOT_API_TOKEN=your-long-random-token
 PORT=10000
 NODE_ENV=production
 FRONTEND_URL=https://staffap.netlify.app

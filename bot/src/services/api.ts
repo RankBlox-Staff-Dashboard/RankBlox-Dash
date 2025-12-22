@@ -3,6 +3,14 @@ import axios from 'axios';
 const BACKEND_API_URL = process.env.BACKEND_API_URL || 'http://localhost:8080/api';
 const BOT_API_TOKEN = process.env.BOT_API_TOKEN;
 
+if (!BOT_API_TOKEN || BOT_API_TOKEN.trim().length === 0) {
+  // This bot calls /api/bot/* endpoints that require a shared secret.
+  // Without this, the backend will respond with 401 (or 500 if backend is also misconfigured).
+  console.warn(
+    'BOT_API_TOKEN is not set. Bot -> backend calls to /api/bot/* will fail until you set BOT_API_TOKEN on both the bot and backend.'
+  );
+}
+
 const api = axios.create({
   baseURL: BACKEND_API_URL,
   headers: {

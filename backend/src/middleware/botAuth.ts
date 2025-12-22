@@ -16,7 +16,11 @@ export function requireBotAuth(req: Request, res: Response, next: NextFunction):
   const expected = process.env.BOT_API_TOKEN;
   if (!expected || expected.trim().length === 0) {
     // Fail closed in production. In local dev you must still set a token.
-    res.status(500).json({ error: 'Server configuration error' });
+    console.error('Bot auth misconfigured: BOT_API_TOKEN is not set');
+    res.status(500).json({
+      error: 'Server configuration error',
+      missing: ['BOT_API_TOKEN'],
+    });
     return;
   }
 
