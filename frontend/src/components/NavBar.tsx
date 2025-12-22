@@ -1,6 +1,9 @@
-import { Link, useLocation } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import { usePermissions } from '../hooks/usePermissions';
+'use client';
+
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
+import { usePermissions } from '@/hooks/usePermissions';
 
 const navigation = [
   { name: 'Overview', path: '/', icon: '📊' },
@@ -12,7 +15,7 @@ const navigation = [
 ];
 
 export function NavBar() {
-  const location = useLocation();
+  const pathname = usePathname();
   const { user, loading: authLoading } = useAuth();
   const { hasPermission, loading: permissionsLoading } = usePermissions();
 
@@ -45,24 +48,40 @@ export function NavBar() {
 
       <div className="space-y-2">
         {visibleNav.map((item) => {
-          const isActive = location.pathname === item.path;
+          const isActive = pathname === item.path;
           return (
             <Link
               key={item.path}
-              to={item.path}
-              className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition ${
+              href={item.path}
+              className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
                 isActive
                   ? 'bg-blue-600 text-white'
-                  : 'text-gray-400 hover:bg-dark-border hover:text-white'
+                  : 'text-gray-300 hover:bg-dark-border hover:text-white'
               }`}
             >
-              <span>{item.icon}</span>
+              <span className="text-xl">{item.icon}</span>
               <span className="font-medium">{item.name}</span>
             </Link>
           );
         })}
       </div>
+
+      {user && (
+        <div className="mt-auto pt-8 border-t border-dark-border">
+          <button
+            onClick={async () => {
+              if (typeof window !== 'undefined') {
+                localStorage.removeItem('token');
+                window.location.href = '/login';
+              }
+            }}
+            className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-300 hover:bg-dark-border hover:text-white transition-colors"
+          >
+            <span>🚪</span>
+            <span>Logout</span>
+          </button>
+        </div>
+      )}
     </nav>
   );
 }
-

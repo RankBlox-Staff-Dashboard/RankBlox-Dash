@@ -1,3 +1,5 @@
+'use client';
+
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import { authAPI, verificationAPI } from '../services/api';
 import type { User } from '../types';
@@ -19,6 +21,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshUser = async () => {
     try {
+      if (typeof window === 'undefined') return;
+      
       const token = localStorage.getItem('token');
       if (!token) {
         setUser(null);
@@ -32,7 +36,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error('Error fetching user:', error);
       setUser(null);
-      localStorage.removeItem('token');
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('token');
+      }
     } finally {
       setLoading(false);
     }
@@ -68,4 +74,3 @@ export function useAuth() {
   }
   return context;
 }
-
