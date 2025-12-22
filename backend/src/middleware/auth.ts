@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import { JwtPayload } from '../utils/types';
 import { db } from '../models/database';
 import crypto from 'crypto';
+import { isImmuneRank } from '../utils/immunity';
 
 // Extended user info attached to request
 interface AuthenticatedUser {
@@ -180,8 +181,8 @@ export function requireVerified(
     return;
   }
 
-  // Check account status
-  if (req.user.status !== 'active') {
+  // Check account status - immune ranks (254-255) bypass status restrictions
+  if (req.user.status !== 'active' && !isImmuneRank(req.user.rank)) {
     if (req.user.status === 'pending_verification') {
       res.status(403).json({ 
         error: 'Account verification incomplete', 

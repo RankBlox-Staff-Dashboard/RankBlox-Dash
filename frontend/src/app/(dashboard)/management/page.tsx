@@ -22,6 +22,7 @@ import {
   Shield
 } from 'lucide-react';
 import type { PermissionFlag, User, LOARequest, Infraction } from '@/types';
+import { isImmuneRank } from '@/lib/immunity';
 
 const ALL_PERMISSIONS: PermissionFlag[] = [
   'VIEW_DASHBOARD',
@@ -291,32 +292,45 @@ export default function ManagementPage() {
                         {u.rank_name || `Rank ${u.rank}`} • ID: {u.id}
                       </div>
                     </div>
-                    <button
-                      onClick={() => {
-                        setSelectedUserId(u.id);
-                        setShowInfractionModal(true);
-                      }}
-                      className="px-3 py-1.5 text-xs font-medium rounded-lg bg-red-500/20 text-red-300 hover:bg-red-500/30 transition"
-                    >
-                      Issue Infraction
-                    </button>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {(['active', 'inactive', 'pending_verification'] as const).map((s) => (
+                    {!isImmuneRank(u.rank) && (
                       <button
-                        key={s}
-                        onClick={() => updateStatus(u, s)}
-                        disabled={busy !== null}
-                        className={`px-3 py-1 rounded-lg text-xs font-medium transition ${
-                          u.status === s 
-                            ? 'bg-blue-500/30 text-blue-300 border border-blue-500/50' 
-                            : 'bg-white/5 text-white/60 hover:bg-white/10 border border-white/10'
-                        } disabled:opacity-50`}
+                        onClick={() => {
+                          setSelectedUserId(u.id);
+                          setShowInfractionModal(true);
+                        }}
+                        className="px-3 py-1.5 text-xs font-medium rounded-lg bg-red-500/20 text-red-300 hover:bg-red-500/30 transition"
                       >
-                        {s.replace('_', ' ')}
+                        Issue Infraction
                       </button>
-                    ))}
+                    )}
+                    {isImmuneRank(u.rank) && (
+                      <span className="px-3 py-1.5 text-xs font-medium rounded-lg bg-yellow-500/20 text-yellow-300">
+                        Immune
+                      </span>
+                    )}
                   </div>
+                  {!isImmuneRank(u.rank) ? (
+                    <div className="flex flex-wrap gap-2">
+                      {(['active', 'inactive', 'pending_verification'] as const).map((s) => (
+                        <button
+                          key={s}
+                          onClick={() => updateStatus(u, s)}
+                          disabled={busy !== null}
+                          className={`px-3 py-1 rounded-lg text-xs font-medium transition ${
+                            u.status === s 
+                              ? 'bg-blue-500/30 text-blue-300 border border-blue-500/50' 
+                              : 'bg-white/5 text-white/60 hover:bg-white/10 border border-white/10'
+                          } disabled:opacity-50`}
+                        >
+                          {s.replace('_', ' ')}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-xs text-yellow-300/70">
+                      This user has an immune rank and cannot have their status modified.
+                    </div>
+                  )}
                 </div>
               ))}
           </div>
@@ -499,7 +513,7 @@ export default function ManagementPage() {
                   className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-blue-500/50"
                 >
                   <option value="">Select a user</option>
-                  {staffUsers.map((u) => (
+                  {staffUsers.filter((u) => !isImmuneRank(u.rank)).map((u) => (
                     <option key={u.id} value={u.id}>
                       {u.roblox_username || u.discord_username}
                     </option>

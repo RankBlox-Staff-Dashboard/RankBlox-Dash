@@ -4,6 +4,7 @@ import { requireAdmin, requirePermission } from '../middleware/permissions';
 import { db } from '../models/database';
 import { PermissionFlag } from '../utils/types';
 import { updateUserPermission } from '../services/permissions';
+import { isImmuneRank } from '../utils/immunity';
 
 const router = Router();
 
@@ -90,10 +91,15 @@ router.put('/users/:id/status', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid status' });
     }
 
-    // Check if user exists
-    const user = await db.prepare('SELECT id FROM users WHERE id = ?').get(userId);
+    // Check if user exists and get their rank
+    const user = await db.prepare('SELECT id, `rank` FROM users WHERE id = ?').get(userId) as { id: number; rank: number | null } | undefined;
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Immune ranks (254-255) cannot have their status changed
+    if (isImmuneRank(user.rank)) {
+      return res.status(403).json({ error: 'Cannot modify status of immune rank users' });
     }
 
     await db.prepare('UPDATE users SET status = ?, updated_at = NOW() WHERE id = ?').run(
@@ -293,13 +299,18 @@ router.post('/infractions', requirePermission('ISSUE_INFRACTIONS'), async (req: 
       return res.status(400).json({ error: 'Invalid type. Must be warning or strike.' });
     }
 
-    // Check if target user exists and get their Discord ID
+    // Check if target user exists and get their Discord ID and rank
     const targetUser = await db.prepare(
-      'SELECT id, discord_id, discord_username, roblox_username FROM users WHERE id = ?'
-    ).get(user_id) as { id: number; discord_id: string; discord_username: string; roblox_username: string | null } | undefined;
+      'SELECT id, discord_id, discord_username, roblox_username, `rank` FROM users WHERE id = ?'
+    ).get(user_id) as { id: number; discord_id: string; discord_username: string; roblox_username: string | null; rank: number | null } | undefined;
 
     if (!targetUser) {
       return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Immune ranks (254-255) cannot receive infractions
+    if (isImmuneRank(targetUser.rank)) {
+      return res.status(403).json({ error: 'Cannot issue infractions to immune rank users' });
     }
 
     // Get issuer's name for the DM

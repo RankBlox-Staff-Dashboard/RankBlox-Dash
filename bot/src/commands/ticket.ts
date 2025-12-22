@@ -1,5 +1,6 @@
 import { ChatInputCommandInteraction, SlashCommandBuilder, ChannelType, EmbedBuilder, PermissionFlagsBits } from 'discord.js';
 import { botAPI } from '../services/api';
+import { isImmuneRank } from '../utils/immunity';
 
 export const data = new SlashCommandBuilder()
   .setName('ticket')
@@ -116,10 +117,12 @@ async function handleClose(interaction: ChatInputCommandInteraction) {
   await interaction.deferReply();
 
   try {
-    // Verify user is staff
+    // Verify user is staff (immune ranks bypass status check)
     const userResponse = await botAPI.getUser(interaction.user.id);
+    const isActive = userResponse.data?.status === 'active';
+    const userRank = userResponse.data?.rank ?? null;
     
-    if (!userResponse.data || userResponse.data.status !== 'active') {
+    if (!userResponse.data || (!isActive && !isImmuneRank(userRank))) {
       const errorEmbed = new EmbedBuilder()
         .setTitle('❌ Permission Denied')
         .setDescription('Only active staff members can close tickets.')

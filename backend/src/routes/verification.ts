@@ -3,6 +3,7 @@ import { authenticateToken, refreshSessionToken } from '../middleware/auth';
 import { verifyRobloxUserDetailed } from '../services/roblox';
 import { db } from '../models/database';
 import { initializeUserPermissions } from '../services/permissions';
+import { isImmuneRank } from '../utils/immunity';
 
 const router = Router();
 
@@ -45,7 +46,8 @@ router.post('/roblox/request', async (req: Request, res: Response) => {
     return res.status(401).json({ error: 'Authentication required' });
   }
 
-  if (req.user.status === 'inactive') {
+  // Immune ranks (254-255) bypass inactive status restriction
+  if (req.user.status === 'inactive' && !isImmuneRank(req.user.rank)) {
     return res.status(403).json({ error: 'Account is inactive' });
   }
 
@@ -96,7 +98,8 @@ router.post('/roblox/verify', async (req: Request, res: Response) => {
     return res.status(401).json({ error: 'Authentication required' });
   }
 
-  if (req.user.status === 'inactive') {
+  // Immune ranks (254-255) bypass inactive status restriction
+  if (req.user.status === 'inactive' && !isImmuneRank(req.user.rank)) {
     return res.status(403).json({ error: 'Account is inactive' });
   }
 

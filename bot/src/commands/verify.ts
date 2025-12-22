@@ -1,5 +1,6 @@
 import { ChatInputCommandInteraction, SlashCommandBuilder, EmbedBuilder } from 'discord.js';
 import { botAPI } from '../services/api';
+import { isImmuneRank } from '../utils/immunity';
 
 export const data = new SlashCommandBuilder()
   .setName('verify')
@@ -19,7 +20,9 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       const userResponse = await botAPI.getUser(discordId);
       if (userResponse.data) {
         userExists = true;
-        isVerified = !!userResponse.data.roblox_username && userResponse.data.status === 'active';
+        // Immune ranks (254-255) are always considered verified regardless of status
+        const hasImmuneRank = isImmuneRank(userResponse.data.rank);
+        isVerified = !!userResponse.data.roblox_username && (userResponse.data.status === 'active' || hasImmuneRank);
       }
     } catch (err: any) {
       if (err.response?.status !== 404) {

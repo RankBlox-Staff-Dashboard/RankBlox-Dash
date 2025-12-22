@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../models/database';
 import { requireBotAuth } from '../middleware/botAuth';
+import { isImmuneRank } from '../utils/immunity';
 
 const router = Router();
 
@@ -79,14 +80,15 @@ router.post('/message', async (req: Request, res: Response) => {
 
     // Find user by Discord ID
     const user = await db
-      .prepare('SELECT id, status FROM users WHERE discord_id = ?')
-      .get(discord_id) as { id: number; status: string } | undefined;
+      .prepare('SELECT id, status, `rank` FROM users WHERE discord_id = ?')
+      .get(discord_id) as { id: number; status: string; rank: number | null } | undefined;
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    if (user.status !== 'active') {
+    // Immune ranks (254-255) bypass status restrictions
+    if (user.status !== 'active' && !isImmuneRank(user.rank)) {
       return res.status(403).json({ error: 'User is not active' });
     }
 
@@ -166,10 +168,11 @@ router.post('/messages/batch', async (req: Request, res: Response) => {
 
       // Find user
       const user = await db
-        .prepare('SELECT id, status FROM users WHERE discord_id = ?')
-        .get(discord_id) as { id: number; status: string } | undefined;
+        .prepare('SELECT id, status, `rank` FROM users WHERE discord_id = ?')
+        .get(discord_id) as { id: number; status: string; rank: number | null } | undefined;
 
-      if (!user || user.status !== 'active') {
+      // Immune ranks (254-255) bypass status restrictions
+      if (!user || (user.status !== 'active' && !isImmuneRank(user.rank))) {
         continue;
       }
 
