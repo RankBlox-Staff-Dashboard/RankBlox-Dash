@@ -62,7 +62,7 @@ export default function DashboardPage() {
               <span className="text-blue-400">→</span>
             </div>
             <h3 className="text-lg font-semibold text-white mb-2">Panora Documentation</h3>
-            <p className="text-sm text-gray-400">Panora's Public Documentations.</p>
+            <p className="text-sm text-gray-400">Panora&apos;s Public Documentations.</p>
           </div>
 
           <div className="bg-dark-card rounded-lg p-6 border border-dark-border opacity-60">
@@ -80,7 +80,7 @@ export default function DashboardPage() {
               <span className="text-green-400">→</span>
             </div>
             <h3 className="text-lg font-semibold text-white mb-2">Support Guide</h3>
-            <p className="text-sm text-gray-400">Panora's Support Guide.</p>
+            <p className="text-sm text-gray-400">Panora&apos;s Support Guide.</p>
           </div>
         </div>
       </div>

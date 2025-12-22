@@ -1,14 +1,19 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  env: {
-    VITE_API_URL: process.env.VITE_API_URL,
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'cdn.discordapp.com',
+      },
+    ],
   },
   async rewrites() {
     return [
       {
         source: '/api/:path*',
-        destination: `${process.env.VITE_API_URL || 'https://staffapp-9q1t.onrender.com/api'}/:path*`,
+        destination: `${process.env.NEXT_PUBLIC_API_URL || 'https://staffapp-9q1t.onrender.com/api'}/:path*`,
       },
     ];
   },

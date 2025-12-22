@@ -1,4 +1,7 @@
-import { useAuth } from '../context/AuthContext';
+'use client';
+
+import Image from 'next/image';
+import { useAuth } from '@/context/AuthContext';
 import { RankBadge } from './RankBadge';
 
 export function ProfileCard() {
@@ -15,13 +18,13 @@ export function ProfileCard() {
   return (
     <div className="bg-dark-card rounded-lg p-6 border border-dark-border">
       <div className="flex items-center space-x-4">
-        <img
+        <Image
           src={avatarUrl}
           alt={user.discord_username}
+          width={64}
+          height={64}
           className="w-16 h-16 rounded-full"
-          onError={(e) => {
-            (e.target as HTMLImageElement).src = 'https://cdn.discordapp.com/embed/avatars/0.png';
-          }}
+          unoptimized
         />
         <div className="flex-1">
           <h2 className="text-2xl font-bold text-white">
