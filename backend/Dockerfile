@@ -7,8 +7,8 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production
+# Install ALL dependencies (including devDependencies for build)
+RUN npm ci
 
 # Copy source code
 COPY . .
@@ -16,8 +16,12 @@ COPY . .
 # Build TypeScript
 RUN npm run build
 
-# Expose port (Cloud Run uses PORT env var, default 8080)
+# Remove devDependencies after build to reduce image size
+RUN npm prune --production
+
+# Expose port
 EXPOSE 8080
+EXPOSE 10000
 
 # Start the server
 CMD ["npm", "start"]
