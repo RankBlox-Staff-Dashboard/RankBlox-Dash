@@ -89,6 +89,7 @@ export async function initializeDatabase() {
         id INT AUTO_INCREMENT PRIMARY KEY,
         discord_id VARCHAR(255) UNIQUE NOT NULL,
         discord_username VARCHAR(255) NOT NULL,
+        discord_avatar VARCHAR(255),
         roblox_id VARCHAR(255),
         roblox_username VARCHAR(255),
         \`rank\` INT,
@@ -99,6 +100,19 @@ export async function initializeDatabase() {
         CHECK (status IN ('active', 'inactive', 'pending_verification'))
       )
     `);
+    
+    // Add discord_avatar column if it doesn't exist (for existing tables)
+    await pool.query(`
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS discord_avatar VARCHAR(255)
+    `).catch(() => {
+      // Column might already exist or MySQL doesn't support IF NOT EXISTS for columns
+      // Try alternative approach
+      pool.query(`
+        ALTER TABLE users ADD COLUMN discord_avatar VARCHAR(255)
+      `).catch(() => {
+        // Column already exists, ignore
+      });
+    });
 
     // Sessions table
     await pool.query(`

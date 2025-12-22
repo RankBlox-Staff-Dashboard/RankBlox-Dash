@@ -7,6 +7,16 @@ const nextConfig = {
         protocol: 'https',
         hostname: 'cdn.discordapp.com',
       },
+      {
+        // Roblox avatar CDN - images are served from various tr*.rbxcdn.com subdomains
+        protocol: 'https',
+        hostname: '*.rbxcdn.com',
+      },
+      {
+        // Alternative Roblox CDN hostname
+        protocol: 'https',
+        hostname: 'tr.rbxcdn.com',
+      },
     ],
   },
   async rewrites() {

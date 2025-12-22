@@ -73,10 +73,10 @@ router.get('/discord/callback', async (req: Request, res: Response) => {
       .get(discordUser.id) as any;
 
     if (!user) {
-      // Create new user
+      // Create new user with avatar
       const insertResult = await db
-        .prepare('INSERT INTO users (discord_id, discord_username, status) VALUES (?, ?, ?)')
-        .run(discordUser.id, discordUser.username, 'pending_verification') as any;
+        .prepare('INSERT INTO users (discord_id, discord_username, discord_avatar, status) VALUES (?, ?, ?, ?)')
+        .run(discordUser.id, discordUser.username, discordUser.avatar, 'pending_verification') as any;
       
       if (!insertResult || !insertResult.lastInsertRowid) {
         throw new Error('Failed to create user');
@@ -87,9 +87,10 @@ router.get('/discord/callback', async (req: Request, res: Response) => {
         .prepare('SELECT * FROM users WHERE id = ?')
         .get(insertResult.lastInsertRowid) as any;
     } else {
-      // Update username if changed
-      await db.prepare('UPDATE users SET discord_username = ? WHERE id = ?').run(
+      // Update username and avatar if changed
+      await db.prepare('UPDATE users SET discord_username = ?, discord_avatar = ? WHERE id = ?').run(
         discordUser.username,
+        discordUser.avatar,
         user.id
       );
       // Refetch user to get updated data
@@ -180,6 +181,7 @@ router.get('/me', authenticateToken, async (req: Request, res: Response) => {
     id: user.id,
     discord_id: user.discord_id,
     discord_username: user.discord_username,
+    discord_avatar: user.discord_avatar || null,
     roblox_id: user.roblox_id,
     roblox_username: user.roblox_username,
     rank: user.rank,

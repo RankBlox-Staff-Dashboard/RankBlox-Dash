@@ -2,11 +2,11 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { Menu, X, LayoutDashboard, Search, AlertTriangle, Settings, User, HelpCircle, FileText, LogOut, Shield } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { authAPI } from '@/services/api';
+import { RobloxAvatar } from './RobloxAvatar';
 
 const navigation = [
   { name: 'Overview', path: '/overview', icon: LayoutDashboard },
@@ -31,13 +31,6 @@ export function Header() {
     if (user.rank >= 8) return 'bg-purple-600';
     return 'bg-green-600';
   };
-
-  // Roblox avatar URL
-  const avatarUrl = user?.roblox_id 
-    ? `https://www.roblox.com/headshot-thumbnail/image?userId=${user.roblox_id}&width=150&height=150&format=png`
-    : user?.discord_avatar 
-      ? `https://cdn.discordapp.com/avatars/${user.discord_id}/${user.discord_avatar}.png?size=128`
-      : `https://cdn.discordapp.com/embed/avatars/0.png`;
 
   return (
     <>
@@ -87,13 +80,13 @@ export function Header() {
             {user && (
               <div className="p-4 rounded-2xl bg-white/5 border border-white/10 mb-6 animate-slideUp">
                 <div className="flex items-center gap-3">
-                  <Image
-                    src={avatarUrl}
+                  <RobloxAvatar
+                    robloxId={user.roblox_id}
+                    discordId={user.discord_id}
+                    discordAvatar={user.discord_avatar}
                     alt={user.roblox_username || user.discord_username}
-                    width={48}
-                    height={48}
-                    className="w-12 h-12 rounded-full ring-2 ring-white/20"
-                    unoptimized
+                    size={48}
+                    className="w-12 h-12 ring-2 ring-white/20"
                   />
                   <div>
                     <div className="text-white font-semibold">{user.roblox_username || user.discord_username}</div>
