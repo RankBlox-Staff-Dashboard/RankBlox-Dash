@@ -30,12 +30,12 @@ router.get('/stats', async (req: Request, res: Response) => {
     const weekStart = getCurrentWeekStart();
 
     // Get or create activity log for current week
-    let activityLog = db
+    let activityLog = await db
       .prepare('SELECT * FROM activity_logs WHERE user_id = ? AND week_start = ?')
       .get(req.user.id, weekStart) as any;
 
     if (!activityLog) {
-      db.prepare(
+      await db.prepare(
         'INSERT INTO activity_logs (user_id, week_start, messages_sent, tickets_claimed, tickets_resolved) VALUES (?, ?, 0, 0, 0)'
       ).run(req.user.id, weekStart);
       activityLog = {
@@ -45,9 +45,9 @@ router.get('/stats', async (req: Request, res: Response) => {
       };
     }
 
-    // Get infraction count (non-voided)
-    const infractionCount = db
-      .prepare('SELECT COUNT(*) as count FROM infractions WHERE user_id = ? AND voided = 0')
+    // Get infraction count (non-voided) - use false for PostgreSQL boolean
+    const infractionCount = await db
+      .prepare('SELECT COUNT(*) as count FROM infractions WHERE user_id = ? AND voided = false')
       .get(req.user.id) as { count: number };
 
     res.json({
@@ -55,7 +55,7 @@ router.get('/stats', async (req: Request, res: Response) => {
       messages_quota: 150,
       tickets_claimed: activityLog.tickets_claimed || 0,
       tickets_resolved: activityLog.tickets_resolved || 0,
-      infractions: infractionCount.count || 0,
+      infractions: parseInt(infractionCount.count as any) || 0,
       week_start: weekStart,
     });
   } catch (error) {
@@ -73,7 +73,7 @@ router.get('/infractions', async (req: Request, res: Response) => {
   }
 
   try {
-    const infractions = db
+    const infractions = await db
       .prepare(
         `SELECT i.*, 
          u.discord_username as issued_by_username
@@ -99,8 +99,9 @@ router.get('/analytics', requireAdmin, async (req: Request, res: Response) => {
     // Total active users (platform-wide, not just staff)
     // This would typically come from your main user database
     // For now, we'll return staff counts
-    const totalStaff = db
-      .prepare('SELECT COUNT(*) as count FROM users WHERE status = "active"')
+    // Use single quotes for PostgreSQL string literals
+    const totalStaff = await db
+      .prepare("SELECT COUNT(*) as count FROM users WHERE status = 'active'")
       .get() as { count: number };
 
     const totalActiveUsers = 5442; // Placeholder - would come from main database
@@ -109,7 +110,7 @@ router.get('/analytics', requireAdmin, async (req: Request, res: Response) => {
     res.json({
       total_active_users: totalActiveUsers,
       active_workspaces: activeWorkspaces,
-      total_staff: totalStaff.count || 0,
+      total_staff: parseInt(totalStaff.count as any) || 0,
     });
   } catch (error) {
     console.error('Error fetching analytics:', error);

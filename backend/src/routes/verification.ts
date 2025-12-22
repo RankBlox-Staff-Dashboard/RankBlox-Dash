@@ -37,9 +37,9 @@ router.post('/roblox/request', async (req: Request, res: Response) => {
 
   try {
     // Check if user already has an active verification code
-    const existing = db
+    const existing = await db
       .prepare(
-        'SELECT * FROM verification_codes WHERE user_id = ? AND used = 0 AND expires_at > datetime("now")'
+        'SELECT * FROM verification_codes WHERE user_id = ? AND used = false AND expires_at > NOW()'
       )
       .get(req.user.id) as any;
 
@@ -56,9 +56,9 @@ router.post('/roblox/request', async (req: Request, res: Response) => {
     const expiresAt = new Date();
     expiresAt.setMinutes(expiresAt.getMinutes() + 5); // 5 minutes expiry
 
-    db.prepare(
+    await db.prepare(
       'INSERT INTO verification_codes (user_id, emoji_code, expires_at, used) VALUES (?, ?, ?, ?)'
-    ).run(req.user.id, emojiCode, expiresAt.toISOString(), 0);
+    ).run(req.user.id, emojiCode, expiresAt.toISOString(), false);
 
     res.json({
       emoji_code: emojiCode,
@@ -87,9 +87,9 @@ router.post('/roblox/verify', async (req: Request, res: Response) => {
 
   try {
     // Find active verification code
-    const codeRecord = db
+    const codeRecord = await db
       .prepare(
-        'SELECT * FROM verification_codes WHERE user_id = ? AND emoji_code = ? AND used = 0 AND expires_at > datetime("now")'
+        'SELECT * FROM verification_codes WHERE user_id = ? AND emoji_code = ? AND used = false AND expires_at > NOW()'
       )
       .get(req.user.id, emoji_code) as any;
 
@@ -107,9 +107,9 @@ router.post('/roblox/verify', async (req: Request, res: Response) => {
     }
 
     // Update user with Roblox info
-    db.prepare(
+    await db.prepare(
       `UPDATE users 
-       SET roblox_id = ?, roblox_username = ?, rank = ?, rank_name = ?, status = 'active', updated_at = datetime('now')
+       SET roblox_id = ?, roblox_username = ?, rank = ?, rank_name = ?, status = 'active', updated_at = NOW()
        WHERE id = ?`
     ).run(
       verificationResult.userId.toString(),
@@ -120,10 +120,10 @@ router.post('/roblox/verify', async (req: Request, res: Response) => {
     );
 
     // Mark verification code as used
-    db.prepare('UPDATE verification_codes SET used = 1 WHERE id = ?').run(codeRecord.id);
+    await db.prepare('UPDATE verification_codes SET used = true WHERE id = ?').run(codeRecord.id);
 
     // Initialize permissions
-    initializeUserPermissions(req.user.id, verificationResult.rank);
+    await initializeUserPermissions(req.user.id, verificationResult.rank);
 
     res.json({
       message: 'Verification successful',
@@ -140,12 +140,12 @@ router.post('/roblox/verify', async (req: Request, res: Response) => {
 /**
  * Check verification status
  */
-router.get('/roblox/status', (req: Request, res: Response) => {
+router.get('/roblox/status', async (req: Request, res: Response) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Authentication required' });
   }
 
-  const user = db
+  const user = await db
     .prepare('SELECT roblox_id, roblox_username, rank, rank_name, status FROM users WHERE id = ?')
     .get(req.user.id) as any;
 

@@ -46,15 +46,19 @@ router.get('/discord/callback', async (req: Request, res: Response) => {
       .get(discordUser.id) as any;
 
     if (!user) {
-      // Create new user - PostgreSQL needs RETURNING to get the inserted row
+      // Create new user
       const insertResult = await db
-        .prepare('INSERT INTO users (discord_id, discord_username, status) VALUES (?, ?, ?) RETURNING *')
-        .get(discordUser.id, discordUser.username, 'pending_verification') as any;
+        .prepare('INSERT INTO users (discord_id, discord_username, status) VALUES (?, ?, ?)')
+        .run(discordUser.id, discordUser.username, 'pending_verification') as any;
       
-      if (!insertResult) {
+      if (!insertResult || !insertResult.lastInsertRowid) {
         throw new Error('Failed to create user');
       }
-      user = insertResult;
+      
+      // Fetch the newly created user
+      user = await db
+        .prepare('SELECT * FROM users WHERE id = ?')
+        .get(insertResult.lastInsertRowid) as any;
     } else {
       // Update username if changed
       await db.prepare('UPDATE users SET discord_username = ? WHERE id = ?').run(
@@ -91,7 +95,7 @@ router.get('/discord/callback', async (req: Request, res: Response) => {
 
     // Initialize permissions if user just verified Roblox
     if (user.status === 'active' && user.rank !== null) {
-      initializeUserPermissions(user.id, user.rank);
+      await initializeUserPermissions(user.id, user.rank);
     }
 
     // Redirect to frontend with token
