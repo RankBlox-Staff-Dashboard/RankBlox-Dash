@@ -28,16 +28,34 @@ const FRONTEND_URLS = (process.env.FRONTEND_URLS || FRONTEND_URL)
   .map((s) => s.trim())
   .filter(Boolean);
 
+// Debug logging for CORS configuration
+console.log('=== CORS Configuration ===');
+console.log('NODE_ENV:', process.env.NODE_ENV);
+console.log('FRONTEND_URL env:', process.env.FRONTEND_URL);
+console.log('FRONTEND_URLS env:', process.env.FRONTEND_URLS);
+console.log('Resolved allowed origins:', FRONTEND_URLS);
+console.log('========================');
+
 // Middleware
 app.disable('x-powered-by');
 app.use(helmet());
 app.use(cookieParser());
 app.use(cors({
   origin(origin, callback) {
-    // Allow same-origin/non-browser requests (no Origin header)
-    if (!origin) return callback(null, true);
-    if (FRONTEND_URLS.includes(origin)) return callback(null, true);
-    return callback(new Error(`CORS blocked origin: ${origin}`));
+    // Allow requests with no origin (mobile apps, curl, Postman, server-to-server)
+    if (!origin) {
+      return callback(null, true);
+    }
+    
+    // Check if origin is in allowed list
+    if (FRONTEND_URLS.includes(origin)) {
+      return callback(null, true);
+    }
+    
+    // Reject disallowed origins properly (don't throw error)
+    console.warn(`CORS rejected origin: ${origin}`);
+    console.warn(`Allowed origins: ${FRONTEND_URLS.join(', ')}`);
+    return callback(null, false);
   },
   credentials: true,
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Bot-Token'],
@@ -79,6 +97,15 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
+// CORS test endpoint (temporary - for debugging)
+app.get('/api/cors-test', (req, res) => {
+  res.json({ 
+    origin: req.headers.origin,
+    allowed: FRONTEND_URLS,
+    message: 'CORS is working!' 
+  });
+});
+
 // Not found
 app.use((req, res) => {
   res.status(404).json({ error: 'Not found' });
@@ -95,14 +122,16 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
  */
 async function checkWeeklyQuotas() {
   try {
-    // Get current week start
-    const now = new Date();
-    const day = now.getDay();
-    const diff = now.getDate() - day + (day === 0 ? -6 : 1);
-    const monday = new Date(now.setDate(diff));
-    monday.setHours(0, 0, 0, 0);
-    monday.setDate(monday.getDate() - 7); // Last week
-    const lastWeekStart = monday.toISOString().split('T')[0];
+    // Calculate last Monday (start of last week) more reliably
+    const today = new Date();
+    const currentDay = today.getUTCDay();
+    const daysToLastMonday = currentDay === 0 ? 7 : currentDay;
+    const lastMonday = new Date(today);
+    lastMonday.setUTCDate(today.getUTCDate() - daysToLastMonday - 7);
+    lastMonday.setUTCHours(0, 0, 0, 0);
+    const lastWeekStart = lastMonday.toISOString().split('T')[0];
+
+    console.log(`[QuotaCheck] Checking quotas for week starting: ${lastWeekStart}`);
 
     // Get all users who didn't meet quota
     const activityLogs = await db
@@ -113,42 +142,53 @@ async function checkWeeklyQuotas() {
       )
       .all(lastWeekStart) as { user_id: number; messages_sent: number }[];
 
-    // Count of infractions issued
-    let infractionsIssued = 0;
-
-    // Issue infractions
-    for (const log of activityLogs) {
-      // Check if infraction already issued for this week (MySQL syntax)
-      const existing = await db
-        .prepare(
-          `SELECT id FROM infractions 
-           WHERE user_id = ? 
-           AND reason LIKE ? 
-           AND voided = false 
-           AND created_at > DATE_SUB(?, INTERVAL 7 DAY)`
-        )
-        .get(
-          log.user_id,
-          'Failed to meet 150 messages this week%',
-          lastWeekStart
-        );
-
-      if (!existing) {
-        await db.prepare(
-          `INSERT INTO infractions (user_id, reason, type, issued_by)
-           VALUES (?, ?, ?, NULL)`
-        ).run(
-          log.user_id,
-          `Failed to meet 150 messages this week. Only sent ${log.messages_sent} messages.`,
-          'warning'
-        );
-        infractionsIssued++;
-      }
+    if (activityLogs.length === 0) {
+      console.log('[QuotaCheck] No users below quota threshold');
+      return;
     }
 
-    console.log(`Checked weekly quotas and issued ${infractionsIssued} infractions`);
+    console.log(`[QuotaCheck] Found ${activityLogs.length} users below quota`);
+
+    // Issue infractions in a transaction for atomicity
+    const issueInfractions = db.transaction(() => {
+      let infractionsIssued = 0;
+
+      for (const log of activityLogs) {
+        // Check if infraction already issued for this week (SQLite syntax)
+        const existing = db
+          .prepare(
+            `SELECT id FROM infractions 
+             WHERE user_id = ? 
+             AND reason LIKE ? 
+             AND voided = 0 
+             AND created_at > datetime(?, '-7 days')`
+          )
+          .get(
+            log.user_id,
+            'Failed to meet 150 messages this week%',
+            lastWeekStart
+          );
+
+        if (!existing) {
+          db.prepare(
+            `INSERT INTO infractions (user_id, reason, type, issued_by)
+             VALUES (?, ?, ?, NULL)`
+          ).run(
+            log.user_id,
+            `Failed to meet 150 messages this week. Only sent ${log.messages_sent} messages.`,
+            'warning'
+          );
+          infractionsIssued++;
+        }
+      }
+
+      return infractionsIssued;
+    });
+
+    const count = issueInfractions();
+    console.log(`[QuotaCheck] Issued ${count} infractions for ${activityLogs.length} users below threshold`);
   } catch (error) {
-    console.error('Error checking weekly quotas:', error);
+    console.error('[QuotaCheck] Error checking weekly quotas:', error);
   }
 }
 
@@ -157,9 +197,27 @@ cron.schedule('0 0 * * 1', checkWeeklyQuotas, {
   timezone: 'UTC',
 });
 
-// Start server
-app.listen(PORT, () => {
+// Start server and store instance for graceful shutdown
+const server = app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`Frontend URL(s): ${FRONTEND_URLS.join(', ')}`);
 });
 
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, closing server gracefully...');
+  server.close(() => {
+    console.log('Server closed');
+    db.close();
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received, closing server gracefully...');
+  server.close(() => {
+    console.log('Server closed');
+    db.close();
+    process.exit(0);
+  });
+});
