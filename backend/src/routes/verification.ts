@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { authenticateToken } from '../middleware/auth';
-import { verifyRobloxUser } from '../services/roblox';
+import { verifyRobloxUserDetailed } from '../services/roblox';
 import { db } from '../models/database';
 import { initializeUserPermissions } from '../services/permissions';
 
@@ -119,12 +119,21 @@ router.post('/roblox/verify', async (req: Request, res: Response) => {
     }
 
     // Verify Roblox user
-    const verificationResult = await verifyRobloxUser(roblox_username, emoji_code);
+    const verificationResult = await verifyRobloxUserDetailed(roblox_username, emoji_code);
 
-    if (!verificationResult) {
-      return res.status(400).json({
-        error: 'Verification failed. Make sure the emoji code is in your Roblox bio/status and you are a member of the group.',
-      });
+    if (verificationResult.ok === false) {
+      const error =
+        verificationResult.reason === 'NO_EMOJI_IN_BIO'
+          ? 'No emoji detected in your Roblox bio. Paste the emoji code into your bio, save, then try again.'
+          : verificationResult.reason === 'CODE_NOT_FOUND'
+          ? 'Emoji code not found in your Roblox bio. Make sure you pasted it into your bio, saved, then try again.'
+          : verificationResult.reason === 'NOT_IN_GROUP'
+          ? 'Verification failed. You must be a member of the Roblox group to verify.'
+          : verificationResult.reason === 'USER_NOT_FOUND'
+          ? 'Roblox user not found. Double-check the username and try again.'
+          : 'Verification failed due to a Roblox API error. Please try again.';
+
+      return res.status(400).json({ error });
     }
 
     // Update user with Roblox info

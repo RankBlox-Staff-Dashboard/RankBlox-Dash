@@ -17,6 +17,18 @@ interface RobloxGroupMember {
   };
 }
 
+function normalizeEmojiText(input: string): string {
+  // Roblox/user agents sometimes add/remove emoji variation selectors.
+  // Stripping them makes comparisons more reliable.
+  return (input || '').normalize('NFKC').replace(/[\uFE0E\uFE0F]/g, '');
+}
+
+function containsAnyEmoji(input: string): boolean {
+  // Unicode emoji coverage: Extended_Pictographic catches most emoji glyphs.
+  // This is supported in Node 20+ (and our TS target is ES2020).
+  return /\p{Extended_Pictographic}/u.test(input || '');
+}
+
 /**
  * Get Roblox user ID by username
  */
@@ -101,11 +113,67 @@ export async function getUserGroupRank(userId: number): Promise<{ rank: number; 
 export async function verifyEmojiCodeInBio(userId: number, emojiCode: string): Promise<boolean> {
   try {
     const bio = await getRobloxUserBio(userId);
-    return bio.includes(emojiCode);
+    if (!containsAnyEmoji(bio)) {
+      return false;
+    }
+    return normalizeEmojiText(bio).includes(normalizeEmojiText(emojiCode));
   } catch (error) {
     console.error('Error verifying emoji code in bio:', error);
     return false;
   }
+}
+
+export type RobloxVerificationFailureReason =
+  | 'USER_NOT_FOUND'
+  | 'NO_EMOJI_IN_BIO'
+  | 'CODE_NOT_FOUND'
+  | 'NOT_IN_GROUP'
+  | 'ROBLOX_API_ERROR';
+
+export type RobloxVerificationResult =
+  | { ok: true; userId: number; username: string; rank: number; rankName: string }
+  | { ok: false; reason: RobloxVerificationFailureReason };
+
+/**
+ * Verify user by username and emoji code, with explicit failure reasons.
+ */
+export async function verifyRobloxUserDetailed(
+  username: string,
+  emojiCode: string
+): Promise<RobloxVerificationResult> {
+  const userId = await getRobloxUserId(username);
+  if (!userId) {
+    return { ok: false, reason: 'USER_NOT_FOUND' };
+  }
+
+  const bio = await getRobloxUserBio(userId);
+  if (!containsAnyEmoji(bio)) {
+    return { ok: false, reason: 'NO_EMOJI_IN_BIO' };
+  }
+
+  const normalizedBio = normalizeEmojiText(bio);
+  const normalizedCode = normalizeEmojiText(emojiCode);
+  if (!normalizedBio.includes(normalizedCode)) {
+    return { ok: false, reason: 'CODE_NOT_FOUND' };
+  }
+
+  const rankInfo = await getUserGroupRank(userId);
+  if (!rankInfo) {
+    return { ok: false, reason: 'NOT_IN_GROUP' };
+  }
+
+  const userInfo = await getRobloxUser(userId);
+  if (!userInfo) {
+    return { ok: false, reason: 'ROBLOX_API_ERROR' };
+  }
+
+  return {
+    ok: true,
+    userId,
+    username: userInfo.name || username,
+    rank: rankInfo.rank,
+    rankName: rankInfo.rankName,
+  };
 }
 
 /**
@@ -116,35 +184,14 @@ export async function verifyRobloxUser(
   username: string,
   emojiCode: string
 ): Promise<{ userId: number; username: string; rank: number; rankName: string } | null> {
-  // Get user ID
-  const userId = await getRobloxUserId(username);
-  if (!userId) {
-    return null;
-  }
-
-  // Verify emoji code in bio
-  const codeExists = await verifyEmojiCodeInBio(userId, emojiCode);
-  if (!codeExists) {
-    return null;
-  }
-
-  // Get group rank
-  const rankInfo = await getUserGroupRank(userId);
-  if (!rankInfo) {
-    return null;
-  }
-
-  // Get user info for display name
-  const userInfo = await getRobloxUser(userId);
-  if (!userInfo) {
-    return null;
-  }
-
-  return {
-    userId,
-    username: userInfo.name || username,
-    rank: rankInfo.rank,
-    rankName: rankInfo.rankName,
-  };
+  const result = await verifyRobloxUserDetailed(username, emojiCode);
+  return result.ok
+    ? {
+        userId: result.userId,
+        username: result.username,
+        rank: result.rank,
+        rankName: result.rankName,
+      }
+    : null;
 }
 
