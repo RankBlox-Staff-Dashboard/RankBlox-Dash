@@ -1,4 +1,4 @@
-# Complete Environment Variable Setup Guide
+# Complete Environment Variable Setup Guid
 
 ## Render (Backend) Environment Variables
 
