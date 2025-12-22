@@ -13,7 +13,7 @@ import { Request, Response } from 'express';
  */
 export const authRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  limit: 20, // 20 requests per 15 minutes
+  limit: 500, // 500 requests per 15 minutes
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many authentication attempts. Please try again later.' },
