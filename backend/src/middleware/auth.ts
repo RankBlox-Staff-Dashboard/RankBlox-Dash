@@ -26,7 +26,7 @@ export async function authenticateToken(
   res: Response,
   next: NextFunction
 ): Promise<void> {
-  const authHeader = req.headers['authorization'] || req.headers['Authorization'];
+  const authHeader = (req.headers['authorization'] || req.headers['Authorization']) as string | undefined;
   const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
   if (!token) {
