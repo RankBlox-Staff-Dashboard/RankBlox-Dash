@@ -26,10 +26,11 @@ export async function authenticateToken(
   res: Response,
   next: NextFunction
 ): Promise<void> {
-  const authHeader = req.headers['authorization'];
+  const authHeader = req.headers['authorization'] || req.headers['Authorization'];
   const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
   if (!token) {
+    console.error('No token provided in request. Headers:', Object.keys(req.headers));
     res.status(401).json({ error: 'Authentication required' });
     return;
   }
