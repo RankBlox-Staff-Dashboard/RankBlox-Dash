@@ -5,14 +5,14 @@ import { usePathname } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { authAPI } from '@/services/api';
+import { Shield, LayoutDashboard, Ticket, AlertTriangle, Settings, LogOut } from 'lucide-react';
 
 const navigation = [
-  { name: 'Overview', path: '/overview', icon: '📊' },
-  { name: 'Tickets', path: '/tickets', icon: '🎫', permission: 'VIEW_TICKETS' },
-  { name: 'Infractions', path: '/infractions', icon: '⚠️', permission: 'VIEW_INFRACTIONS' },
-  { name: 'Analytics', path: '/analytics', icon: '📈', permission: 'VIEW_ANALYTICS' },
-  { name: 'Management', path: '/management', icon: '⚙️', permission: 'MANAGE_USERS', adminOnly: true },
-  { name: 'Settings', path: '/settings', icon: '🔧' },
+  { name: 'Overview', path: '/overview', icon: LayoutDashboard },
+  { name: 'Tickets', path: '/tickets', icon: Ticket, permission: 'VIEW_TICKETS' },
+  { name: 'Infractions', path: '/infractions', icon: AlertTriangle, permission: 'VIEW_INFRACTIONS' },
+  { name: 'Management', path: '/management', icon: Shield, permission: 'MANAGE_USERS', adminOnly: true },
+  { name: 'Settings', path: '/settings', icon: Settings },
 ];
 
 export function NavBar() {
@@ -32,11 +32,11 @@ export function NavBar() {
   });
 
   return (
-    <nav className="bg-dark-card border-r border-dark-border min-h-screen w-64 p-4">
+    <nav className="bg-zinc-900 border-r border-white/10 min-h-screen w-64 p-4">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-white flex items-center space-x-2">
-          <span>🔗</span>
-          <span>AHS Staff</span>
+          <Shield className="w-6 h-6 text-blue-400" />
+          <span>Atlanta High</span>
         </h1>
         {user && (
           <div className="mt-2">
@@ -50,17 +50,18 @@ export function NavBar() {
       <div className="space-y-2">
         {visibleNav.map((item) => {
           const isActive = pathname === item.path;
+          const Icon = item.icon;
           return (
             <Link
               key={item.path}
               href={item.path}
-              className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
+              className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-all ${
                 isActive
                   ? 'bg-blue-600 text-white'
-                  : 'text-gray-300 hover:bg-dark-border hover:text-white'
+                  : 'text-white/60 hover:bg-white/10 hover:text-white'
               }`}
             >
-              <span className="text-xl">{item.icon}</span>
+              <Icon className="w-5 h-5" />
               <span className="font-medium">{item.name}</span>
             </Link>
           );
@@ -68,7 +69,7 @@ export function NavBar() {
       </div>
 
       {user && (
-        <div className="mt-auto pt-8 border-t border-dark-border">
+        <div className="mt-auto pt-8 border-t border-white/10">
           <button
             onClick={async () => {
               if (typeof window !== 'undefined') {
@@ -82,9 +83,9 @@ export function NavBar() {
                 }
               }
             }}
-            className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-300 hover:bg-dark-border hover:text-white transition-colors"
+            className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-red-400 hover:bg-red-500/10 transition-all"
           >
-            <span>🚪</span>
+            <LogOut className="w-5 h-5" />
             <span>Logout</span>
           </button>
         </div>

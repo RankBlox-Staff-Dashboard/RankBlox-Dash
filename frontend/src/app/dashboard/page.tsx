@@ -6,15 +6,14 @@ import {
   BookOpen,
   ExternalLink,
   LifeBuoy,
-  Link2,
   Menu,
   MessageSquare,
   Search,
   Settings,
   UserCheck,
   Users,
-  Wallet,
   Database,
+  Shield,
 } from 'lucide-react';
 
 import { Avatar } from '@/components/ui/Avatar';
@@ -38,9 +37,9 @@ export default function StaffDashboardPage() {
             </button>
 
             <div className="flex items-center gap-2">
-              <Link2 className="h-[18px] w-[18px] text-white/70" strokeWidth={2.2} />
+              <Shield className="h-[18px] w-[18px] text-blue-400" strokeWidth={2.2} />
               <div className="text-[20px] font-semibold tracking-tight text-white">
-                Panora Staff
+                Atlanta High
               </div>
               <Badge
                 className="ml-1 bg-rose-500/12 text-rose-200 ring-1 ring-rose-400/25"
@@ -87,8 +86,6 @@ export default function StaffDashboardPage() {
                 { key: 'overview', label: 'Overview', icon: BarChart3 },
                 { key: 'lookup', label: 'Lookup', icon: Search },
                 { key: 'infractions', label: 'Infractions', icon: AlertTriangle },
-                { key: 'analytics', label: 'Analytics', icon: BarChart3 },
-                { key: 'payouts', label: 'Payouts', icon: Wallet },
                 { key: 'settings', label: 'Settings', icon: Settings },
               ]}
             />
@@ -116,10 +113,10 @@ export default function StaffDashboardPage() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="text-[15px] font-semibold text-white">
-                    Panora Documentation
+                    Atlanta High Documentation
                   </div>
                   <div className="mt-0.5 text-[12px] text-white/45">
-                    Panora&apos;s Public Documentations
+                    Official staff guidelines and procedures
                   </div>
                 </div>
                 <ExternalLink className="h-[18px] w-[18px] text-white/55" strokeWidth={2.2} />
@@ -141,9 +138,9 @@ export default function StaffDashboardPage() {
                   <LifeBuoy className="h-[18px] w-[18px] text-emerald-200" strokeWidth={2.2} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="text-[15px] font-semibold text-white">Support Guide</div>
+                  <div className="text-[15px] font-semibold text-white">Support Center</div>
                   <div className="mt-0.5 text-[12px] text-white/45">
-                    Panora&apos;s Support Guide
+                    Get help with staff-related issues
                   </div>
                 </div>
                 <ExternalLink className="h-[18px] w-[18px] text-white/55" strokeWidth={2.2} />
@@ -175,7 +172,7 @@ export default function StaffDashboardPage() {
                   <div className="min-w-0">
                     <div className="text-[15px] font-semibold text-white">Tracked Channels</div>
                     <div className="mt-0.5 text-[12px] text-white/45">
-                      #public-chat, #commands, #of-the-day, and #counting.
+                      Messages tracked across designated Discord channels.
                     </div>
                   </div>
                 </div>
@@ -212,8 +209,7 @@ export default function StaffDashboardPage() {
                   <div className="min-w-0">
                     <div className="text-[15px] font-semibold text-white">Failed Quota</div>
                     <div className="mt-0.5 text-[12px] text-white/45">
-                      Failure to meet quota consecutively, will lead to a demotion or
-                      termination.
+                      Failure to meet quota consecutively will lead to disciplinary action.
                     </div>
                   </div>
                 </div>
@@ -225,7 +221,7 @@ export default function StaffDashboardPage() {
           </Card>
 
           <div className="mt-10 pb-4 text-center text-[12px] text-white/35">
-            © 2025 Panora Connect LLC. All rights reserved.
+            © 2025 Atlanta High. All rights reserved.
           </div>
         </main>
       </div>

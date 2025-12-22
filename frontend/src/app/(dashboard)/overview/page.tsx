@@ -5,8 +5,9 @@ import {
   User,
   HelpCircle,
   AlertTriangle,
-  Info,
-  ExternalLink
+  ExternalLink,
+  BookOpen,
+  MessageCircle
 } from 'lucide-react';
 import { ProfileCard } from '@/components/ProfileCard';
 import { NavigationTabs } from '@/components/NavigationTabs';
@@ -22,7 +23,7 @@ export default function OverviewPage() {
       <NavigationTabs />
 
       {/* Staff Resources */}
-      <Card className="p-5">
+      <Card className="p-5 animate-fadeInUp" style={{ animationDelay: '0.1s' }}>
         <div className="flex items-center gap-2 mb-3">
           <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
             <FileText className="w-4 h-4 text-white/70" />
@@ -35,52 +36,54 @@ export default function OverviewPage() {
 
         <div className="space-y-2">
           <a 
-            href="https://docs.panora.cc" 
+            href="https://docs.atlantahigh.com" 
             target="_blank" 
             rel="noopener noreferrer"
-            className="flex items-center justify-between p-3 rounded-xl bg-white/5 hover:bg-white/10 transition group"
+            className="flex items-center justify-between p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all hover:scale-[1.01] group"
           >
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-lg bg-blue-500/20 flex items-center justify-center">
-                <FileText className="w-4 h-4 text-blue-300" />
+                <BookOpen className="w-4 h-4 text-blue-300" />
               </div>
               <div>
-                <div className="text-sm font-medium text-white">Panora Documentation</div>
-                <div className="text-xs text-white/50">Panora&apos;s Public Documentations</div>
+                <div className="text-sm font-medium text-white">Atlanta High Documentation</div>
+                <div className="text-xs text-white/50">Official staff guidelines and procedures</div>
               </div>
             </div>
             <ExternalLink className="w-4 h-4 text-white/40 group-hover:text-white/60 transition" />
           </a>
 
           <a 
-            href="#" 
-            className="flex items-center justify-between p-3 rounded-xl bg-white/5 hover:bg-white/10 transition group"
+            href="https://discord.gg/atlantahigh" 
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-between p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all hover:scale-[1.01] group"
           >
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-lg bg-purple-500/20 flex items-center justify-center">
-                <User className="w-4 h-4 text-purple-300" />
+                <MessageCircle className="w-4 h-4 text-purple-300" />
               </div>
               <div>
-                <div className="text-sm font-medium text-white">Staff Documentation</div>
-                <div className="text-xs text-white/50">Coming Soon!</div>
+                <div className="text-sm font-medium text-white">Staff Discord</div>
+                <div className="text-xs text-white/50">Join the staff communication server</div>
               </div>
             </div>
             <ExternalLink className="w-4 h-4 text-white/40 group-hover:text-white/60 transition" />
           </a>
 
           <a 
-            href="https://support.panora.cc" 
+            href="https://support.atlantahigh.com" 
             target="_blank" 
             rel="noopener noreferrer"
-            className="flex items-center justify-between p-3 rounded-xl bg-white/5 hover:bg-white/10 transition group"
+            className="flex items-center justify-between p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all hover:scale-[1.01] group"
           >
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-lg bg-emerald-500/20 flex items-center justify-center">
                 <HelpCircle className="w-4 h-4 text-emerald-300" />
               </div>
               <div>
-                <div className="text-sm font-medium text-white">Support Guide</div>
-                <div className="text-xs text-white/50">Panora&apos;s Support Guide</div>
+                <div className="text-sm font-medium text-white">Support Center</div>
+                <div className="text-xs text-white/50">Get help with staff-related issues</div>
               </div>
             </div>
             <ExternalLink className="w-4 h-4 text-white/40 group-hover:text-white/60 transition" />
@@ -89,15 +92,15 @@ export default function OverviewPage() {
       </Card>
 
       {/* Quick Reminders */}
-      <Card className="p-5">
+      <Card className="p-5 animate-fadeInUp" style={{ animationDelay: '0.2s' }}>
         <div className="flex items-center gap-2 mb-4">
           <AlertTriangle className="w-5 h-5 text-yellow-400" />
           <h3 className="text-base font-semibold text-white">Quick Reminders</h3>
         </div>
 
         <div className="space-y-3">
-          <div className="flex items-start gap-3 p-3 rounded-xl bg-blue-500/10 border border-blue-500/20">
-            <div className="w-2 h-2 rounded-full bg-blue-400 mt-1.5 flex-shrink-0" />
+          <div className="flex items-start gap-3 p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 transition-all hover:bg-blue-500/15">
+            <div className="w-2 h-2 rounded-full bg-blue-400 mt-1.5 flex-shrink-0 animate-pulse" />
             <div className="flex-1">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-sm font-medium text-white">Tracked Channels</span>
@@ -106,13 +109,13 @@ export default function OverviewPage() {
                 </span>
               </div>
               <p className="text-xs text-white/60">
-                #public-chat, #commands, #of-the-day, and #counting.
+                Messages are tracked across designated channels. Check the management panel for the list.
               </p>
             </div>
           </div>
 
-          <div className="flex items-start gap-3 p-3 rounded-xl bg-yellow-500/10 border border-yellow-500/20">
-            <div className="w-2 h-2 rounded-full bg-yellow-400 mt-1.5 flex-shrink-0" />
+          <div className="flex items-start gap-3 p-3 rounded-xl bg-yellow-500/10 border border-yellow-500/20 transition-all hover:bg-yellow-500/15">
+            <div className="w-2 h-2 rounded-full bg-yellow-400 mt-1.5 flex-shrink-0 animate-pulse" />
             <div className="flex-1">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-sm font-medium text-white">Leave Of Absence</span>
@@ -121,13 +124,13 @@ export default function OverviewPage() {
                 </span>
               </div>
               <p className="text-xs text-white/60">
-                Submit an LOA under your Account Settings.
+                Submit an LOA under your Account Settings before taking time off.
               </p>
             </div>
           </div>
 
-          <div className="flex items-start gap-3 p-3 rounded-xl bg-red-500/10 border border-red-500/20">
-            <div className="w-2 h-2 rounded-full bg-red-400 mt-1.5 flex-shrink-0" />
+          <div className="flex items-start gap-3 p-3 rounded-xl bg-red-500/10 border border-red-500/20 transition-all hover:bg-red-500/15">
+            <div className="w-2 h-2 rounded-full bg-red-400 mt-1.5 flex-shrink-0 animate-pulse" />
             <div className="flex-1">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-sm font-medium text-white">Failed Quota</span>
@@ -136,7 +139,7 @@ export default function OverviewPage() {
                 </span>
               </div>
               <p className="text-xs text-white/60">
-                Failure to meet quota consecutively, will lead to a demotion or termination.
+                Failure to meet quota consecutively will lead to disciplinary action.
               </p>
             </div>
           </div>

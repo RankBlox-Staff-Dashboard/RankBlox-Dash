@@ -1,23 +1,19 @@
 import { Events, Message } from 'discord.js';
-import { botAPI } from '../services/api';
+import { botAPI, MessageData } from '../services/api';
 
-// Cache to store message counts per user per week
-const messageCounts = new Map<string, number>();
-
-// Get current week start (Monday)
-function getCurrentWeekStart(): string {
-  const now = new Date();
-  const day = now.getDay();
-  const diff = now.getDate() - day + (day === 0 ? -6 : 1);
-  const monday = new Date(now.setDate(diff));
-  monday.setHours(0, 0, 0, 0);
-  return monday.toISOString().split('T')[0];
-}
-
-// Get tracked channels from backend
+// Cache for tracked channels
 let trackedChannels: string[] = [];
 let lastChannelFetch = 0;
 const CHANNEL_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+// Cache for user verification (to avoid hitting API for every message)
+const userCache = new Map<string, { isActive: boolean; cachedAt: number }>();
+const USER_CACHE_TTL = 60 * 1000; // 1 minute
+
+// Message queue for batch processing
+const messageQueue: MessageData[] = [];
+const BATCH_INTERVAL = 5000; // 5 seconds
+const MAX_BATCH_SIZE = 50;
 
 async function getTrackedChannels(): Promise<string[]> {
   const now = Date.now();
@@ -29,58 +25,93 @@ async function getTrackedChannels(): Promise<string[]> {
     const response = await botAPI.getTrackedChannels();
     trackedChannels = response.data.map((ch: any) => ch.discord_channel_id);
     lastChannelFetch = now;
+    console.log(`[MessageTracker] Loaded ${trackedChannels.length} tracked channels`);
     return trackedChannels;
   } catch (error) {
-    console.error('Error fetching tracked channels:', error);
+    console.error('[MessageTracker] Error fetching tracked channels:', error);
     return trackedChannels; // Return cached on error
   }
 }
 
-// Debounced update function to batch updates
-const pendingUpdates = new Map<string, number>();
-const UPDATE_INTERVAL = 30000; // 30 seconds
+async function isUserActive(discordId: string): Promise<boolean> {
+  const now = Date.now();
+  const cached = userCache.get(discordId);
+  
+  if (cached && now - cached.cachedAt < USER_CACHE_TTL) {
+    return cached.isActive;
+  }
 
-setInterval(async () => {
-  const updates = Array.from(pendingUpdates.entries());
-  pendingUpdates.clear();
+  try {
+    const response = await botAPI.getUser(discordId);
+    const isActive = response.data?.status === 'active';
+    userCache.set(discordId, { isActive, cachedAt: now });
+    return isActive;
+  } catch (error) {
+    // User not found - cache as inactive
+    userCache.set(discordId, { isActive: false, cachedAt: now });
+    return false;
+  }
+}
 
-  for (const [discordId, count] of updates) {
-    try {
-      await botAPI.updateActivity(discordId, count);
-    } catch (error) {
-      console.error(`Error updating activity for user ${discordId}:`, error);
+// Process message queue in batches
+async function processMessageQueue() {
+  if (messageQueue.length === 0) return;
+
+  const batch = messageQueue.splice(0, MAX_BATCH_SIZE);
+  
+  try {
+    const response = await botAPI.recordMessagesBatch(batch);
+    console.log(`[MessageTracker] Recorded ${response.data.recorded} messages`);
+  } catch (error: any) {
+    console.error('[MessageTracker] Error recording message batch:', error.message || error);
+    // Re-queue failed messages (with limit to prevent infinite growth)
+    if (messageQueue.length < 500) {
+      messageQueue.push(...batch);
     }
   }
-}, UPDATE_INTERVAL);
+}
+
+// Set up batch processing interval
+setInterval(processMessageQueue, BATCH_INTERVAL);
+
+// Process remaining messages on shutdown
+process.on('SIGINT', async () => {
+  console.log('[MessageTracker] Processing remaining messages before shutdown...');
+  await processMessageQueue();
+  process.exit(0);
+});
 
 export const name = Events.MessageCreate;
+
 export async function execute(message: Message) {
-    // Ignore bots
-    if (message.author.bot) return;
+  // Ignore bots
+  if (message.author.bot) return;
 
-    // Ignore DMs
-    if (!message.guild) return;
+  // Ignore DMs
+  if (!message.guild) return;
 
-    // Check if channel is tracked
-    const channels = await getTrackedChannels();
-    if (!channels.includes(message.channel.id)) return;
+  // Check if channel is tracked
+  const channels = await getTrackedChannels();
+  if (!channels.includes(message.channel.id)) return;
 
-    // Get user's Discord ID
-    const discordId = message.author.id;
+  const discordId = message.author.id;
 
-    // Verify user is a staff member
-    try {
-      const userResponse = await botAPI.getUser(discordId);
-      if (!userResponse.data || userResponse.data.status !== 'active') {
-        return; // Not an active staff member, don't track
-      }
-    } catch (error) {
-      // User not found or error, don't track
-      return;
-    }
+  // Check if user is an active staff member
+  const isActive = await isUserActive(discordId);
+  if (!isActive) return;
 
-    // Increment message count
-    const currentCount = pendingUpdates.get(discordId) || 0;
-    pendingUpdates.set(discordId, currentCount + 1);
+  // Queue message for batch processing
+  messageQueue.push({
+    discord_id: discordId,
+    discord_message_id: message.id,
+    discord_channel_id: message.channel.id,
+    guild_id: message.guild.id,
+    content_length: message.content.length,
+  });
+
+  // If queue is getting large, process immediately
+  if (messageQueue.length >= MAX_BATCH_SIZE) {
+    processMessageQueue();
   }
+}
 

@@ -123,5 +123,155 @@ router.get('/analytics', requireAdmin, requirePermission('VIEW_ANALYTICS'), asyn
   }
 });
 
+/**
+ * Get current LOA status for user
+ */
+router.get('/loa/status', async (req: Request, res: Response) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  try {
+    // Get active or pending LOA
+    const activeLoa = await db
+      .prepare(
+        `SELECT * FROM loa_requests 
+         WHERE user_id = ? 
+         AND (status = 'pending' OR (status = 'approved' AND end_date >= CURDATE()))
+         ORDER BY created_at DESC 
+         LIMIT 1`
+      )
+      .get(req.user.id) as any;
+
+    res.json({
+      has_active_loa: !!activeLoa,
+      loa: activeLoa || null,
+    });
+  } catch (error) {
+    console.error('Error fetching LOA status:', error);
+    res.status(500).json({ error: 'Failed to fetch LOA status' });
+  }
+});
+
+/**
+ * Get all LOA requests for user
+ */
+router.get('/loa', async (req: Request, res: Response) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  try {
+    const loaRequests = await db
+      .prepare(
+        `SELECT l.*, 
+         u.discord_username as reviewed_by_username
+         FROM loa_requests l
+         LEFT JOIN users u ON l.reviewed_by = u.id
+         WHERE l.user_id = ?
+         ORDER BY l.created_at DESC`
+      )
+      .all(req.user.id) as any[];
+
+    res.json(loaRequests);
+  } catch (error) {
+    console.error('Error fetching LOA requests:', error);
+    res.status(500).json({ error: 'Failed to fetch LOA requests' });
+  }
+});
+
+/**
+ * Create a new LOA request
+ */
+router.post('/loa', async (req: Request, res: Response) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  try {
+    const { start_date, end_date, reason } = req.body;
+
+    if (!start_date || !end_date || !reason) {
+      return res.status(400).json({ error: 'start_date, end_date, and reason are required' });
+    }
+
+    // Validate dates
+    const startDate = new Date(start_date);
+    const endDate = new Date(end_date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    if (startDate < today) {
+      return res.status(400).json({ error: 'Start date cannot be in the past' });
+    }
+
+    if (endDate < startDate) {
+      return res.status(400).json({ error: 'End date must be after start date' });
+    }
+
+    // Check for existing pending or active LOA
+    const existingLoa = await db
+      .prepare(
+        `SELECT id FROM loa_requests 
+         WHERE user_id = ? 
+         AND (status = 'pending' OR (status = 'approved' AND end_date >= CURDATE()))`
+      )
+      .get(req.user.id) as any;
+
+    if (existingLoa) {
+      return res.status(400).json({ error: 'You already have a pending or active LOA request' });
+    }
+
+    // Create LOA request
+    const result = await db
+      .prepare(
+        `INSERT INTO loa_requests (user_id, start_date, end_date, reason, status) 
+         VALUES (?, ?, ?, ?, 'pending')`
+      )
+      .run(req.user.id, start_date, end_date, reason);
+
+    res.json({ 
+      message: 'LOA request submitted successfully',
+      loa_id: result.lastInsertRowid,
+    });
+  } catch (error) {
+    console.error('Error creating LOA request:', error);
+    res.status(500).json({ error: 'Failed to create LOA request' });
+  }
+});
+
+/**
+ * Cancel a pending LOA request
+ */
+router.delete('/loa/:id', async (req: Request, res: Response) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  try {
+    const loaId = parseInt(req.params.id);
+
+    // Check if LOA exists and belongs to user
+    const loa = await db
+      .prepare('SELECT * FROM loa_requests WHERE id = ? AND user_id = ?')
+      .get(loaId, req.user.id) as any;
+
+    if (!loa) {
+      return res.status(404).json({ error: 'LOA request not found' });
+    }
+
+    if (loa.status !== 'pending') {
+      return res.status(400).json({ error: 'Only pending LOA requests can be cancelled' });
+    }
+
+    await db.prepare('DELETE FROM loa_requests WHERE id = ?').run(loaId);
+
+    res.json({ message: 'LOA request cancelled successfully' });
+  } catch (error) {
+    console.error('Error cancelling LOA request:', error);
+    res.status(500).json({ error: 'Failed to cancel LOA request' });
+  }
+});
+
 export default router;
 

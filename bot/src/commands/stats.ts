@@ -1,47 +1,125 @@
 import { ChatInputCommandInteraction, SlashCommandBuilder, EmbedBuilder } from 'discord.js';
 import { botAPI } from '../services/api';
-import axios from 'axios';
-
-const BACKEND_API_URL = process.env.BACKEND_API_URL || 'http://localhost:3000/api';
 
 export const data = new SlashCommandBuilder()
   .setName('stats')
-  .setDescription('View your staff statistics');
+  .setDescription('View your staff statistics')
+  .addUserOption((option) =>
+    option
+      .setName('user')
+      .setDescription('View another staff member\'s stats (admin only)')
+      .setRequired(false)
+  );
 
 export async function execute(interaction: ChatInputCommandInteraction) {
-  const discordId = interaction.user.id;
+  const targetUser = interaction.options.getUser('user');
+  const discordId = targetUser?.id || interaction.user.id;
+  const isSelfLookup = !targetUser || targetUser.id === interaction.user.id;
 
   await interaction.deferReply({ ephemeral: true });
 
   try {
     // Get user from backend
-    const userResponse = await botAPI.getUser(discordId);
-
-    if (!userResponse.data || userResponse.data.status !== 'active') {
-      return interaction.editReply({
-        content: 'You are not an active staff member.',
-      });
+    let userData: any;
+    try {
+      const userResponse = await botAPI.getUser(discordId);
+      userData = userResponse.data;
+    } catch (err: any) {
+      if (err.response?.status === 404) {
+        const embed = new EmbedBuilder()
+          .setTitle('❌ User Not Found')
+          .setDescription(isSelfLookup 
+            ? 'You are not registered in the staff system. Please log in through the web dashboard first.'
+            : 'This user is not registered in the staff system.')
+          .setColor(0xFF0000)
+          .setTimestamp();
+        
+        return interaction.editReply({ embeds: [embed] });
+      }
+      throw err;
     }
 
-    // Get stats (would need to add this endpoint or use existing)
-    // For now, we'll just show user info
+    if (!userData) {
+      const embed = new EmbedBuilder()
+        .setTitle('❌ Error')
+        .setDescription('Could not fetch user data.')
+        .setColor(0xFF0000)
+        .setTimestamp();
+      
+      return interaction.editReply({ embeds: [embed] });
+    }
+
+    // Build status color
+    let statusColor = 0x808080; // Gray for inactive
+    let statusEmoji = '⚪';
+    
+    if (userData.status === 'active') {
+      statusColor = 0x00FF00; // Green
+      statusEmoji = '🟢';
+    } else if (userData.status === 'pending_verification') {
+      statusColor = 0xFFAA00; // Orange
+      statusEmoji = '🟡';
+    }
+
+    // Build rank badge
+    let rankBadge = '👤';
+    if (userData.rank) {
+      if (userData.rank >= 16 && userData.rank <= 255) {
+        rankBadge = '👑'; // Admin
+      } else if (userData.rank >= 8) {
+        rankBadge = '⭐'; // Senior
+      } else if (userData.rank >= 4) {
+        rankBadge = '🔷'; // Moderator
+      }
+    }
+
+    // Get Roblox avatar if available
+    let thumbnailUrl = null;
+    if (userData.roblox_id) {
+      thumbnailUrl = `https://www.roblox.com/headshot-thumbnail/image?userId=${userData.roblox_id}&width=150&height=150&format=png`;
+    }
+
     const embed = new EmbedBuilder()
-      .setTitle('Staff Statistics')
-      .setDescription(`Stats for ${userResponse.data.discord_username}`)
+      .setTitle(`${rankBadge} Staff Profile`)
+      .setDescription(`${statusEmoji} **${userData.roblox_username || userData.discord_username}**`)
+      .setColor(statusColor)
       .addFields(
-        { name: 'Roblox Username', value: userResponse.data.roblox_username || 'N/A', inline: true },
-        { name: 'Rank', value: userResponse.data.rank?.toString() || 'N/A', inline: true },
-        { name: 'Status', value: userResponse.data.status, inline: true }
+        { name: '📛 Discord', value: userData.discord_username || 'N/A', inline: true },
+        { name: '🎮 Roblox', value: userData.roblox_username || 'Not Verified', inline: true },
+        { name: '📊 Rank', value: userData.rank_name || `Rank ${userData.rank || 'N/A'}`, inline: true },
+        { name: '📋 Status', value: userData.status.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()), inline: true }
       )
-      .setColor(0x3498db)
+      .setFooter({ text: 'Atlanta High Staff System' })
       .setTimestamp();
+
+    if (thumbnailUrl) {
+      embed.setThumbnail(thumbnailUrl);
+    }
+
+    // Add message about viewing full stats
+    embed.addFields({
+      name: '📈 Full Statistics',
+      value: 'Visit the web dashboard to view complete statistics including message quota, tickets, and infractions.',
+      inline: false
+    });
 
     await interaction.editReply({ embeds: [embed] });
   } catch (error: any) {
     console.error('Stats command error:', error);
-    await interaction.editReply({
-      content: 'An error occurred while fetching stats. Please try again later.',
-    });
+    
+    let errorMessage = 'An error occurred while fetching stats. Please try again later.';
+    
+    if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
+      errorMessage = 'Could not connect to the server. Please try again later.';
+    }
+
+    const errorEmbed = new EmbedBuilder()
+      .setTitle('❌ Error')
+      .setDescription(errorMessage)
+      .setColor(0xFF0000)
+      .setTimestamp();
+
+    await interaction.editReply({ embeds: [errorEmbed] });
   }
 }
 

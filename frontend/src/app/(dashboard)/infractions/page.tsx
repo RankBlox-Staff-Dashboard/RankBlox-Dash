@@ -3,7 +3,8 @@
 import { 
   AlertTriangle, 
   Info,
-  XCircle
+  XCircle,
+  CheckCircle
 } from 'lucide-react';
 import { ProfileCard } from '@/components/ProfileCard';
 import { NavigationTabs } from '@/components/NavigationTabs';
@@ -12,6 +13,9 @@ import { useInfractions } from '@/hooks/useInfractions';
 
 export default function InfractionsPage() {
   const { infractions, loading, error } = useInfractions();
+
+  const activeInfractions = infractions.filter(i => !i.voided);
+  const voidedInfractions = infractions.filter(i => i.voided);
 
   return (
     <div className="space-y-4">
@@ -22,7 +26,7 @@ export default function InfractionsPage() {
       <NavigationTabs />
 
       {/* Your Infractions */}
-      <Card className="p-5">
+      <Card className="p-5 animate-fadeInUp" style={{ animationDelay: '0.1s' }}>
         <div className="flex items-center gap-2 mb-4">
           <AlertTriangle className="w-5 h-5 text-yellow-400" />
           <div>
@@ -32,7 +36,10 @@ export default function InfractionsPage() {
         </div>
 
         {loading && (
-          <div className="text-center py-8 text-white/50">Loading infractions...</div>
+          <div className="text-center py-8 text-white/50">
+            <div className="w-6 h-6 border-2 border-white/20 border-t-white/60 rounded-full animate-spin mx-auto mb-2"></div>
+            Loading infractions...
+          </div>
         )}
         
         {error && (
@@ -40,11 +47,15 @@ export default function InfractionsPage() {
         )}
 
         {!loading && !error && infractions.length === 0 && (
-          <div className="text-center py-8 text-white/50">No infractions found. Keep up the good work!</div>
+          <div className="text-center py-8">
+            <CheckCircle className="w-12 h-12 text-green-400 mx-auto mb-3" />
+            <p className="text-white font-medium">No infractions found</p>
+            <p className="text-white/50 text-sm">Keep up the good work!</p>
+          </div>
         )}
 
         <div className="space-y-3">
-          {infractions.map((infraction) => {
+          {activeInfractions.map((infraction, index) => {
             const date = new Date(infraction.created_at).toLocaleDateString('en-US', {
               month: '2-digit',
               day: '2-digit',
@@ -54,27 +65,18 @@ export default function InfractionsPage() {
             return (
               <div 
                 key={infraction.id}
-                className={`flex items-start gap-3 p-4 rounded-xl ${
-                  infraction.voided 
-                    ? 'bg-white/5 opacity-60' 
-                    : infraction.type === 'strike' 
-                      ? 'bg-red-500/10 border border-red-500/20' 
-                      : 'bg-yellow-500/10 border border-yellow-500/20'
+                className={`flex items-start gap-3 p-4 rounded-xl transition-all hover:scale-[1.01] animate-slideUp ${
+                  infraction.type === 'strike' 
+                    ? 'bg-red-500/10 border border-red-500/20' 
+                    : 'bg-yellow-500/10 border border-yellow-500/20'
                 }`}
+                style={{ animationDelay: `${0.05 * index}s` }}
               >
                 <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                  infraction.voided
-                    ? 'bg-white/10'
-                    : infraction.type === 'strike'
-                      ? 'bg-red-500/20'
-                      : 'bg-yellow-500/20'
+                  infraction.type === 'strike' ? 'bg-red-500/20' : 'bg-yellow-500/20'
                 }`}>
                   <XCircle className={`w-5 h-5 ${
-                    infraction.voided
-                      ? 'text-white/50'
-                      : infraction.type === 'strike'
-                        ? 'text-red-300'
-                        : 'text-yellow-300'
+                    infraction.type === 'strike' ? 'text-red-300' : 'text-yellow-300'
                   }`} />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -84,13 +86,11 @@ export default function InfractionsPage() {
                     </span>
                     <div className="flex items-center gap-2">
                       <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
-                        infraction.voided
-                          ? 'bg-white/10 text-white/50'
-                          : infraction.type === 'strike'
-                            ? 'bg-red-500/30 text-red-300'
-                            : 'bg-yellow-500/30 text-yellow-300'
+                        infraction.type === 'strike'
+                          ? 'bg-red-500/30 text-red-300'
+                          : 'bg-yellow-500/30 text-yellow-300'
                       }`}>
-                        {infraction.voided ? 'Voided' : infraction.type === 'strike' ? 'Strike' : 'Warning'}
+                        {infraction.type === 'strike' ? 'Strike' : 'Warning'}
                       </span>
                       <span className="text-xs text-white/40">{date}</span>
                     </div>
@@ -103,11 +103,52 @@ export default function InfractionsPage() {
               </div>
             );
           })}
+
+          {voidedInfractions.length > 0 && (
+            <>
+              <div className="pt-4 pb-2">
+                <p className="text-xs text-white/40 uppercase tracking-wide">Voided Infractions</p>
+              </div>
+              {voidedInfractions.map((infraction, index) => {
+                const date = new Date(infraction.created_at).toLocaleDateString('en-US', {
+                  month: '2-digit',
+                  day: '2-digit',
+                  year: 'numeric'
+                });
+                
+                return (
+                  <div 
+                    key={infraction.id}
+                    className="flex items-start gap-3 p-4 rounded-xl bg-white/5 opacity-60 animate-slideUp"
+                    style={{ animationDelay: `${0.05 * index}s` }}
+                  >
+                    <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 bg-white/10">
+                      <XCircle className="w-5 h-5 text-white/50" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <span className="text-sm font-medium text-white/70">
+                          {infraction.type === 'strike' ? 'Strike Notice' : 'Activity Notice'}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-white/10 text-white/50">
+                            Voided
+                          </span>
+                          <span className="text-xs text-white/40">{date}</span>
+                        </div>
+                      </div>
+                      <p className="text-xs text-white/40">{infraction.reason}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </>
+          )}
         </div>
       </Card>
 
       {/* Infraction Information */}
-      <Card className="p-5">
+      <Card className="p-5 animate-fadeInUp" style={{ animationDelay: '0.2s' }}>
         <div className="flex items-center gap-2 mb-4">
           <Info className="w-5 h-5 text-blue-400" />
           <div>

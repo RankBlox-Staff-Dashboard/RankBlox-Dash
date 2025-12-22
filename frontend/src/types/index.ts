@@ -38,6 +38,8 @@ export interface Infraction {
   type: 'warning' | 'strike';
   issued_by: number | null;
   issued_by_username?: string;
+  user_discord_username?: string;
+  user_roblox_username?: string;
   voided: boolean;
   created_at: string;
 }
@@ -57,6 +59,22 @@ export interface Analytics {
   total_active_users: number;
   active_workspaces: number;
   total_staff: number;
+}
+
+export interface LOARequest {
+  id: number;
+  user_id: number;
+  start_date: string;
+  end_date: string;
+  reason: string;
+  status: 'pending' | 'approved' | 'denied';
+  reviewed_by: number | null;
+  review_notes: string | null;
+  reviewed_by_username?: string;
+  user_discord_username?: string;
+  user_roblox_username?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export type PermissionFlag =
