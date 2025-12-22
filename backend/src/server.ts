@@ -26,7 +26,10 @@ app.use(cors({
 app.use(express.json());
 
 // Initialize database
-initializeDatabase();
+initializeDatabase().catch(err => {
+  console.error('Failed to initialize database:', err);
+  process.exit(1);
+});
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -45,7 +48,7 @@ app.get('/health', (req, res) => {
 /**
  * Weekly quota check and infraction issuance (runs every Monday at 12:00 AM UTC)
  */
-function checkWeeklyQuotas() {
+async function checkWeeklyQuotas() {
   try {
     // Get current week start
     const now = new Date();
@@ -57,7 +60,7 @@ function checkWeeklyQuotas() {
     const lastWeekStart = monday.toISOString().split('T')[0];
 
     // Get all users who didn't meet quota
-    const activityLogs = db
+    const activityLogs = await db
       .prepare(
         `SELECT user_id, messages_sent 
          FROM activity_logs 
@@ -66,15 +69,15 @@ function checkWeeklyQuotas() {
       .all(lastWeekStart) as { user_id: number; messages_sent: number }[];
 
     // Issue infractions
-    activityLogs.forEach((log) => {
-      // Check if infraction already issued for this week
-      const existing = db
+    for (const log of activityLogs) {
+      // Check if infraction already issued for this week (PostgreSQL syntax)
+      const existing = await db
         .prepare(
           `SELECT id FROM infractions 
            WHERE user_id = ? 
            AND reason LIKE ? 
-           AND voided = 0 
-           AND created_at > datetime(?, '-7 days')`
+           AND voided = false 
+           AND created_at > ?::timestamp - interval '7 days'`
         )
         .get(
           log.user_id,
@@ -83,7 +86,7 @@ function checkWeeklyQuotas() {
         );
 
       if (!existing) {
-        db.prepare(
+        await db.prepare(
           `INSERT INTO infractions (user_id, reason, type, issued_by)
            VALUES (?, ?, ?, NULL)`
         ).run(
@@ -92,7 +95,7 @@ function checkWeeklyQuotas() {
           'warning'
         );
       }
-    });
+    }
 
     console.log(`Checked weekly quotas and issued ${activityLogs.length} infractions`);
   } catch (error) {

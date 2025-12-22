@@ -41,28 +41,25 @@ router.get('/discord/callback', async (req: Request, res: Response) => {
     }
 
     // Find or create user
-    let user = db
+    let user = await db
       .prepare('SELECT * FROM users WHERE discord_id = ?')
       .get(discordUser.id) as any;
 
     if (!user) {
-      // Create new user
-      const result = db
-        .prepare(
-          'INSERT INTO users (discord_id, discord_username, status) VALUES (?, ?, ?)'
-        )
-        .run(discordUser.id, discordUser.username, 'pending_verification');
-
-      user = db
-        .prepare('SELECT * FROM users WHERE id = ?')
-        .get(result.lastInsertRowid) as any;
+      // Create new user - need to use RETURNING for PostgreSQL
+      const insertResult = await db
+        .prepare('INSERT INTO users (discord_id, discord_username, status) VALUES (?, ?, ?) RETURNING *')
+        .get(discordUser.id, discordUser.username, 'pending_verification') as any;
+      
+      user = insertResult;
     } else {
       // Update username if changed
-      db.prepare('UPDATE users SET discord_username = ? WHERE id = ?').run(
+      await db.prepare('UPDATE users SET discord_username = ? WHERE id = ?').run(
         discordUser.username,
         user.id
       );
-      user.discord_username = discordUser.username;
+      // Refetch user to get updated data
+      user = await db.prepare('SELECT * FROM users WHERE id = ?').get(user.id) as any;
     }
 
     // Create session
@@ -71,8 +68,10 @@ router.get('/discord/callback', async (req: Request, res: Response) => {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
 
-    db.prepare(
-      'INSERT OR REPLACE INTO sessions (id, user_id, token, expires_at) VALUES (?, ?, ?, ?)'
+    // Delete old sessions and create new one (PostgreSQL uses ON CONFLICT instead of INSERT OR REPLACE)
+    await db.prepare('DELETE FROM sessions WHERE user_id = ?').run(user.id);
+    await db.prepare(
+      'INSERT INTO sessions (id, user_id, token, expires_at) VALUES (?, ?, ?, ?)'
     ).run(sessionId, user.id, token, expiresAt.toISOString());
 
     // Initialize permissions if user just verified Roblox
@@ -98,7 +97,7 @@ router.get('/me', authenticateToken, async (req: Request, res: Response) => {
     return res.status(401).json({ error: 'Authentication required' });
   }
 
-  const user = db
+  const user = await db
     .prepare('SELECT * FROM users WHERE id = ?')
     .get(req.user.id) as any;
 
@@ -122,7 +121,7 @@ router.get('/me', authenticateToken, async (req: Request, res: Response) => {
 /**
  * Logout
  */
-router.post('/logout', (req: Request, res: Response) => {
+router.post('/logout', authenticateToken, async (req: Request, res: Response) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Authentication required' });
   }
@@ -131,11 +130,10 @@ router.post('/logout', (req: Request, res: Response) => {
   const token = authHeader && authHeader.split(' ')[1];
 
   if (token) {
-    db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
+    await db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
   }
 
   res.json({ message: 'Logged out successfully' });
 });
 
 export default router;
-

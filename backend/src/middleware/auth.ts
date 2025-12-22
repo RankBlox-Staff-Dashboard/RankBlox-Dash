@@ -11,16 +11,17 @@ declare global {
         id: number;
         discordId: string;
         rank: number | null;
+        status?: string;
       };
     }
   }
 }
 
-export function authenticateToken(
+export async function authenticateToken(
   req: Request,
   res: Response,
   next: NextFunction
-): void {
+): Promise<void> {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
@@ -38,23 +39,23 @@ export function authenticateToken(
   try {
     const decoded = jwt.verify(token, jwtSecret) as JwtPayload;
     
-    // Verify session still exists and is valid
-    const session = db
-      .prepare('SELECT * FROM sessions WHERE id = ? AND expires_at > datetime("now")')
-      .get(decoded.userId.toString()) as { id: string; user_id: number; token: string; expires_at: string } | undefined;
+    // Verify session still exists and is valid (check by token)
+    const session = await db
+      .prepare('SELECT * FROM sessions WHERE token = ? AND expires_at > NOW()')
+      .get(token) as { id: string; user_id: number; token: string; expires_at: Date } | undefined;
 
-    if (!session) {
+    if (!session || session.token !== token) {
       res.status(401).json({ error: 'Session expired or invalid' });
       return;
     }
 
-    // Get user to ensure they're still active
-    const user = db
+    // Get user info
+    const user = await db
       .prepare('SELECT id, discord_id, rank, status FROM users WHERE id = ?')
       .get(decoded.userId) as { id: number; discord_id: string; rank: number | null; status: string } | undefined;
 
-    if (!user || user.status !== 'active') {
-      res.status(403).json({ error: 'Account is not active' });
+    if (!user) {
+      res.status(404).json({ error: 'User not found' });
       return;
     }
 
@@ -62,6 +63,7 @@ export function authenticateToken(
       id: user.id,
       discordId: user.discord_id,
       rank: user.rank,
+      status: user.status,
     };
 
     next();
@@ -89,4 +91,3 @@ export function generateToken(userId: number, discordId: string, rank: number | 
   // Token expires in 7 days
   return jwt.sign(payload, jwtSecret, { expiresIn: '7d' });
 }
-
