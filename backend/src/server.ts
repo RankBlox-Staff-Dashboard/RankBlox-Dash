@@ -20,14 +20,24 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 8080;
-const FRONTEND_URL = process.env.FRONTEND_URL || 'https://staffap.netlify.app';
+const DEFAULT_FRONTEND_URL = 'https://staffapp-frontend-y3za.onrender.com';
+const FRONTEND_URL = process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL;
+const FRONTEND_URLS = (process.env.FRONTEND_URLS || FRONTEND_URL)
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
 
 // Middleware
 app.disable('x-powered-by');
 app.use(helmet());
 app.use(cookieParser());
 app.use(cors({
-  origin: FRONTEND_URL,
+  origin(origin, callback) {
+    // Allow same-origin/non-browser requests (no Origin header)
+    if (!origin) return callback(null, true);
+    if (FRONTEND_URLS.includes(origin)) return callback(null, true);
+    return callback(new Error(`CORS blocked origin: ${origin}`));
+  },
   credentials: true,
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Bot-Token'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -144,6 +154,6 @@ cron.schedule('0 0 * * 1', checkWeeklyQuotas, {
 // Start server
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
-  console.log(`Frontend URL: ${FRONTEND_URL}`);
+  console.log(`Frontend URL(s): ${FRONTEND_URLS.join(', ')}`);
 });
 
