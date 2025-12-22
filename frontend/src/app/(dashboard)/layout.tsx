@@ -53,11 +53,11 @@ export default function DashboardLayout({
   return (
     <div className="min-h-screen bg-black">
       <Header />
-      <main className="px-4 py-4 pb-8 max-w-lg mx-auto">
+      <main className="px-4 py-4 pb-8 max-w-lg mx-auto page-transition">
         {children}
       </main>
-      <footer className="py-6 text-center text-white/40 text-sm">
-        © 2025 Panora Connect LLC. All rights reserved.
+      <footer className="py-6 text-center text-white/40 text-sm animate-fadeIn">
+        © 2025 Atlanta High. All rights reserved.
       </footer>
     </div>
   );

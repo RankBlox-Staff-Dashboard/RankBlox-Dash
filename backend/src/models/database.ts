@@ -196,6 +196,41 @@ export async function initializeDatabase() {
       )
     `);
 
+    // LOA (Leave of Absence) requests table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS loa_requests (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        start_date DATE NOT NULL,
+        end_date DATE NOT NULL,
+        reason TEXT NOT NULL,
+        status VARCHAR(50) NOT NULL DEFAULT 'pending',
+        reviewed_by INT,
+        review_notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL,
+        CHECK (status IN ('pending', 'approved', 'denied'))
+      )
+    `);
+
+    // Discord messages table for tracking quota
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS discord_messages (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        discord_message_id VARCHAR(255) UNIQUE NOT NULL,
+        user_id INT NOT NULL,
+        discord_channel_id VARCHAR(255) NOT NULL,
+        guild_id VARCHAR(255) NOT NULL,
+        content_length INT DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        INDEX idx_user_created (user_id, created_at),
+        INDEX idx_channel_created (discord_channel_id, created_at)
+      )
+    `);
+
     console.log('MySQL database schema initialized successfully');
   } catch (error) {
     console.error('Error initializing database:', error);

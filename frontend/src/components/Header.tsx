@@ -2,8 +2,9 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { Menu, X, LayoutDashboard, Search, AlertTriangle, TrendingUp, Wallet, Settings } from 'lucide-react';
+import { Menu, X, LayoutDashboard, Search, AlertTriangle, Settings, User, HelpCircle, FileText, LogOut, Shield } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { authAPI } from '@/services/api';
 
@@ -11,8 +12,6 @@ const navigation = [
   { name: 'Overview', path: '/overview', icon: LayoutDashboard },
   { name: 'Lookup', path: '/tickets', icon: Search },
   { name: 'Infractions', path: '/infractions', icon: AlertTriangle },
-  { name: 'Analytics', path: '/analytics', icon: TrendingUp },
-  { name: 'Payouts', path: '/payouts', icon: Wallet },
   { name: 'Settings', path: '/settings', icon: Settings },
 ];
 
@@ -33,13 +32,20 @@ export function Header() {
     return 'bg-green-600';
   };
 
+  // Roblox avatar URL
+  const avatarUrl = user?.roblox_id 
+    ? `https://www.roblox.com/headshot-thumbnail/image?userId=${user.roblox_id}&width=150&height=150&format=png`
+    : user?.discord_avatar 
+      ? `https://cdn.discordapp.com/avatars/${user.discord_id}/${user.discord_avatar}.png?size=128`
+      : `https://cdn.discordapp.com/embed/avatars/0.png`;
+
   return (
     <>
-      <header className="sticky top-0 z-50 flex items-center justify-between px-4 py-3 bg-black/80 backdrop-blur-md border-b border-white/10">
+      <header className="sticky top-0 z-50 flex items-center justify-between px-4 py-3 bg-black/80 backdrop-blur-md border-b border-white/10 animate-slideDown">
         <div className="flex items-center gap-3">
           <button
             onClick={() => setMenuOpen(!menuOpen)}
-            className="p-2 rounded-lg hover:bg-white/10 transition"
+            className="p-2 rounded-lg hover:bg-white/10 transition-all duration-200 hover:scale-105 active:scale-95"
           >
             {menuOpen ? (
               <X className="w-5 h-5 text-white" />
@@ -48,41 +54,92 @@ export function Header() {
             )}
           </button>
           <div className="flex items-center gap-2">
-            <span className="text-xl">🔗</span>
-            <span className="text-lg font-bold text-white">Panora Staff</span>
+            <Shield className="w-5 h-5 text-blue-400" />
+            <span className="text-lg font-bold text-white">Atlanta High</span>
           </div>
         </div>
-        <span className={`px-3 py-1 text-xs font-semibold rounded-full ${getRankColor()} text-white`}>
+        <span className={`px-3 py-1 text-xs font-semibold rounded-full ${getRankColor()} text-white transition-all hover:scale-105`}>
           {getRankLabel()}
         </span>
       </header>
 
       {/* Mobile Menu Overlay */}
       {menuOpen && (
-        <div className="fixed inset-0 z-40 bg-black/90 backdrop-blur-sm">
-          <div className="pt-20 px-4">
+        <div className="fixed inset-0 z-40 bg-black/95 backdrop-blur-sm animate-fadeIn">
+          <div className="pt-4 px-4">
+            {/* Close Button */}
+            <div className="flex justify-end mb-4">
+              <button
+                onClick={() => setMenuOpen(false)}
+                className="p-2 rounded-lg hover:bg-white/10 transition"
+              >
+                <X className="w-6 h-6 text-white" />
+              </button>
+            </div>
+            
+            {/* Menu Header */}
+            <div className="flex items-center gap-2 mb-6 px-2">
+              <Shield className="w-6 h-6 text-blue-400" />
+              <span className="text-xl font-bold text-white">Staff Dashboard</span>
+            </div>
+
+            {/* User Card */}
+            {user && (
+              <div className="p-4 rounded-2xl bg-white/5 border border-white/10 mb-6 animate-slideUp">
+                <div className="flex items-center gap-3">
+                  <Image
+                    src={avatarUrl}
+                    alt={user.roblox_username || user.discord_username}
+                    width={48}
+                    height={48}
+                    className="w-12 h-12 rounded-full ring-2 ring-white/20"
+                    unoptimized
+                  />
+                  <div>
+                    <div className="text-white font-semibold">{user.roblox_username || user.discord_username}</div>
+                    <div className="text-white/50 text-sm">{user.rank_name || 'Staff'}</div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Navigation */}
             <nav className="space-y-2">
-              {navigation.map((item) => {
-                const isActive = pathname === item.path;
-                const Icon = item.icon;
-                return (
-                  <Link
-                    key={item.path}
-                    href={item.path}
-                    onClick={() => setMenuOpen(false)}
-                    className={`flex items-center gap-3 px-4 py-3 rounded-xl transition ${
-                      isActive
-                        ? 'bg-white text-black'
-                        : 'text-white/70 hover:bg-white/10 hover:text-white'
-                    }`}
-                  >
-                    <Icon className="w-5 h-5" strokeWidth={2} />
-                    <span className="font-medium">{item.name}</span>
-                  </Link>
-                );
-              })}
+              <Link
+                href="/settings"
+                onClick={() => setMenuOpen(false)}
+                className="flex items-center gap-3 px-4 py-3 rounded-xl text-white/70 hover:bg-white/10 hover:text-white transition-all animate-slideUp"
+                style={{ animationDelay: '0.05s' }}
+              >
+                <User className="w-5 h-5" strokeWidth={2} />
+                <span className="font-medium">Account</span>
+              </Link>
+              <a
+                href="https://discord.gg/atlantahigh"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setMenuOpen(false)}
+                className="flex items-center gap-3 px-4 py-3 rounded-xl text-white/70 hover:bg-white/10 hover:text-white transition-all animate-slideUp"
+                style={{ animationDelay: '0.1s' }}
+              >
+                <HelpCircle className="w-5 h-5" strokeWidth={2} />
+                <span className="font-medium">Help Center</span>
+              </a>
+              <a
+                href="https://docs.atlantahigh.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setMenuOpen(false)}
+                className="flex items-center gap-3 px-4 py-3 rounded-xl text-white/70 hover:bg-white/10 hover:text-white transition-all animate-slideUp"
+                style={{ animationDelay: '0.15s' }}
+              >
+                <FileText className="w-5 h-5" strokeWidth={2} />
+                <span className="font-medium">Documentation</span>
+              </a>
             </nav>
-            <div className="mt-8 pt-4 border-t border-white/10">
+
+            {/* Logout Button */}
+            <div className="absolute bottom-8 left-4 right-4">
               <button
                 onClick={async () => {
                   try {
@@ -94,9 +151,9 @@ export function Header() {
                     window.location.href = '/login';
                   }
                 }}
-                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-400 hover:bg-red-500/10 transition"
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-400 hover:bg-red-500/10 transition-all animate-slideUp"
               >
-                <span>🚪</span>
+                <LogOut className="w-5 h-5" strokeWidth={2} />
                 <span className="font-medium">Logout</span>
               </button>
             </div>

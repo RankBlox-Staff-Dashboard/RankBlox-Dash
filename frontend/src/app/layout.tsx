@@ -6,8 +6,8 @@ import { AuthProvider } from '@/context/AuthContext';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Panora Connect Employees',
-  description: 'Authorized employees only — manage internal operations.',
+  title: 'Atlanta High Staff Portal',
+  description: 'Staff management portal for Atlanta High — authorized employees only.',
 };
 
 export default function RootLayout({

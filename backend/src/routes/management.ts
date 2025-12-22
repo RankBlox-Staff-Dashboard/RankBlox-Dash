@@ -174,5 +174,198 @@ router.delete('/tracked-channels/:id', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * Get all LOA requests (admin)
+ */
+router.get('/loa', async (req: Request, res: Response) => {
+  try {
+    const status = req.query.status as string | undefined;
+    
+    let query = `
+      SELECT l.*, 
+       u.discord_username as user_discord_username,
+       u.roblox_username as user_roblox_username,
+       r.discord_username as reviewed_by_username
+      FROM loa_requests l
+      JOIN users u ON l.user_id = u.id
+      LEFT JOIN users r ON l.reviewed_by = r.id
+    `;
+    
+    const params: any[] = [];
+    
+    if (status && ['pending', 'approved', 'denied'].includes(status)) {
+      query += ' WHERE l.status = ?';
+      params.push(status);
+    }
+    
+    query += ' ORDER BY l.created_at DESC';
+
+    const loaRequests = await db.prepare(query).all(...params) as any[];
+
+    res.json(loaRequests);
+  } catch (error) {
+    console.error('Error fetching LOA requests:', error);
+    res.status(500).json({ error: 'Failed to fetch LOA requests' });
+  }
+});
+
+/**
+ * Review LOA request (approve/deny)
+ */
+router.put('/loa/:id/review', async (req: Request, res: Response) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  try {
+    const loaId = parseInt(req.params.id);
+    const { status, review_notes } = req.body;
+
+    if (!status || !['approved', 'denied'].includes(status)) {
+      return res.status(400).json({ error: 'Invalid status. Must be approved or denied.' });
+    }
+
+    // Check if LOA exists
+    const loa = await db.prepare('SELECT * FROM loa_requests WHERE id = ?').get(loaId) as any;
+
+    if (!loa) {
+      return res.status(404).json({ error: 'LOA request not found' });
+    }
+
+    if (loa.status !== 'pending') {
+      return res.status(400).json({ error: 'This LOA request has already been reviewed' });
+    }
+
+    await db.prepare(
+      `UPDATE loa_requests 
+       SET status = ?, reviewed_by = ?, review_notes = ?, updated_at = NOW() 
+       WHERE id = ?`
+    ).run(status, req.user.id, review_notes || null, loaId);
+
+    res.json({ message: `LOA request ${status} successfully` });
+  } catch (error) {
+    console.error('Error reviewing LOA request:', error);
+    res.status(500).json({ error: 'Failed to review LOA request' });
+  }
+});
+
+/**
+ * Get all infractions (admin)
+ */
+router.get('/infractions', async (req: Request, res: Response) => {
+  try {
+    const infractions = await db
+      .prepare(
+        `SELECT i.*, 
+         u.discord_username as user_discord_username,
+         u.roblox_username as user_roblox_username,
+         ib.discord_username as issued_by_username
+         FROM infractions i
+         JOIN users u ON i.user_id = u.id
+         LEFT JOIN users ib ON i.issued_by = ib.id
+         ORDER BY i.created_at DESC`
+      )
+      .all() as any[];
+
+    res.json(infractions);
+  } catch (error) {
+    console.error('Error fetching infractions:', error);
+    res.status(500).json({ error: 'Failed to fetch infractions' });
+  }
+});
+
+/**
+ * Issue an infraction to a user
+ */
+router.post('/infractions', requirePermission('ISSUE_INFRACTIONS'), async (req: Request, res: Response) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  try {
+    const { user_id, reason, type } = req.body;
+
+    if (!user_id || !reason || !type) {
+      return res.status(400).json({ error: 'user_id, reason, and type are required' });
+    }
+
+    if (!['warning', 'strike'].includes(type)) {
+      return res.status(400).json({ error: 'Invalid type. Must be warning or strike.' });
+    }
+
+    // Check if target user exists
+    const targetUser = await db.prepare('SELECT id FROM users WHERE id = ?').get(user_id);
+
+    if (!targetUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Create infraction
+    const result = await db.prepare(
+      `INSERT INTO infractions (user_id, reason, type, issued_by) VALUES (?, ?, ?, ?)`
+    ).run(user_id, reason, type, req.user.id);
+
+    res.json({ 
+      message: 'Infraction issued successfully',
+      infraction_id: result.lastInsertRowid,
+    });
+  } catch (error) {
+    console.error('Error issuing infraction:', error);
+    res.status(500).json({ error: 'Failed to issue infraction' });
+  }
+});
+
+/**
+ * Void an infraction
+ */
+router.put('/infractions/:id/void', requirePermission('VOID_INFRACTIONS'), async (req: Request, res: Response) => {
+  try {
+    const infractionId = parseInt(req.params.id);
+
+    // Check if infraction exists
+    const infraction = await db.prepare('SELECT * FROM infractions WHERE id = ?').get(infractionId) as any;
+
+    if (!infraction) {
+      return res.status(404).json({ error: 'Infraction not found' });
+    }
+
+    if (infraction.voided) {
+      return res.status(400).json({ error: 'Infraction is already voided' });
+    }
+
+    await db.prepare('UPDATE infractions SET voided = true WHERE id = ?').run(infractionId);
+
+    res.json({ message: 'Infraction voided successfully' });
+  } catch (error) {
+    console.error('Error voiding infraction:', error);
+    res.status(500).json({ error: 'Failed to void infraction' });
+  }
+});
+
+/**
+ * Get infractions for a specific user (admin)
+ */
+router.get('/users/:id/infractions', async (req: Request, res: Response) => {
+  try {
+    const userId = parseInt(req.params.id);
+
+    const infractions = await db
+      .prepare(
+        `SELECT i.*, 
+         ib.discord_username as issued_by_username
+         FROM infractions i
+         LEFT JOIN users ib ON i.issued_by = ib.id
+         WHERE i.user_id = ?
+         ORDER BY i.created_at DESC`
+      )
+      .all(userId) as any[];
+
+    res.json(infractions);
+  } catch (error) {
+    console.error('Error fetching user infractions:', error);
+    res.status(500).json({ error: 'Failed to fetch user infractions' });
+  }
+});
+
 export default router;
 

@@ -16,6 +16,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 10000, // 10 second timeout
 });
 
 api.interceptors.request.use((config) => {
@@ -25,9 +26,40 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Add response error handling
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response) {
+      console.error(`API Error: ${error.response.status} - ${error.response.data?.error || 'Unknown error'}`);
+    } else if (error.request) {
+      console.error('API Error: No response received from server');
+    } else {
+      console.error('API Error:', error.message);
+    }
+    return Promise.reject(error);
+  }
+);
+
+export interface MessageData {
+  discord_id: string;
+  discord_message_id: string;
+  discord_channel_id: string;
+  guild_id: string;
+  content_length?: number;
+}
+
 export const botAPI = {
   updateActivity: (discordId: string, messagesCount: number) =>
     api.post('/bot/activity', { discord_id: discordId, messages_count: messagesCount }),
+
+  // Record a single message
+  recordMessage: (data: MessageData) =>
+    api.post('/bot/message', data),
+
+  // Record messages in batch for efficiency
+  recordMessagesBatch: (messages: MessageData[]) =>
+    api.post('/bot/messages/batch', { messages }),
 
   createTicket: (discordChannelId: string, discordMessageId?: string) =>
     api.post('/bot/tickets', {
@@ -35,9 +67,15 @@ export const botAPI = {
       discord_message_id: discordMessageId,
     }),
 
+  closeTicket: (discordChannelId: string) =>
+    api.post('/bot/tickets/close', { discord_channel_id: discordChannelId }),
+
   getUser: (discordId: string) => api.get(`/bot/user/${discordId}`),
 
   getTrackedChannels: () => api.get('/bot/tracked-channels'),
+
+  // Get user stats
+  getUserStats: (discordId: string) => api.get(`/bot/user/${discordId}/stats`),
 };
 
 export default api;

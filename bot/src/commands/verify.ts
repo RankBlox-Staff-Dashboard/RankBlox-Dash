@@ -1,42 +1,67 @@
-import { ChatInputCommandInteraction, SlashCommandBuilder } from 'discord.js';
+import { ChatInputCommandInteraction, SlashCommandBuilder, EmbedBuilder } from 'discord.js';
 import { botAPI } from '../services/api';
 
 export const data = new SlashCommandBuilder()
   .setName('verify')
-  .setDescription('Verify your Roblox account with an emoji code')
-  .addStringOption((option) =>
-    option
-      .setName('emoji_code')
-      .setDescription('The emoji code from the verification page')
-      .setRequired(true)
-  );
+  .setDescription('Get information about verifying your Roblox account');
 
 export async function execute(interaction: ChatInputCommandInteraction) {
-  const emojiCode = interaction.options.getString('emoji_code', true);
   const discordId = interaction.user.id;
 
   await interaction.deferReply({ ephemeral: true });
 
   try {
-    // Get user from backend
-    const userResponse = await botAPI.getUser(discordId);
+    // Check if user exists in the system
+    let userExists = false;
+    let isVerified = false;
 
-    if (!userResponse.data) {
-      return interaction.editReply({
-        content: 'User not found. Please log in through the web dashboard first.',
-      });
+    try {
+      const userResponse = await botAPI.getUser(discordId);
+      if (userResponse.data) {
+        userExists = true;
+        isVerified = !!userResponse.data.roblox_username && userResponse.data.status === 'active';
+      }
+    } catch (err: any) {
+      if (err.response?.status !== 404) {
+        throw err;
+      }
     }
 
-    // Note: The actual verification logic is handled through the web interface
-    // This command just provides feedback
-    await interaction.editReply({
-      content: `Verification codes must be verified through the web dashboard. Please go to the staff dashboard and complete the verification process there. Your emoji code is: ${emojiCode}`,
-    });
+    const embed = new EmbedBuilder()
+      .setTitle('🔐 Roblox Verification')
+      .setColor(isVerified ? 0x00FF00 : 0x3498db)
+      .setTimestamp();
+
+    if (isVerified) {
+      embed.setDescription('✅ Your account is already verified!')
+        .addFields(
+          { name: 'Status', value: 'Verified & Active', inline: true },
+          { name: 'Next Steps', value: 'You can access all staff features through the dashboard.', inline: false }
+        );
+    } else if (userExists) {
+      embed.setDescription('Your Discord account is linked, but Roblox verification is pending.')
+        .addFields(
+          { name: 'How to Verify', value: '1. Go to the staff dashboard\n2. Click "Get Verification Code"\n3. Add the emoji code to your Roblox bio\n4. Enter your Roblox username and verify', inline: false },
+          { name: 'Dashboard', value: 'Visit the Atlanta High staff dashboard to complete verification.', inline: false }
+        );
+    } else {
+      embed.setDescription('You need to log in through the web dashboard first.')
+        .addFields(
+          { name: 'How to Start', value: '1. Visit the Atlanta High staff dashboard\n2. Click "Authorize Securely"\n3. Log in with Discord\n4. Complete Roblox verification', inline: false }
+        );
+    }
+
+    await interaction.editReply({ embeds: [embed] });
   } catch (error: any) {
     console.error('Verify command error:', error);
-    await interaction.editReply({
-      content: 'An error occurred while verifying. Please try again later.',
-    });
+    
+    const errorEmbed = new EmbedBuilder()
+      .setTitle('❌ Error')
+      .setDescription('An error occurred while processing your request. Please try again later.')
+      .setColor(0xFF0000)
+      .setTimestamp();
+
+    await interaction.editReply({ embeds: [errorEmbed] });
   }
 }
 

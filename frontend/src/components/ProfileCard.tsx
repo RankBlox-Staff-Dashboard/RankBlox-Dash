@@ -12,10 +12,12 @@ export function ProfileCard() {
 
   if (!user) return null;
 
-  // Discord avatar URL - use avatar hash if available, otherwise default
-  const avatarUrl = user.discord_avatar 
-    ? `https://cdn.discordapp.com/avatars/${user.discord_id}/${user.discord_avatar}.png?size=128`
-    : `https://cdn.discordapp.com/embed/avatars/${parseInt(user.discord_id.slice(-1)) % 5}.png`;
+  // Roblox avatar URL - use Roblox headshot if available, otherwise Discord avatar
+  const avatarUrl = user.roblox_id 
+    ? `https://www.roblox.com/headshot-thumbnail/image?userId=${user.roblox_id}&width=150&height=150&format=png`
+    : user.discord_avatar 
+      ? `https://cdn.discordapp.com/avatars/${user.discord_id}/${user.discord_avatar}.png?size=128`
+      : `https://cdn.discordapp.com/embed/avatars/${parseInt(user.discord_id.slice(-1)) % 5}.png`;
 
   const getRankColor = () => {
     if (!user?.rank) return 'bg-green-600';
@@ -24,27 +26,30 @@ export function ProfileCard() {
     return 'bg-green-600';
   };
 
+  // Display name - prefer Roblox username
+  const displayName = user.roblox_username || user.discord_username;
+
   return (
-    <Card className="p-5">
+    <Card className="p-5 animate-fadeIn">
       {/* Profile Header */}
       <div className="flex items-center gap-4 mb-5">
-        <div className="relative">
+        <div className="relative animate-scaleIn">
           <Image
             src={avatarUrl}
-            alt={user.discord_username}
+            alt={displayName}
             width={56}
             height={56}
-            className="w-14 h-14 rounded-full ring-2 ring-white/20"
+            className="w-14 h-14 rounded-full ring-2 ring-white/20 transition-transform hover:scale-105"
             unoptimized
           />
-          <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-black" />
+          <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-black animate-pulse" />
         </div>
         <div className="flex-1 min-w-0">
           <h2 className="text-lg font-bold text-white truncate">
-            Welcome, Staff {user.discord_username}
+            Welcome, Staff {displayName}
           </h2>
           <div className="flex items-center gap-2 mt-1">
-            <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${getRankColor()} text-white`}>
+            <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${getRankColor()} text-white transition-all hover:scale-105`}>
               {user.rank_name || 'Staff'}
             </span>
             <span className="text-white/40">•</span>
@@ -57,7 +62,7 @@ export function ProfileCard() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 gap-3">
-        <div className="flex items-center gap-3 p-3 rounded-2xl bg-white/5">
+        <div className="flex items-center gap-3 p-3 rounded-2xl bg-white/5 transition-all hover:bg-white/10 hover:scale-[1.02] animate-slideUp" style={{ animationDelay: '0.1s' }}>
           <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-blue-500/20 ring-1 ring-blue-400/30">
             <MessageSquare className="w-5 h-5 text-blue-300" />
           </div>
@@ -69,7 +74,7 @@ export function ProfileCard() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3 p-3 rounded-2xl bg-white/5">
+        <div className="flex items-center gap-3 p-3 rounded-2xl bg-white/5 transition-all hover:bg-white/10 hover:scale-[1.02] animate-slideUp" style={{ animationDelay: '0.15s' }}>
           <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-yellow-500/20 ring-1 ring-yellow-400/30">
             <AlertTriangle className="w-5 h-5 text-yellow-300" />
           </div>
@@ -79,7 +84,7 @@ export function ProfileCard() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3 p-3 rounded-2xl bg-white/5">
+        <div className="flex items-center gap-3 p-3 rounded-2xl bg-white/5 transition-all hover:bg-white/10 hover:scale-[1.02] animate-slideUp" style={{ animationDelay: '0.2s' }}>
           <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-emerald-500/20 ring-1 ring-emerald-400/30">
             <ClipboardList className="w-5 h-5 text-emerald-300" />
           </div>
@@ -89,7 +94,7 @@ export function ProfileCard() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3 p-3 rounded-2xl bg-white/5">
+        <div className="flex items-center gap-3 p-3 rounded-2xl bg-white/5 transition-all hover:bg-white/10 hover:scale-[1.02] animate-slideUp" style={{ animationDelay: '0.25s' }}>
           <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-purple-500/20 ring-1 ring-purple-400/30">
             <Users className="w-5 h-5 text-purple-300" />
           </div>
