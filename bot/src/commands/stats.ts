@@ -1,6 +1,7 @@
 import { ChatInputCommandInteraction, SlashCommandBuilder, EmbedBuilder } from 'discord.js';
 import { botAPI } from '../services/api';
 import { isImmuneRank } from '../utils/immunity';
+import { checkCooldown, setCooldown, formatCooldownMessage } from '../utils/cooldowns';
 
 export const data = new SlashCommandBuilder()
   .setName('stats')
@@ -13,9 +14,21 @@ export const data = new SlashCommandBuilder()
   );
 
 export async function execute(interaction: ChatInputCommandInteraction) {
+  // Check cooldown
+  const remainingCooldown = checkCooldown('stats', interaction.user.id);
+  if (remainingCooldown > 0) {
+    return interaction.reply({
+      content: `⏳ ${formatCooldownMessage(remainingCooldown)}`,
+      ephemeral: true,
+    });
+  }
+
   const targetUser = interaction.options.getUser('user');
   const discordId = targetUser?.id || interaction.user.id;
   const isSelfLookup = !targetUser || targetUser.id === interaction.user.id;
+
+  // Set cooldown after starting command
+  setCooldown('stats', interaction.user.id);
 
   await interaction.deferReply({ ephemeral: true });
 
