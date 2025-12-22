@@ -34,8 +34,9 @@ function containsAnyEmoji(input: string): boolean {
  */
 export async function getRobloxUserId(username: string): Promise<number | null> {
   try {
-    const response = await axios.get(`https://users.roblox.com/v1/usernames/users`, {
-      params: { usernames: [username], excludeBannedUsers: false },
+    const response = await axios.post(`https://users.roblox.com/v1/usernames/users`, {
+      usernames: [username],
+      excludeBannedUsers: false,
     });
 
     if (response.data.data && response.data.data.length > 0) {
