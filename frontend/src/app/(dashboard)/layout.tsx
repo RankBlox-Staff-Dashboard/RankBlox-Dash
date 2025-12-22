@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { NavBar } from '@/components/NavBar';
+import { Header } from '@/components/Header';
 
 export default function DashboardLayout({
   children,
@@ -40,7 +40,7 @@ export default function DashboardLayout({
   if (loading || isChecking) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-white text-xl">Loading...</div>
+        <div className="animate-pulse text-white/60 text-lg">Loading...</div>
       </div>
     );
   }
@@ -51,10 +51,14 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="flex min-h-screen bg-dark-bg">
-      <NavBar />
-      <main className="flex-1">{children}</main>
+    <div className="min-h-screen bg-black">
+      <Header />
+      <main className="px-4 py-4 pb-8 max-w-lg mx-auto">
+        {children}
+      </main>
+      <footer className="py-6 text-center text-white/40 text-sm">
+        © 2025 Panora Connect LLC. All rights reserved.
+      </footer>
     </div>
   );
 }
-
