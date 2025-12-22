@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { exchangeDiscordCode, getDiscordUser, getDiscordOAuthUrl } from '../services/discord';
-import { generateToken } from '../middleware/auth';
+import { generateToken, authenticateToken } from '../middleware/auth';
 import { db } from '../models/database';
 import { v4 as uuidv4 } from 'uuid';
 import { initializeUserPermissions } from '../services/permissions';
@@ -93,7 +93,7 @@ router.get('/discord/callback', async (req: Request, res: Response) => {
 /**
  * Get current user profile
  */
-router.get('/me', async (req: Request, res: Response) => {
+router.get('/me', authenticateToken, async (req: Request, res: Response) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Authentication required' });
   }
