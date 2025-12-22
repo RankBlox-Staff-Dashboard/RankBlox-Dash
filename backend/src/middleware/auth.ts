@@ -38,15 +38,33 @@ export async function authenticateToken(
 
   try {
     const decoded = jwt.verify(token, jwtSecret) as JwtPayload;
+    console.log('JWT decoded successfully, userId:', decoded.userId);
     
     // Verify session still exists and is valid (check by token)
-    const session = await db
-      .prepare('SELECT * FROM sessions WHERE token = ? AND expires_at > NOW()')
-      .get(token) as { id: string; user_id: number; token: string; expires_at: Date } | undefined;
+    try {
+      const session = await db
+        .prepare('SELECT * FROM sessions WHERE token = ? AND expires_at > NOW()')
+        .get(token) as { id: string; user_id: number; token: string; expires_at: Date } | undefined;
 
-    if (!session) {
-      console.error('Session not found or expired for token:', token.substring(0, 20) + '...');
-      res.status(401).json({ error: 'Session expired or invalid' });
+      if (!session) {
+        // Try to find session without expiration check for debugging
+        const anySession = await db
+          .prepare('SELECT * FROM sessions WHERE token = ?')
+          .get(token) as { id: string; user_id: number; token: string; expires_at: Date } | undefined;
+        
+        if (anySession) {
+          console.error('Session found but expired. Expires at:', anySession.expires_at, 'Now:', new Date());
+        } else {
+          console.error('No session found with token:', token.substring(0, 20) + '...');
+        }
+        res.status(401).json({ error: 'Session expired or invalid' });
+        return;
+      }
+      
+      console.log('Session found, user_id:', session.user_id);
+    } catch (dbError) {
+      console.error('Database error during session lookup:', dbError);
+      res.status(500).json({ error: 'Database error' });
       return;
     }
 
