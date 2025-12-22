@@ -47,7 +47,7 @@ export async function getUserPermissions(userId: number): Promise<Set<Permission
   }
 
   const defaultPermissions =
-    user.rank >= 16 && user.rank <= 255
+    user.rank >= 24 && user.rank <= 255
       ? DEFAULT_ADMIN_PERMISSIONS
       : DEFAULT_STAFF_PERMISSIONS;
 
@@ -96,7 +96,7 @@ export function requirePermission(permission: PermissionFlag) {
 }
 
 /**
- * Middleware to check if user has admin rank (16-255)
+ * Middleware to check if user has admin rank (24-255)
  */
 export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
   if (!req.user) {
@@ -109,7 +109,7 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction): v
     return;
   }
 
-  if (!req.user.rank || req.user.rank < 16 || req.user.rank > 255) {
+  if (!req.user.rank || req.user.rank < 24 || req.user.rank > 255) {
     res.status(403).json({ error: 'Admin access required' });
     return;
   }

@@ -36,7 +36,7 @@ export default function OverviewPage() {
 
         <div className="space-y-2">
           <a 
-            href="https://docs.atlantahigh.com" 
+            href="https://docs.ahscampus.com" 
             target="_blank" 
             rel="noopener noreferrer"
             className="flex items-center justify-between p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all hover:scale-[1.01] group"
@@ -54,7 +54,7 @@ export default function OverviewPage() {
           </a>
 
           <a 
-            href="https://discord.gg/atlantahigh" 
+            href="https://discord.gg/firealarm" 
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center justify-between p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all hover:scale-[1.01] group"
@@ -64,25 +64,7 @@ export default function OverviewPage() {
                 <MessageCircle className="w-4 h-4 text-purple-300" />
               </div>
               <div>
-                <div className="text-sm font-medium text-white">Staff Discord</div>
-                <div className="text-xs text-white/50">Join the staff communication server</div>
-              </div>
-            </div>
-            <ExternalLink className="w-4 h-4 text-white/40 group-hover:text-white/60 transition" />
-          </a>
-
-          <a 
-            href="https://support.atlantahigh.com" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="flex items-center justify-between p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all hover:scale-[1.01] group"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-emerald-500/20 flex items-center justify-center">
-                <HelpCircle className="w-4 h-4 text-emerald-300" />
-              </div>
-              <div>
-                <div className="text-sm font-medium text-white">Support Center</div>
+                <div className="text-sm font-medium text-white">Support Discord</div>
                 <div className="text-xs text-white/50">Get help with staff-related issues</div>
               </div>
             </div>

@@ -20,7 +20,7 @@ export function ProfileCard() {
 
   const getRankColor = () => {
     if (!user?.rank) return 'bg-green-600';
-    if (user.rank >= 16 && user.rank <= 255) return 'bg-red-600';
+    if (user.rank >= 24 && user.rank <= 255) return 'bg-red-600';
     if (user.rank >= 8) return 'bg-purple-600';
     return 'bg-green-600';
   };

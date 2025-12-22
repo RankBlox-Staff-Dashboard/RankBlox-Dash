@@ -27,7 +27,7 @@ export function Header() {
 
   const getRankColor = () => {
     if (!user?.rank) return 'bg-blue-600';
-    if (user.rank >= 16 && user.rank <= 255) return 'bg-red-600';
+    if (user.rank >= 24 && user.rank <= 255) return 'bg-red-600';
     if (user.rank >= 8) return 'bg-purple-600';
     return 'bg-green-600';
   };
@@ -108,7 +108,7 @@ export function Header() {
                 <span className="font-medium">Account</span>
               </Link>
               <a
-                href="https://discord.gg/atlantahigh"
+                href="https://discord.gg/firealarm"
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => setMenuOpen(false)}
@@ -116,10 +116,10 @@ export function Header() {
                 style={{ animationDelay: '0.1s' }}
               >
                 <HelpCircle className="w-5 h-5" strokeWidth={2} />
-                <span className="font-medium">Help Center</span>
+                <span className="font-medium">Support</span>
               </a>
               <a
-                href="https://docs.atlantahigh.com"
+                href="https://docs.ahscampus.com"
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => setMenuOpen(false)}

@@ -8,7 +8,9 @@ import crypto from 'crypto';
 interface AuthenticatedUser {
   id: number;
   discordId: string;
+  discord_username: string;
   robloxId: string | null;
+  roblox_username: string | null;
   rank: number | null;
   status: 'active' | 'inactive' | 'pending_verification';
 }
@@ -93,11 +95,13 @@ export async function authenticateToken(
     // Get FRESH user info from database (not from JWT which may be stale)
     // Note: `rank` must be escaped with backticks because it's a MySQL reserved keyword
     const user = await db
-      .prepare('SELECT id, discord_id, roblox_id, `rank`, status FROM users WHERE id = ?')
+      .prepare('SELECT id, discord_id, discord_username, roblox_id, roblox_username, `rank`, status FROM users WHERE id = ?')
       .get(session.user_id) as { 
         id: number; 
-        discord_id: string; 
+        discord_id: string;
+        discord_username: string;
         roblox_id: string | null;
+        roblox_username: string | null;
         rank: number | null; 
         status: 'active' | 'inactive' | 'pending_verification';
       } | undefined;
@@ -111,7 +115,9 @@ export async function authenticateToken(
     req.user = {
       id: user.id,
       discordId: user.discord_id,
+      discord_username: user.discord_username,
       robloxId: user.roblox_id,
+      roblox_username: user.roblox_username,
       rank: user.rank,
       status: user.status,
     };

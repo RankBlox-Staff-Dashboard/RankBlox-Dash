@@ -64,7 +64,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     // Build rank badge
     let rankBadge = '👤';
     if (userData.rank) {
-      if (userData.rank >= 16 && userData.rank <= 255) {
+      if (userData.rank >= 24 && userData.rank <= 255) {
         rankBadge = '👑'; // Admin
       } else if (userData.rank >= 8) {
         rankBadge = '⭐'; // Senior
@@ -73,10 +73,22 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       }
     }
 
-    // Get Roblox avatar if available
+    // Get Roblox avatar using the official Thumbnails API
     let thumbnailUrl = null;
     if (userData.roblox_id) {
-      thumbnailUrl = `https://www.roblox.com/headshot-thumbnail/image?userId=${userData.roblox_id}&width=150&height=150&format=png`;
+      try {
+        const avatarResponse = await fetch(
+          `https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${userData.roblox_id}&size=150x150&format=Png&isCircular=false`
+        );
+        if (avatarResponse.ok) {
+          const avatarData = await avatarResponse.json();
+          if (avatarData.data && avatarData.data.length > 0 && avatarData.data[0].imageUrl) {
+            thumbnailUrl = avatarData.data[0].imageUrl;
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching Roblox avatar:', err);
+      }
     }
 
     const embed = new EmbedBuilder()
