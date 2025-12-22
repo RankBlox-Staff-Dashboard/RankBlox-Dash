@@ -4,7 +4,7 @@ import { useMemo, useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useManagement } from '@/hooks/useManagement';
 import { usePermissions } from '@/hooks/usePermissions';
-import { managementAPI } from '@/services/api';
+import { managementAPI, SyncStatus, SyncResult } from '@/services/api';
 import { Card } from '@/components/ui/Card';
 import { RobloxAvatar } from '@/components/RobloxAvatar';
 import { 
@@ -19,7 +19,8 @@ import {
   XCircle,
   Clock,
   Loader2,
-  Shield
+  Shield,
+  RotateCcw
 } from 'lucide-react';
 import type { PermissionFlag, User, LOARequest, Infraction } from '@/types';
 import { isImmuneRank } from '@/lib/immunity';
@@ -67,6 +68,11 @@ export default function ManagementPage() {
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
   const [infractionReason, setInfractionReason] = useState('');
   const [infractionType, setInfractionType] = useState<'warning' | 'strike'>('warning');
+  
+  // Group sync state
+  const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
+  const [syncLoading, setSyncLoading] = useState(false);
+  const [syncFeedback, setSyncFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const staffUsers = useMemo(() => users.filter((u) => u.rank !== null), [users]);
 
@@ -75,8 +81,53 @@ export default function ManagementPage() {
       fetchLOARequests();
     } else if (activeTab === 'infractions') {
       fetchInfractions();
+    } else if (activeTab === 'users') {
+      fetchSyncStatus();
     }
   }, [activeTab]);
+
+  const fetchSyncStatus = async () => {
+    try {
+      const res = await managementAPI.getGroupSyncStatus();
+      setSyncStatus(res.data);
+    } catch (err) {
+      console.error('Error fetching sync status:', err);
+    }
+  };
+
+  const triggerGroupSync = async () => {
+    if (syncLoading || syncStatus?.isSyncing) return;
+    
+    setSyncLoading(true);
+    setSyncFeedback(null);
+    
+    try {
+      const res = await managementAPI.triggerGroupSync();
+      const result = res.data.result;
+      
+      if (result.success) {
+        setSyncFeedback({
+          type: 'success',
+          message: `Sync complete! Updated ${result.updatedUsers} of ${result.totalUsers} users.`
+        });
+      } else {
+        setSyncFeedback({
+          type: 'error',
+          message: `Sync completed with ${result.failedUsers} errors. Updated ${result.updatedUsers} users.`
+        });
+      }
+      
+      // Refresh users and sync status
+      await Promise.all([refresh(), fetchSyncStatus()]);
+    } catch (err: any) {
+      const message = err.response?.data?.error || 'Failed to trigger sync';
+      setSyncFeedback({ type: 'error', message });
+    } finally {
+      setSyncLoading(false);
+      // Auto-dismiss feedback after 5 seconds
+      setTimeout(() => setSyncFeedback(null), 5000);
+    }
+  };
 
   const fetchLOARequests = async () => {
     try {
@@ -270,10 +321,61 @@ export default function ManagementPage() {
       {/* Users Tab */}
       {activeTab === 'users' && (
         <Card className="p-5 animate-fadeIn">
-          <h3 className="text-base font-semibold text-white mb-4 flex items-center gap-2">
-            <Users className="w-5 h-5 text-white/70" />
-            Staff Users ({staffUsers.length})
-          </h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-base font-semibold text-white flex items-center gap-2">
+              <Users className="w-5 h-5 text-white/70" />
+              Staff Users ({staffUsers.length})
+            </h3>
+            
+            {/* Group Sync Button - Admin only (ranks 24-255) */}
+            <button
+              onClick={triggerGroupSync}
+              disabled={syncLoading || syncStatus?.isSyncing}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition"
+            >
+              {syncLoading || syncStatus?.isSyncing ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Syncing...
+                </>
+              ) : (
+                <>
+                  <RotateCcw className="w-4 h-4" />
+                  Group Sync
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Sync Feedback */}
+          {syncFeedback && (
+            <div className={`mb-4 p-3 rounded-lg flex items-center gap-2 ${
+              syncFeedback.type === 'success' 
+                ? 'bg-green-500/20 text-green-300 border border-green-500/30' 
+                : 'bg-red-500/20 text-red-300 border border-red-500/30'
+            }`}>
+              {syncFeedback.type === 'success' ? (
+                <CheckCircle className="w-4 h-4" />
+              ) : (
+                <XCircle className="w-4 h-4" />
+              )}
+              <span className="text-sm">{syncFeedback.message}</span>
+            </div>
+          )}
+
+          {/* Last Sync Info */}
+          {syncStatus?.lastSyncTime && (
+            <div className="mb-4 text-xs text-white/50 flex items-center gap-1">
+              <Clock className="w-3 h-3" />
+              Last sync: {new Date(syncStatus.lastSyncTime).toLocaleString()}
+              {syncStatus.lastSyncResult && (
+                <span className="ml-2">
+                  ({syncStatus.lastSyncResult.updatedUsers} updated)
+                </span>
+              )}
+            </div>
+          )}
+
           <div className="space-y-3">
             {staffUsers.map((u) => (
                 <div key={u.id} className="p-4 rounded-xl bg-white/5 hover:bg-white/10 transition">
