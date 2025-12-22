@@ -49,16 +49,19 @@ export default function AuthCallbackContent() {
       
       // Refresh user data and redirect
       refreshUser()
-        .then(() => {
-          // Small delay to ensure state updates
-          setTimeout(() => {
-            router.replace('/');
-          }, 100);
+        .then((me) => {
+          // If user is active, go to the authenticated overview. Otherwise, send to login
+          // so the verification step can be shown.
+          if (me && me.status === 'active') {
+            router.replace('/overview');
+          } else {
+            router.replace('/login');
+          }
         })
         .catch((err) => {
           console.error('Error refreshing user after login:', err);
-          // Still redirect to home, AuthContext will handle loading state
-          router.replace('/');
+          // Fall back to login; AuthContext will handle loading state.
+          router.replace('/login');
         });
     } else {
       // No token, redirect to login
