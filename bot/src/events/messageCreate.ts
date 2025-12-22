@@ -1,5 +1,6 @@
 import { Events, Message } from 'discord.js';
 import { botAPI, MessageData } from '../services/api';
+import { isImmuneRank } from '../utils/immunity';
 
 // Cache for tracked channels
 let trackedChannels: string[] = [];
@@ -7,7 +8,7 @@ let lastChannelFetch = 0;
 const CHANNEL_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 // Cache for user verification (to avoid hitting API for every message)
-const userCache = new Map<string, { isActive: boolean; cachedAt: number }>();
+const userCache = new Map<string, { isActive: boolean; rank: number | null; cachedAt: number }>();
 const USER_CACHE_TTL = 60 * 1000; // 1 minute
 
 // Message queue for batch processing
@@ -33,22 +34,25 @@ async function getTrackedChannels(): Promise<string[]> {
   }
 }
 
-async function isUserActive(discordId: string): Promise<boolean> {
+async function isUserAllowed(discordId: string): Promise<boolean> {
   const now = Date.now();
   const cached = userCache.get(discordId);
   
   if (cached && now - cached.cachedAt < USER_CACHE_TTL) {
-    return cached.isActive;
+    // Immune ranks (254-255) are always allowed regardless of status
+    return cached.isActive || isImmuneRank(cached.rank);
   }
 
   try {
     const response = await botAPI.getUser(discordId);
     const isActive = response.data?.status === 'active';
-    userCache.set(discordId, { isActive, cachedAt: now });
-    return isActive;
+    const rank = response.data?.rank ?? null;
+    userCache.set(discordId, { isActive, rank, cachedAt: now });
+    // Immune ranks (254-255) are always allowed regardless of status
+    return isActive || isImmuneRank(rank);
   } catch (error) {
-    // User not found - cache as inactive
-    userCache.set(discordId, { isActive: false, cachedAt: now });
+    // User not found - cache as inactive with no rank
+    userCache.set(discordId, { isActive: false, rank: null, cachedAt: now });
     return false;
   }
 }
@@ -96,9 +100,9 @@ export async function execute(message: Message) {
 
   const discordId = message.author.id;
 
-  // Check if user is an active staff member
-  const isActive = await isUserActive(discordId);
-  if (!isActive) return;
+  // Check if user is an active staff member (or has immune rank)
+  const isAllowed = await isUserAllowed(discordId);
+  if (!isAllowed) return;
 
   // Queue message for batch processing
   messageQueue.push({

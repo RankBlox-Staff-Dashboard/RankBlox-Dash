@@ -1,5 +1,6 @@
 import { ChatInputCommandInteraction, SlashCommandBuilder, EmbedBuilder } from 'discord.js';
 import { botAPI } from '../services/api';
+import { isImmuneRank } from '../utils/immunity';
 
 export const data = new SlashCommandBuilder()
   .setName('stats')
@@ -49,13 +50,18 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       return interaction.editReply({ embeds: [embed] });
     }
 
-    // Build status color
+    // Build status color - immune ranks (254-255) always show as active
+    const hasImmuneRank = isImmuneRank(userData.rank);
     let statusColor = 0x808080; // Gray for inactive
     let statusEmoji = '⚪';
+    let statusText = userData.status.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
     
-    if (userData.status === 'active') {
-      statusColor = 0x00FF00; // Green
-      statusEmoji = '🟢';
+    if (userData.status === 'active' || hasImmuneRank) {
+      statusColor = hasImmuneRank ? 0xFFD700 : 0x00FF00; // Gold for immune, Green for active
+      statusEmoji = hasImmuneRank ? '🛡️' : '🟢';
+      if (hasImmuneRank && userData.status !== 'active') {
+        statusText = 'Immune';
+      }
     } else if (userData.status === 'pending_verification') {
       statusColor = 0xFFAA00; // Orange
       statusEmoji = '🟡';
@@ -64,7 +70,9 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     // Build rank badge
     let rankBadge = '👤';
     if (userData.rank) {
-      if (userData.rank >= 24 && userData.rank <= 255) {
+      if (hasImmuneRank) {
+        rankBadge = '🛡️'; // Immune
+      } else if (userData.rank >= 24 && userData.rank <= 255) {
         rankBadge = '👑'; // Admin
       } else if (userData.rank >= 8) {
         rankBadge = '⭐'; // Senior
@@ -99,7 +107,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         { name: '📛 Discord', value: userData.discord_username || 'N/A', inline: true },
         { name: '🎮 Roblox', value: userData.roblox_username || 'Not Verified', inline: true },
         { name: '📊 Rank', value: userData.rank_name || `Rank ${userData.rank || 'N/A'}`, inline: true },
-        { name: '📋 Status', value: userData.status.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()), inline: true }
+        { name: '📋 Status', value: statusText, inline: true }
       )
       .setFooter({ text: 'Atlanta High Staff System' })
       .setTimestamp();

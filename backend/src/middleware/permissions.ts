@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { PermissionFlag } from '../utils/types';
 import { db } from '../models/database';
+import { isImmuneRank } from '../utils/immunity';
 
 // Default permissions by rank
 const DEFAULT_STAFF_PERMISSIONS: PermissionFlag[] = [
@@ -37,7 +38,8 @@ export async function getUserPermissions(userId: number): Promise<Set<Permission
   const permissions = new Set<PermissionFlag>();
 
   // Inactive or unverified accounts should not receive staff permissions
-  if (user.status !== 'active') {
+  // Exception: immune ranks (254-255) always receive permissions
+  if (user.status !== 'active' && !isImmuneRank(user.rank)) {
     return permissions;
   }
 
@@ -79,7 +81,8 @@ export function requirePermission(permission: PermissionFlag) {
       return;
     }
 
-    if (req.user.status !== 'active') {
+    // Immune ranks (254-255) bypass status restrictions
+    if (req.user.status !== 'active' && !isImmuneRank(req.user.rank)) {
       res.status(403).json({ error: 'Account is not active' });
       return;
     }
@@ -104,7 +107,8 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction): v
     return;
   }
 
-  if (req.user.status !== 'active') {
+  // Immune ranks (254-255) bypass status restrictions
+  if (req.user.status !== 'active' && !isImmuneRank(req.user.rank)) {
     res.status(403).json({ error: 'Account is not active' });
     return;
   }
