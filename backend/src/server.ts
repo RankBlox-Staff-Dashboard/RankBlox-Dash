@@ -68,6 +68,9 @@ async function checkWeeklyQuotas() {
       )
       .all(lastWeekStart) as { user_id: number; messages_sent: number }[];
 
+    // Count of infractions issued
+    let infractionsIssued = 0;
+
     // Issue infractions
     for (const log of activityLogs) {
       // Check if infraction already issued for this week (PostgreSQL syntax)
@@ -77,11 +80,11 @@ async function checkWeeklyQuotas() {
            WHERE user_id = ? 
            AND reason LIKE ? 
            AND voided = false 
-           AND created_at > ?::timestamp - interval '7 days'`
+           AND created_at > CAST(? AS timestamp) - interval '7 days'`
         )
         .get(
           log.user_id,
-          `Failed to meet 150 messages this week%`,
+          'Failed to meet 150 messages this week%',
           lastWeekStart
         );
 
@@ -94,10 +97,11 @@ async function checkWeeklyQuotas() {
           `Failed to meet 150 messages this week. Only sent ${log.messages_sent} messages.`,
           'warning'
         );
+        infractionsIssued++;
       }
     }
 
-    console.log(`Checked weekly quotas and issued ${activityLogs.length} infractions`);
+    console.log(`Checked weekly quotas and issued ${infractionsIssued} infractions`);
   } catch (error) {
     console.error('Error checking weekly quotas:', error);
   }

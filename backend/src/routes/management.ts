@@ -14,11 +14,11 @@ router.use(requireAdmin); // All management routes require admin
  */
 router.get('/users', async (req: Request, res: Response) => {
   try {
-    const users = db
+    const users = await db
       .prepare(
         `SELECT id, discord_id, discord_username, roblox_username, rank, rank_name, status, created_at
          FROM users
-         ORDER BY rank DESC, created_at ASC`
+         ORDER BY rank DESC NULLS LAST, created_at ASC`
       )
       .all() as any[];
 
@@ -61,12 +61,12 @@ router.put('/users/:id/permissions', async (req: Request, res: Response) => {
     }
 
     // Check if user exists
-    const user = db.prepare('SELECT id FROM users WHERE id = ?').get(userId);
+    const user = await db.prepare('SELECT id FROM users WHERE id = ?').get(userId);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    updateUserPermission(userId, permission as PermissionFlag, granted);
+    await updateUserPermission(userId, permission as PermissionFlag, granted);
 
     res.json({ message: 'Permission updated successfully' });
   } catch (error) {
@@ -88,12 +88,12 @@ router.put('/users/:id/status', async (req: Request, res: Response) => {
     }
 
     // Check if user exists
-    const user = db.prepare('SELECT id FROM users WHERE id = ?').get(userId);
+    const user = await db.prepare('SELECT id FROM users WHERE id = ?').get(userId);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    db.prepare('UPDATE users SET status = ?, updated_at = datetime("now") WHERE id = ?').run(
+    await db.prepare('UPDATE users SET status = ?, updated_at = NOW() WHERE id = ?').run(
       status,
       userId
     );
@@ -110,7 +110,7 @@ router.put('/users/:id/status', async (req: Request, res: Response) => {
  */
 router.get('/tracked-channels', async (req: Request, res: Response) => {
   try {
-    const channels = db
+    const channels = await db
       .prepare('SELECT * FROM tracked_channels ORDER BY channel_name')
       .all() as any[];
 
@@ -133,13 +133,14 @@ router.post('/tracked-channels', async (req: Request, res: Response) => {
     }
 
     try {
-      db.prepare(
+      await db.prepare(
         'INSERT INTO tracked_channels (discord_channel_id, channel_name) VALUES (?, ?)'
       ).run(discord_channel_id, channel_name);
 
       res.json({ message: 'Tracked channel added successfully' });
     } catch (error: any) {
-      if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      // PostgreSQL unique constraint violation error code is '23505'
+      if (error.code === '23505') {
         return res.status(400).json({ error: 'Channel already tracked' });
       }
       throw error;
@@ -157,7 +158,7 @@ router.delete('/tracked-channels/:id', async (req: Request, res: Response) => {
   try {
     const channelId = parseInt(req.params.id);
 
-    const result = db.prepare('DELETE FROM tracked_channels WHERE id = ?').run(channelId);
+    const result = await db.prepare('DELETE FROM tracked_channels WHERE id = ?').run(channelId);
 
     if (result.changes === 0) {
       return res.status(404).json({ error: 'Tracked channel not found' });

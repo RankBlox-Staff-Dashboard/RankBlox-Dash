@@ -30,7 +30,7 @@ router.get('/', requirePermission('VIEW_TICKETS'), async (req: Request, res: Res
 
     query += ' ORDER BY t.created_at DESC';
 
-    const tickets = db.prepare(query).all(...params) as any[];
+    const tickets = await db.prepare(query).all(...params) as any[];
 
     res.json(tickets);
   } catch (error) {
@@ -51,7 +51,7 @@ router.post('/:id/claim', requirePermission('CLAIM_TICKETS'), async (req: Reques
     const ticketId = parseInt(req.params.id);
 
     // Check if ticket exists and is available
-    const ticket = db
+    const ticket = await db
       .prepare('SELECT * FROM tickets WHERE id = ?')
       .get(ticketId) as any;
 
@@ -64,7 +64,7 @@ router.post('/:id/claim', requirePermission('CLAIM_TICKETS'), async (req: Reques
     }
 
     // Update ticket
-    db.prepare(
+    await db.prepare(
       'UPDATE tickets SET claimed_by = ?, status = ? WHERE id = ?'
     ).run(req.user.id, 'claimed', ticketId);
 
@@ -77,16 +77,16 @@ router.post('/:id/claim', requirePermission('CLAIM_TICKETS'), async (req: Reques
     const weekStartStr = monday.toISOString().split('T')[0];
 
     // Check if activity log exists
-    let activityLog = db
+    let activityLog = await db
       .prepare('SELECT * FROM activity_logs WHERE user_id = ? AND week_start = ?')
       .get(req.user.id, weekStartStr) as any;
 
     if (activityLog) {
-      db.prepare(
+      await db.prepare(
         'UPDATE activity_logs SET tickets_claimed = tickets_claimed + 1 WHERE user_id = ? AND week_start = ?'
       ).run(req.user.id, weekStartStr);
     } else {
-      db.prepare(
+      await db.prepare(
         'INSERT INTO activity_logs (user_id, week_start, tickets_claimed) VALUES (?, ?, 1)'
       ).run(req.user.id, weekStartStr);
     }
@@ -110,7 +110,7 @@ router.post('/:id/resolve', requirePermission('CLAIM_TICKETS'), async (req: Requ
     const ticketId = parseInt(req.params.id);
 
     // Check if ticket exists and is claimed by user
-    const ticket = db
+    const ticket = await db
       .prepare('SELECT * FROM tickets WHERE id = ?')
       .get(ticketId) as any;
 
@@ -127,7 +127,7 @@ router.post('/:id/resolve', requirePermission('CLAIM_TICKETS'), async (req: Requ
     }
 
     // Update ticket
-    db.prepare('UPDATE tickets SET status = ? WHERE id = ?').run('resolved', ticketId);
+    await db.prepare('UPDATE tickets SET status = ? WHERE id = ?').run('resolved', ticketId);
 
     // Increment user's tickets_resolved count for current week
     const weekStart = new Date();
@@ -138,16 +138,16 @@ router.post('/:id/resolve', requirePermission('CLAIM_TICKETS'), async (req: Requ
     const weekStartStr = monday.toISOString().split('T')[0];
 
     // Check if activity log exists
-    let activityLog = db
+    let activityLog = await db
       .prepare('SELECT * FROM activity_logs WHERE user_id = ? AND week_start = ?')
       .get(req.user.id, weekStartStr) as any;
 
     if (activityLog) {
-      db.prepare(
+      await db.prepare(
         'UPDATE activity_logs SET tickets_resolved = tickets_resolved + 1 WHERE user_id = ? AND week_start = ?'
       ).run(req.user.id, weekStartStr);
     } else {
-      db.prepare(
+      await db.prepare(
         'INSERT INTO activity_logs (user_id, week_start, tickets_resolved) VALUES (?, ?, 1)'
       ).run(req.user.id, weekStartStr);
     }
