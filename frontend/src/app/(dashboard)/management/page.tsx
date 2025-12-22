@@ -1,11 +1,12 @@
 'use client';
 
 import { useMemo, useState, useEffect } from 'react';
-import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
 import { useManagement } from '@/hooks/useManagement';
+import { usePermissions } from '@/hooks/usePermissions';
 import { managementAPI } from '@/services/api';
 import { Card } from '@/components/ui/Card';
+import { RobloxAvatar } from '@/components/RobloxAvatar';
 import { 
   RefreshCw, 
   Users, 
@@ -41,8 +42,13 @@ type Tab = 'users' | 'channels' | 'loa' | 'infractions';
 export default function ManagementPage() {
   const { user } = useAuth();
   const { users, channels, loading, error, refresh } = useManagement();
+  const { permissions, loading: permissionsLoading } = usePermissions();
 
-  const isAdmin = !!(user?.rank && user.rank >= 16 && user.rank <= 255);
+  // User is admin if they have MANAGE_USERS or MANAGE_PERMISSIONS permission
+  // This is determined by backend based on rank (16-255) or permission overrides
+  const isAdmin = useMemo(() => {
+    return permissions.includes('MANAGE_USERS') || permissions.includes('MANAGE_PERMISSIONS');
+  }, [permissions]);
 
   const [activeTab, setActiveTab] = useState<Tab>('users');
   const [newChannelId, setNewChannelId] = useState('');
@@ -94,6 +100,18 @@ export default function ManagementPage() {
       setInfractionsLoading(false);
     }
   };
+
+  // Show loading state while checking permissions
+  if (permissionsLoading) {
+    return (
+      <div className="p-4 animate-fadeIn">
+        <Card className="p-8 text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-white/50 mx-auto mb-4" />
+          <p className="text-white/60">Loading...</p>
+        </Card>
+      </div>
+    );
+  }
 
   if (!isAdmin) {
     return (
@@ -256,21 +274,16 @@ export default function ManagementPage() {
             Staff Users ({staffUsers.length})
           </h3>
           <div className="space-y-3">
-            {staffUsers.map((u) => {
-              const avatarUrl = u.roblox_id 
-                ? `https://www.roblox.com/headshot-thumbnail/image?userId=${u.roblox_id}&width=150&height=150&format=png`
-                : `https://cdn.discordapp.com/embed/avatars/0.png`;
-              
-              return (
+            {staffUsers.map((u) => (
                 <div key={u.id} className="p-4 rounded-xl bg-white/5 hover:bg-white/10 transition">
                   <div className="flex items-center gap-3 mb-3">
-                    <Image
-                      src={avatarUrl}
+                    <RobloxAvatar
+                      robloxId={u.roblox_id}
+                      discordId={u.discord_id}
+                      discordAvatar={u.discord_avatar}
                       alt={u.roblox_username || u.discord_username}
-                      width={40}
-                      height={40}
-                      className="w-10 h-10 rounded-full"
-                      unoptimized
+                      size={40}
+                      className="w-10 h-10"
                     />
                     <div className="flex-1">
                       <div className="text-white font-medium">{u.roblox_username || u.discord_username}</div>
@@ -305,8 +318,7 @@ export default function ManagementPage() {
                     ))}
                   </div>
                 </div>
-              );
-            })}
+              ))}
           </div>
         </Card>
       )}

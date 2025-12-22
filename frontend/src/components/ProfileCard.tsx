@@ -1,23 +1,22 @@
 'use client';
 
 import Image from 'next/image';
-import { MessageSquare, AlertTriangle, ClipboardList, Users } from 'lucide-react';
+import { MessageSquare, AlertTriangle, ClipboardList, Users, User as UserIcon } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useStats } from '@/hooks/useStats';
+import { useRobloxAvatar, getDiscordAvatarUrl } from '@/hooks/useRobloxAvatar';
 import { Card } from './ui/Card';
 
 export function ProfileCard() {
   const { user } = useAuth();
   const { stats } = useStats();
+  const { avatarUrl: robloxAvatarUrl, loading: avatarLoading } = useRobloxAvatar(user?.roblox_id ?? null);
 
   if (!user) return null;
 
-  // Roblox avatar URL - use Roblox headshot if available, otherwise Discord avatar
-  const avatarUrl = user.roblox_id 
-    ? `https://www.roblox.com/headshot-thumbnail/image?userId=${user.roblox_id}&width=150&height=150&format=png`
-    : user.discord_avatar 
-      ? `https://cdn.discordapp.com/avatars/${user.discord_id}/${user.discord_avatar}.png?size=128`
-      : `https://cdn.discordapp.com/embed/avatars/${parseInt(user.discord_id.slice(-1)) % 5}.png`;
+  // Use Roblox avatar if available and loaded, otherwise fall back to Discord avatar
+  const discordAvatarUrl = getDiscordAvatarUrl(user.discord_id, user.discord_avatar);
+  const avatarUrl = user.roblox_id && robloxAvatarUrl ? robloxAvatarUrl : discordAvatarUrl;
 
   const getRankColor = () => {
     if (!user?.rank) return 'bg-green-600';
