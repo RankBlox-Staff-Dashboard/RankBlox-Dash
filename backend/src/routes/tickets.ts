@@ -1,10 +1,13 @@
 import { Router, Request, Response } from 'express';
-import { authenticateToken } from '../middleware/auth';
+import { authenticateToken, requireVerified } from '../middleware/auth';
 import { requirePermission } from '../middleware/permissions';
 import { db } from '../models/database';
 
 const router = Router();
+
+// All ticket routes require full verification
 router.use(authenticateToken);
+router.use(requireVerified);
 
 function parsePositiveInt(value: string): number | null {
   const n = Number.parseInt(value, 10);

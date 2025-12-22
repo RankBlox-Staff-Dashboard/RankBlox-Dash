@@ -8,7 +8,7 @@ import { getApiBaseUrl, verificationAPI } from '@/services/api';
 export default function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, loading, isVerified, checkVerification, refreshUser } = useAuth();
+  const { user, loading, verification, isFullyVerified, refreshUser, updateToken } = useAuth();
   const [step, setStep] = useState<'login' | 'verify'>('login');
   const [emojiCode, setEmojiCode] = useState<string>('');
   const [codeLoading, setCodeLoading] = useState(false);
@@ -50,17 +50,24 @@ export default function LoginPageContent() {
       setError(errorMessage);
     }
 
-    // If user is logged in and verified, redirect to dashboard
-    if (user && isVerified) {
-      router.replace('/overview');
-      return;
+    // Use backend-computed verification status (single source of truth)
+    if (!loading && user && verification) {
+      if (isFullyVerified) {
+        // Fully verified - go to dashboard
+        router.replace('/overview');
+        return;
+      }
+      
+      // Check what verification step is needed
+      if (verification.next_step === 'roblox') {
+        // Discord done, need Roblox verification
+        setStep('verify');
+      } else if (verification.discord && !verification.complete) {
+        // Discord done but something else is blocking - show verify step
+        setStep('verify');
+      }
     }
-
-    // If user is logged in but not verified, show verification step
-    if (user && !isVerified && user.status === 'pending_verification') {
-      setStep('verify');
-    }
-  }, [user, isVerified, router, searchParams]);
+  }, [user, loading, verification, isFullyVerified, router, searchParams]);
 
   const handleDiscordLogin = () => {
     // Prefer explicit backend URL (static hosting) but still support local `/api` rewrite.
@@ -94,11 +101,24 @@ export default function LoginPageContent() {
     try {
       setVerifying(true);
       setError(null);
-      await verificationAPI.verify(robloxUsername, emojiCode);
-      // Refresh user data to get updated status
-      await refreshUser();
-      await checkVerification();
-      router.push('/overview');
+      
+      const response = await verificationAPI.verify(robloxUsername, emojiCode);
+      
+      // If backend returns a new token (with updated rank), save it
+      if (response.data.token) {
+        updateToken(response.data.token);
+      }
+      
+      // Refresh user data to get updated status from backend
+      const updatedUser = await refreshUser();
+      
+      // Check if verification is now complete
+      if (updatedUser?.verification?.complete) {
+        router.push('/overview');
+      } else {
+        // Something else still needs verification
+        setError('Verification incomplete. Please contact support.');
+      }
     } catch (err: any) {
       const errorMsg = err.response?.data?.error || 'Verification failed. Make sure the emoji code is in your Roblox bio/status.';
       setError(errorMsg);

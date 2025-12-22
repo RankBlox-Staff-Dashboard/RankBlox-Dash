@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 
@@ -21,9 +21,14 @@ function getTokenFromLocation(): string | null {
 export default function AuthCallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { refreshUser } = useAuth();
+  const { refreshUser, updateToken } = useAuth();
+  const processed = useRef(false);
 
   useEffect(() => {
+    // Prevent double-processing in React strict mode
+    if (processed.current) return;
+    processed.current = true;
+
     const token = getTokenFromLocation();
     const error = searchParams.get('error');
     const message = searchParams.get('message');
@@ -39,35 +44,44 @@ export default function AuthCallbackContent() {
     }
 
     if (token) {
-      // Store token
-      localStorage.setItem('token', token);
+      // Store token using context method
+      updateToken(token);
 
       // Remove token from URL (both query and fragment) after capture
       if (typeof window !== 'undefined') {
         window.history.replaceState(null, '', '/auth/callback');
       }
       
-      // Refresh user data and redirect
+      // Refresh user data and redirect based on BACKEND verification status
       refreshUser()
-        .then((me) => {
-          // If user is active, go to the authenticated overview. Otherwise, send to login
-          // so the verification step can be shown.
-          if (me && me.status === 'active') {
+        .then((userData) => {
+          if (!userData) {
+            // Something went wrong fetching user
+            router.replace('/login?error=user_fetch_failed');
+            return;
+          }
+
+          // Use backend-computed verification status (single source of truth)
+          const verification = userData.verification;
+          
+          if (verification?.complete) {
+            // Fully verified - go to dashboard
             router.replace('/overview');
           } else {
+            // Need to complete verification - go to login page
+            // Login page will show verification step
             router.replace('/login');
           }
         })
         .catch((err) => {
           console.error('Error refreshing user after login:', err);
-          // Fall back to login; AuthContext will handle loading state.
-          router.replace('/login');
+          router.replace('/login?error=server_error');
         });
     } else {
       // No token, redirect to login
       router.replace('/login?error=no_token');
     }
-  }, [searchParams, router, refreshUser]);
+  }, [searchParams, router, refreshUser, updateToken]);
 
   return (
     <div className="min-h-screen bg-black flex items-center justify-center">

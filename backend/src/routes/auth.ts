@@ -139,7 +139,8 @@ router.get('/discord/callback', async (req: Request, res: Response) => {
 });
 
 /**
- * Get current user profile
+ * Get current user profile with verification status
+ * This is the single source of truth for frontend auth state
  */
 router.get('/me', authenticateToken, async (req: Request, res: Response) => {
   if (!req.user) {
@@ -154,6 +155,27 @@ router.get('/me', authenticateToken, async (req: Request, res: Response) => {
     return res.status(404).json({ error: 'User not found' });
   }
 
+  // Compute verification status on backend - frontend should NOT compute this
+  const isDiscordVerified = !!user.discord_id;
+  const isRobloxVerified = !!user.roblox_id;
+  const isActive = user.status === 'active';
+  const hasRank = user.rank !== null;
+  
+  // Full verification requires ALL conditions
+  const isFullyVerified = isDiscordVerified && isRobloxVerified && isActive && hasRank;
+
+  // Determine what verification step is needed (if any)
+  let verificationStep: string | null = null;
+  if (!isDiscordVerified) {
+    verificationStep = 'discord';
+  } else if (!isRobloxVerified) {
+    verificationStep = 'roblox';
+  } else if (!isActive) {
+    verificationStep = 'activation';
+  } else if (!hasRank) {
+    verificationStep = 'rank';
+  }
+
   res.json({
     id: user.id,
     discord_id: user.discord_id,
@@ -164,24 +186,33 @@ router.get('/me', authenticateToken, async (req: Request, res: Response) => {
     rank_name: user.rank_name,
     status: user.status,
     created_at: user.created_at,
+    // New verification fields - single source of truth
+    verification: {
+      discord: isDiscordVerified,
+      roblox: isRobloxVerified,
+      active: isActive,
+      rank: hasRank,
+      complete: isFullyVerified,
+      next_step: verificationStep,
+    },
   });
 });
 
 /**
- * Logout
+ * Logout - clears session from DB and cookies
  */
 router.post('/logout', authenticateToken, async (req: Request, res: Response) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Authentication required' });
   }
 
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (token) {
-    await db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
+  // Use the session token that was resolved during authentication
+  // This handles both Bearer token and cookie-based sessions
+  if (req.sessionToken) {
+    await db.prepare('DELETE FROM sessions WHERE token = ?').run(req.sessionToken);
   }
-  // Also clear cookie-based session if present
+  
+  // Clear the session cookie
   res.clearCookie('session', cookieOptions());
 
   res.json({ message: 'Logged out successfully' });

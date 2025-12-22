@@ -4,16 +4,21 @@ import { JwtPayload } from '../utils/types';
 import { db } from '../models/database';
 import crypto from 'crypto';
 
+// Extended user info attached to request
+interface AuthenticatedUser {
+  id: number;
+  discordId: string;
+  robloxId: string | null;
+  rank: number | null;
+  status: 'active' | 'inactive' | 'pending_verification';
+}
+
 // Extend Express Request to include user
 declare global {
   namespace Express {
     interface Request {
-      user?: {
-        id: number;
-        discordId: string;
-        rank: number | null;
-        status?: string;
-      };
+      user?: AuthenticatedUser;
+      sessionToken?: string;
     }
   }
 }
@@ -35,6 +40,11 @@ function getCookieToken(req: Request): string | undefined {
   return typeof token === 'string' && token.length > 0 ? token : undefined;
 }
 
+/**
+ * Core authentication middleware.
+ * Validates JWT token and session, attaches user to request.
+ * Does NOT check verification status - use requireVerified for that.
+ */
 export async function authenticateToken(
   req: Request,
   res: Response,
@@ -43,7 +53,7 @@ export async function authenticateToken(
   const token = getBearerToken(req) ?? getCookieToken(req);
 
   if (!token) {
-    res.status(401).json({ error: 'Authentication required' });
+    res.status(401).json({ error: 'Authentication required', code: 'NO_TOKEN' });
     return;
   }
 
@@ -69,45 +79,140 @@ export async function authenticateToken(
     }
 
     if (!session) {
-      res.status(401).json({ error: 'Session expired or invalid' });
+      res.status(401).json({ error: 'Session expired or invalid', code: 'SESSION_EXPIRED' });
       return;
     }
 
     // Defensive consistency check: token must map to the same user in DB session
     if (decoded.userId !== session.user_id) {
       // If this ever happens it's an integrity issue; treat token as invalid.
-      res.status(403).json({ error: 'Invalid token' });
+      res.status(403).json({ error: 'Invalid token', code: 'TOKEN_USER_MISMATCH' });
       return;
     }
 
-    // Get user info (allow all statuses including pending_verification)
+    // Get FRESH user info from database (not from JWT which may be stale)
     // Note: `rank` must be escaped with backticks because it's a MySQL reserved keyword
     const user = await db
-      .prepare('SELECT id, discord_id, `rank`, status FROM users WHERE id = ?')
-      .get(session.user_id) as { id: number; discord_id: string; rank: number | null; status: string } | undefined;
+      .prepare('SELECT id, discord_id, roblox_id, `rank`, status FROM users WHERE id = ?')
+      .get(session.user_id) as { 
+        id: number; 
+        discord_id: string; 
+        roblox_id: string | null;
+        rank: number | null; 
+        status: 'active' | 'inactive' | 'pending_verification';
+      } | undefined;
 
     if (!user) {
-      res.status(404).json({ error: 'User not found' });
+      res.status(404).json({ error: 'User not found', code: 'USER_NOT_FOUND' });
       return;
     }
 
+    // Attach FRESH user data (from DB) to request
     req.user = {
       id: user.id,
       discordId: user.discord_id,
+      robloxId: user.roblox_id,
       rank: user.rank,
       status: user.status,
     };
+    
+    // Store session token for potential updates
+    req.sessionToken = token;
 
     next();
   } catch (error) {
     if (error instanceof jwt.JsonWebTokenError) {
-      res.status(403).json({ error: 'Invalid token' });
+      res.status(401).json({ error: 'Invalid token', code: 'INVALID_TOKEN' });
       return;
     }
+    if (error instanceof jwt.TokenExpiredError) {
+      res.status(401).json({ error: 'Token expired', code: 'TOKEN_EXPIRED' });
+      return;
+    }
+    console.error('Authentication error:', error);
     res.status(500).json({ error: 'Authentication error' });
   }
 }
 
+/**
+ * Middleware to enforce FULL verification chain.
+ * Must be used AFTER authenticateToken.
+ * Ensures user has:
+ * - Valid session (handled by authenticateToken)
+ * - Discord ID (always present after Discord OAuth)
+ * - Roblox ID (from Roblox verification)
+ * - Active status
+ * - Valid rank
+ */
+export function requireVerified(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): void {
+  if (!req.user) {
+    res.status(401).json({ error: 'Authentication required', code: 'NO_AUTH' });
+    return;
+  }
+
+  // Check Discord verification (should always be present after OAuth login)
+  if (!req.user.discordId) {
+    res.status(403).json({ 
+      error: 'Discord verification required', 
+      code: 'DISCORD_NOT_VERIFIED',
+      verification_step: 'discord'
+    });
+    return;
+  }
+
+  // Check Roblox verification
+  if (!req.user.robloxId) {
+    res.status(403).json({ 
+      error: 'Roblox verification required', 
+      code: 'ROBLOX_NOT_VERIFIED',
+      verification_step: 'roblox'
+    });
+    return;
+  }
+
+  // Check account status
+  if (req.user.status !== 'active') {
+    if (req.user.status === 'pending_verification') {
+      res.status(403).json({ 
+        error: 'Account verification incomplete', 
+        code: 'VERIFICATION_PENDING',
+        verification_step: 'pending'
+      });
+    } else if (req.user.status === 'inactive') {
+      res.status(403).json({ 
+        error: 'Account is inactive', 
+        code: 'ACCOUNT_INACTIVE'
+      });
+    } else {
+      res.status(403).json({ 
+        error: 'Invalid account status', 
+        code: 'INVALID_STATUS'
+      });
+    }
+    return;
+  }
+
+  // Check rank is present (should be set during Roblox verification)
+  if (req.user.rank === null) {
+    res.status(403).json({ 
+      error: 'Rank not assigned. Please complete Roblox verification.', 
+      code: 'NO_RANK',
+      verification_step: 'roblox'
+    });
+    return;
+  }
+
+  // All verification checks passed
+  next();
+}
+
+/**
+ * Generate a new JWT token for a user.
+ */
 export function generateToken(userId: number, discordId: string, rank: number | null): string {
   const jwtSecret = process.env.JWT_SECRET;
   if (!jwtSecret) {
@@ -122,4 +227,23 @@ export function generateToken(userId: number, discordId: string, rank: number | 
 
   // Token expires in 7 days
   return jwt.sign(payload, jwtSecret, { expiresIn: '7d', algorithm: 'HS256' });
+}
+
+/**
+ * Update session with new token (used after verification completes).
+ * Returns the new token.
+ */
+export async function refreshSessionToken(
+  userId: number,
+  discordId: string,
+  rank: number | null,
+  oldToken: string
+): Promise<string> {
+  const newToken = generateToken(userId, discordId, rank);
+  
+  // Update session with new token
+  await db.prepare('UPDATE sessions SET token = ? WHERE token = ? AND user_id = ?')
+    .run(newToken, oldToken, userId);
+  
+  return newToken;
 }

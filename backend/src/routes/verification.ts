@@ -1,10 +1,20 @@
 import { Router, Request, Response } from 'express';
-import { authenticateToken } from '../middleware/auth';
+import { authenticateToken, refreshSessionToken } from '../middleware/auth';
 import { verifyRobloxUserDetailed } from '../services/roblox';
 import { db } from '../models/database';
 import { initializeUserPermissions } from '../services/permissions';
 
 const router = Router();
+
+function cookieOptions() {
+  const isProd = process.env.NODE_ENV === 'production';
+  return {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: 'lax' as const,
+    path: '/',
+  };
+}
 
 // All verification routes require authentication
 router.use(authenticateToken);
@@ -156,11 +166,32 @@ router.post('/roblox/verify', async (req: Request, res: Response) => {
     // Initialize permissions
     await initializeUserPermissions(req.user.id, verificationResult.rank);
 
+    // CRITICAL: Refresh the session token with updated rank
+    // This ensures the user doesn't need to re-login after verification
+    let newToken: string | undefined;
+    if (req.sessionToken) {
+      try {
+        newToken = await refreshSessionToken(
+          req.user.id,
+          req.user.discordId,
+          verificationResult.rank,
+          req.sessionToken
+        );
+        // Also update the cookie with new token
+        res.cookie('session', newToken, { ...cookieOptions(), maxAge: 7 * 24 * 60 * 60 * 1000 });
+      } catch (tokenError) {
+        console.error('Failed to refresh session token:', tokenError);
+        // Continue anyway - user can re-login if needed
+      }
+    }
+
     res.json({
       message: 'Verification successful',
       roblox_username: verificationResult.username,
       rank: verificationResult.rank,
       rank_name: verificationResult.rankName,
+      // Return new token so frontend can update localStorage
+      token: newToken,
     });
   } catch (error) {
     console.error('Error verifying Roblox account:', error);

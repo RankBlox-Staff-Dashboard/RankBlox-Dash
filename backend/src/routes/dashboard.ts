@@ -1,10 +1,15 @@
 import { Router, Request, Response } from 'express';
-import { authenticateToken } from '../middleware/auth';
+import { authenticateToken, requireVerified } from '../middleware/auth';
 import { requirePermission, requireAdmin } from '../middleware/permissions';
 import { db } from '../models/database';
 
 const router = Router();
+
+// All dashboard routes require:
+// 1. Valid authentication (JWT + session)
+// 2. Full verification (Discord + Roblox + active status + rank)
 router.use(authenticateToken);
+router.use(requireVerified);
 
 /**
  * Get current week start (Monday)

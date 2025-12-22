@@ -29,14 +29,32 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Track if we're already redirecting to prevent loops
+let isRedirecting = false;
+
 // Handle auth errors
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    // Only handle 401 errors for automatic redirect
+    // 403 errors mean user is authenticated but not authorized (e.g., not verified)
     if (error.response?.status === 401) {
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('token');
-        window.location.href = '/login';
+      if (typeof window !== 'undefined' && !isRedirecting) {
+        // Check if we're NOT already on login-related pages to prevent loops
+        const currentPath = window.location.pathname;
+        const isAuthPage = currentPath === '/login' || 
+                          currentPath.startsWith('/auth/') ||
+                          currentPath === '/';
+        
+        if (!isAuthPage) {
+          isRedirecting = true;
+          localStorage.removeItem('token');
+          // Use replace to prevent back button issues
+          window.location.replace('/login');
+          
+          // Reset flag after a delay (in case redirect doesn't happen)
+          setTimeout(() => { isRedirecting = false; }, 2000);
+        }
       }
     }
     return Promise.reject(error);
@@ -53,7 +71,14 @@ export const authAPI = {
 export const verificationAPI = {
   requestCode: () => api.post<{ emoji_code: string; expires_at: string; message: string }>('/verification/roblox/request'),
   verify: (roblox_username: string, emoji_code: string) =>
-    api.post<{ message: string; roblox_username: string; rank: number; rank_name: string }>('/verification/roblox/verify', {
+    api.post<{ 
+      message: string; 
+      roblox_username: string; 
+      rank: number; 
+      rank_name: string;
+      // New token returned after successful verification
+      token?: string;
+    }>('/verification/roblox/verify', {
       roblox_username,
       emoji_code,
     }),

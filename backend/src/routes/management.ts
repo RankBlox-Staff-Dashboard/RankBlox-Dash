@@ -1,13 +1,16 @@
 import { Router, Request, Response } from 'express';
-import { authenticateToken } from '../middleware/auth';
+import { authenticateToken, requireVerified } from '../middleware/auth';
 import { requireAdmin, requirePermission } from '../middleware/permissions';
 import { db } from '../models/database';
 import { PermissionFlag } from '../utils/types';
 import { updateUserPermission } from '../services/permissions';
 
 const router = Router();
+
+// All management routes require full verification AND admin status
 router.use(authenticateToken);
-router.use(requireAdmin); // All management routes require admin
+router.use(requireVerified);
+router.use(requireAdmin);
 
 /**
  * List all staff

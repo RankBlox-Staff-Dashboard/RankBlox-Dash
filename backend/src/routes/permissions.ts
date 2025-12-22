@@ -1,10 +1,13 @@
 import { Router, Request, Response } from 'express';
-import { authenticateToken } from '../middleware/auth';
+import { authenticateToken, requireVerified } from '../middleware/auth';
 import { getUserPermissionsArray } from '../services/permissions';
 import { PermissionFlag } from '../utils/types';
 
 const router = Router();
+
+// All permission routes require full verification
 router.use(authenticateToken);
+router.use(requireVerified);
 
 const VALID_PERMISSIONS: PermissionFlag[] = [
   'VIEW_DASHBOARD',

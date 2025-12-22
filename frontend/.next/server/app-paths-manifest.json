@@ -2,12 +2,12 @@
   "/_not-found/page": "app/_not-found/page.js",
   "/dashboard/page": "app/dashboard/page.js",
   "/page": "app/page.js",
-  "/login/page": "app/login/page.js",
   "/auth/callback/page": "app/auth/callback/page.js",
-  "/(dashboard)/overview/page": "app/(dashboard)/overview/page.js",
-  "/(dashboard)/management/page": "app/(dashboard)/management/page.js",
-  "/(dashboard)/settings/page": "app/(dashboard)/settings/page.js",
+  "/login/page": "app/login/page.js",
   "/(dashboard)/analytics/page": "app/(dashboard)/analytics/page.js",
+  "/(dashboard)/management/page": "app/(dashboard)/management/page.js",
   "/(dashboard)/infractions/page": "app/(dashboard)/infractions/page.js",
-  "/(dashboard)/tickets/page": "app/(dashboard)/tickets/page.js"
+  "/(dashboard)/tickets/page": "app/(dashboard)/tickets/page.js",
+  "/(dashboard)/settings/page": "app/(dashboard)/settings/page.js",
+  "/(dashboard)/overview/page": "app/(dashboard)/overview/page.js"
 }
