@@ -4,13 +4,27 @@ import { useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 
+function getTokenFromLocation(): string | null {
+  if (typeof window === 'undefined') return null;
+
+  // Prefer fragment token to avoid referrer / server log leakage
+  const hash = window.location.hash?.startsWith('#') ? window.location.hash.slice(1) : window.location.hash;
+  const hashParams = new URLSearchParams(hash || '');
+  const hashToken = hashParams.get('token');
+  if (hashToken) return hashToken;
+
+  // Backward compatibility for older backend deployments
+  const url = new URL(window.location.href);
+  return url.searchParams.get('token');
+}
+
 export default function AuthCallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { refreshUser } = useAuth();
 
   useEffect(() => {
-    const token = searchParams.get('token');
+    const token = getTokenFromLocation();
     const error = searchParams.get('error');
     const message = searchParams.get('message');
 
@@ -27,6 +41,11 @@ export default function AuthCallbackContent() {
     if (token) {
       // Store token
       localStorage.setItem('token', token);
+
+      // Remove token from URL (both query and fragment) after capture
+      if (typeof window !== 'undefined') {
+        window.history.replaceState(null, '', '/auth/callback');
+      }
       
       // Refresh user data and redirect
       refreshUser()

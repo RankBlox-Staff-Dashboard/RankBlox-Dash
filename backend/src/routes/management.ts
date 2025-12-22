@@ -139,8 +139,8 @@ router.post('/tracked-channels', async (req: Request, res: Response) => {
 
       res.json({ message: 'Tracked channel added successfully' });
     } catch (error: any) {
-      // PostgreSQL unique constraint violation error code is '23505'
-      if (error.code === '23505') {
+      // MySQL duplicate key error
+      if (error.code === 'ER_DUP_ENTRY' || error.errno === 1062) {
         return res.status(400).json({ error: 'Channel already tracked' });
       }
       throw error;

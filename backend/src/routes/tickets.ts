@@ -6,6 +6,11 @@ import { db } from '../models/database';
 const router = Router();
 router.use(authenticateToken);
 
+function parsePositiveInt(value: string): number | null {
+  const n = Number.parseInt(value, 10);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 /**
  * List tickets
  */
@@ -24,6 +29,10 @@ router.get('/', requirePermission('VIEW_TICKETS'), async (req: Request, res: Res
     const params: any[] = [];
 
     if (status) {
+      const allowed = new Set(['open', 'claimed', 'resolved', 'closed']);
+      if (!allowed.has(status)) {
+        return res.status(400).json({ error: 'Invalid status filter' });
+      }
       query += ' WHERE t.status = ?';
       params.push(status);
     }
@@ -48,25 +57,22 @@ router.post('/:id/claim', requirePermission('CLAIM_TICKETS'), async (req: Reques
   }
 
   try {
-    const ticketId = parseInt(req.params.id);
-
-    // Check if ticket exists and is available
-    const ticket = await db
-      .prepare('SELECT * FROM tickets WHERE id = ?')
-      .get(ticketId) as any;
-
-    if (!ticket) {
-      return res.status(404).json({ error: 'Ticket not found' });
+    const ticketId = parsePositiveInt(req.params.id);
+    if (!ticketId) {
+      return res.status(400).json({ error: 'Invalid ticket id' });
     }
 
-    if (ticket.status !== 'open') {
-      return res.status(400).json({ error: 'Ticket is not available to claim' });
-    }
+    // Race-safe claim: only claim if currently open
+    const claimResult = await db.prepare(
+      "UPDATE tickets SET claimed_by = ?, status = 'claimed' WHERE id = ? AND status = 'open'"
+    ).run(req.user.id, ticketId);
 
-    // Update ticket
-    await db.prepare(
-      'UPDATE tickets SET claimed_by = ?, status = ? WHERE id = ?'
-    ).run(req.user.id, 'claimed', ticketId);
+    if (!claimResult || claimResult.changes === 0) {
+      // Either ticket doesn't exist OR not open anymore
+      const existing = await db.prepare('SELECT id, status FROM tickets WHERE id = ?').get(ticketId) as any;
+      if (!existing) return res.status(404).json({ error: 'Ticket not found' });
+      return res.status(409).json({ error: 'Ticket is not available to claim' });
+    }
 
     // Increment user's tickets_claimed count for current week
     const weekStart = new Date();
@@ -107,27 +113,22 @@ router.post('/:id/resolve', requirePermission('CLAIM_TICKETS'), async (req: Requ
   }
 
   try {
-    const ticketId = parseInt(req.params.id);
-
-    // Check if ticket exists and is claimed by user
-    const ticket = await db
-      .prepare('SELECT * FROM tickets WHERE id = ?')
-      .get(ticketId) as any;
-
-    if (!ticket) {
-      return res.status(404).json({ error: 'Ticket not found' });
+    const ticketId = parsePositiveInt(req.params.id);
+    if (!ticketId) {
+      return res.status(400).json({ error: 'Invalid ticket id' });
     }
 
-    if (ticket.claimed_by !== req.user.id) {
-      return res.status(403).json({ error: 'You can only resolve tickets you claimed' });
-    }
+    // Race-safe resolve: only resolve if claimed by this user and still claimed
+    const resolveResult = await db.prepare(
+      "UPDATE tickets SET status = 'resolved' WHERE id = ? AND claimed_by = ? AND status = 'claimed'"
+    ).run(ticketId, req.user.id);
 
-    if (ticket.status !== 'claimed') {
-      return res.status(400).json({ error: 'Ticket is not in claimed status' });
+    if (!resolveResult || resolveResult.changes === 0) {
+      const ticket = await db.prepare('SELECT id, status, claimed_by FROM tickets WHERE id = ?').get(ticketId) as any;
+      if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
+      if (ticket.claimed_by !== req.user.id) return res.status(403).json({ error: 'You can only resolve tickets you claimed' });
+      return res.status(409).json({ error: 'Ticket is not in claimed status' });
     }
-
-    // Update ticket
-    await db.prepare('UPDATE tickets SET status = ? WHERE id = ?').run('resolved', ticketId);
 
     // Increment user's tickets_resolved count for current week
     const weekStart = new Date();
