@@ -293,21 +293,69 @@ router.post('/infractions', requirePermission('ISSUE_INFRACTIONS'), async (req: 
       return res.status(400).json({ error: 'Invalid type. Must be warning or strike.' });
     }
 
-    // Check if target user exists
-    const targetUser = await db.prepare('SELECT id FROM users WHERE id = ?').get(user_id);
+    // Check if target user exists and get their Discord ID
+    const targetUser = await db.prepare(
+      'SELECT id, discord_id, discord_username, roblox_username FROM users WHERE id = ?'
+    ).get(user_id) as { id: number; discord_id: string; discord_username: string; roblox_username: string | null } | undefined;
 
     if (!targetUser) {
       return res.status(404).json({ error: 'User not found' });
     }
+
+    // Get issuer's name for the DM
+    const issuerName = req.user.roblox_username || req.user.discord_username || 'Management';
 
     // Create infraction
     const result = await db.prepare(
       `INSERT INTO infractions (user_id, reason, type, issued_by) VALUES (?, ?, ?, ?)`
     ).run(user_id, reason, type, req.user.id);
 
+    const infractionId = result.lastInsertRowid;
+    const issuedAt = new Date().toISOString();
+
+    // Send DM notification via bot
+    let dmSent = false;
+    let dmError: string | null = null;
+
+    try {
+      const botApiUrl = process.env.BOT_API_URL || 'http://localhost:3001';
+      const botApiToken = process.env.BOT_API_TOKEN;
+
+      const notifyResponse = await fetch(`${botApiUrl}/notify-infraction`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Bot-Token': botApiToken || '',
+        },
+        body: JSON.stringify({
+          discord_id: targetUser.discord_id,
+          type: type,
+          reason: reason,
+          issued_by: issuerName,
+          issued_at: issuedAt,
+        }),
+      });
+
+      if (notifyResponse.ok) {
+        const notifyResult = await notifyResponse.json() as { dm_sent?: boolean; error?: string };
+        dmSent = notifyResult.dm_sent === true;
+        dmError = notifyResult.error || null;
+      } else {
+        dmError = 'Failed to reach notification service';
+      }
+    } catch (notifyError: any) {
+      console.error('Error sending infraction notification:', notifyError);
+      dmError = notifyError.message || 'Notification service unavailable';
+    }
+
+    // Log the notification result
+    console.log(`[Infraction #${infractionId}] DM ${dmSent ? 'sent' : 'not sent'} to ${targetUser.discord_username}${dmError ? ` (${dmError})` : ''}`);
+
     res.json({ 
       message: 'Infraction issued successfully',
-      infraction_id: result.lastInsertRowid,
+      infraction_id: infractionId,
+      dm_sent: dmSent,
+      dm_error: dmError,
     });
   } catch (error) {
     console.error('Error issuing infraction:', error);

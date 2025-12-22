@@ -45,7 +45,7 @@ export default function ManagementPage() {
   const { permissions, loading: permissionsLoading } = usePermissions();
 
   // User is admin if they have MANAGE_USERS or MANAGE_PERMISSIONS permission
-  // This is determined by backend based on rank (16-255) or permission overrides
+  // This is determined by backend based on rank (24-255) or permission overrides
   const isAdmin = useMemo(() => {
     return permissions.includes('MANAGE_USERS') || permissions.includes('MANAGE_PERMISSIONS');
   }, [permissions]);

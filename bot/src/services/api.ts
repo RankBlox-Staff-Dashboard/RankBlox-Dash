@@ -49,6 +49,14 @@ export interface MessageData {
   content_length?: number;
 }
 
+export interface InfractionNotification {
+  discord_id: string;
+  type: 'warning' | 'strike';
+  reason: string;
+  issued_by: string;
+  issued_at: string;
+}
+
 export const botAPI = {
   updateActivity: (discordId: string, messagesCount: number) =>
     api.post('/bot/activity', { discord_id: discordId, messages_count: messagesCount }),
@@ -76,6 +84,10 @@ export const botAPI = {
 
   // Get user stats
   getUserStats: (discordId: string) => api.get(`/bot/user/${discordId}/stats`),
+
+  // Send infraction notification DM
+  sendInfractionNotification: (data: InfractionNotification) =>
+    api.post('/bot/notify-infraction', data),
 };
 
 export default api;

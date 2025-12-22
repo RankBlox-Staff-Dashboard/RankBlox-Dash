@@ -20,7 +20,7 @@ export function NavBar() {
   const { user, loading: authLoading } = useAuth();
   const { hasPermission, loading: permissionsLoading } = usePermissions();
 
-  const isAdmin = user?.rank && user.rank >= 16 && user.rank <= 255;
+  const isAdmin = user?.rank && user.rank >= 24 && user.rank <= 255;
 
   const visibleNav = navigation.filter((item) => {
     // Don't filter if still loading

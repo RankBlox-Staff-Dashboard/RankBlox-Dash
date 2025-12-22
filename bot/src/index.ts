@@ -2,24 +2,34 @@ import { Client, GatewayIntentBits, Collection, Events } from 'discord.js';
 import { config } from 'dotenv';
 import { readdirSync } from 'fs';
 import { join } from 'path';
-import { createServer } from 'http';
+import { createServer, IncomingMessage, ServerResponse } from 'http';
+import { sendInfractionDM, InfractionData } from './services/notifications';
 
 config();
 
-// Health check server for Render (keeps the service alive)
-const PORT = process.env.PORT || 3001;
-const server = createServer((req, res) => {
-  if (req.url === '/health' || req.url === '/') {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ status: 'ok', service: 'staffapp-bot' }));
-  } else {
-    res.writeHead(404);
-    res.end('Not Found');
-  }
-});
-server.listen(PORT, () => {
-  console.log(`Health check server listening on port ${PORT}`);
-});
+const BOT_API_TOKEN = process.env.BOT_API_TOKEN;
+
+// Helper to parse JSON body from request
+function parseBody(req: IncomingMessage): Promise<any> {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      try {
+        resolve(body ? JSON.parse(body) : {});
+      } catch (err) {
+        reject(err);
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
+// Verify bot API token for secure endpoints
+function verifyBotToken(req: IncomingMessage): boolean {
+  const token = req.headers['x-bot-token'];
+  return BOT_API_TOKEN ? token === BOT_API_TOKEN : false;
+}
 
 const client = new Client({
   intents: [
@@ -27,6 +37,66 @@ const client = new Client({
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
   ],
+});
+
+// HTTP server for health checks and API endpoints
+const PORT = process.env.PORT || 3001;
+const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
+  // Health check endpoints
+  if (req.url === '/health' || req.url === '/') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ status: 'ok', service: 'staffapp-bot' }));
+    return;
+  }
+
+  // Notification endpoint for infraction DMs
+  if (req.url === '/notify-infraction' && req.method === 'POST') {
+    // Verify authentication
+    if (!verifyBotToken(req)) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+
+    try {
+      const body = await parseBody(req) as InfractionData;
+
+      // Validate required fields
+      if (!body.discord_id || !body.type || !body.reason || !body.issued_by) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Missing required fields: discord_id, type, reason, issued_by' }));
+        return;
+      }
+
+      // Send the DM
+      const result = await sendInfractionDM(client, {
+        discord_id: body.discord_id,
+        type: body.type,
+        reason: body.reason,
+        issued_by: body.issued_by,
+        issued_at: body.issued_at || new Date().toISOString(),
+      });
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: result.success,
+        dm_sent: result.success,
+        error: result.error || null,
+      }));
+    } catch (error: any) {
+      console.error('Error processing infraction notification:', error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Internal server error' }));
+    }
+    return;
+  }
+
+  res.writeHead(404);
+  res.end('Not Found');
+});
+
+server.listen(PORT, () => {
+  console.log(`Bot HTTP server listening on port ${PORT}`);
 });
 
 // Load commands
