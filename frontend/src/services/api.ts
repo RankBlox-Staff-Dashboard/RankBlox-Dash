@@ -1,7 +1,15 @@
 import axios from 'axios';
 import type { User, Stats, Infraction, Ticket, Analytics, PermissionFlag } from '../types';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
+const DEFAULT_PROD_API_URL = 'https://staffapp-9q1t.onrender.com/api';
+
+export const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ||
+  (process.env.NODE_ENV === 'production' ? DEFAULT_PROD_API_URL : '/api');
+
+export function getApiBaseUrl(): string {
+  return API_URL.replace(/\/$/, '');
+}
 
 const api = axios.create({
   baseURL: API_URL,

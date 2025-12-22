@@ -9,7 +9,10 @@ import crypto from 'crypto';
 const router = Router();
 
 function getFrontendUrl(): string {
-  return process.env.FRONTEND_URL || 'https://staffap.netlify.app';
+  const fallback = 'https://staffapp-frontend-y3za.onrender.com';
+  if (process.env.FRONTEND_URL) return process.env.FRONTEND_URL;
+  const first = process.env.FRONTEND_URLS?.split(',')?.[0]?.trim();
+  return first || fallback;
 }
 
 function cookieOptions() {

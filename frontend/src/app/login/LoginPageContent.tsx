@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { verificationAPI } from '@/services/api';
+import { getApiBaseUrl, verificationAPI } from '@/services/api';
 
 export default function LoginPageContent() {
   const router = useRouter();
@@ -63,8 +63,8 @@ export default function LoginPageContent() {
   }, [user, isVerified, router, searchParams]);
 
   const handleDiscordLogin = () => {
-    // Always go through the Next.js /api rewrite so the same build works across environments.
-    window.location.href = '/api/auth/discord';
+    // Prefer explicit backend URL (static hosting) but still support local `/api` rewrite.
+    window.location.href = `${getApiBaseUrl()}/auth/discord`;
   };
 
   const handleRequestCode = async () => {
