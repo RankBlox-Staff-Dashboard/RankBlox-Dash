@@ -2,8 +2,24 @@ import { Client, GatewayIntentBits, Collection, Events } from 'discord.js';
 import { config } from 'dotenv';
 import { readdirSync } from 'fs';
 import { join } from 'path';
+import { createServer } from 'http';
 
 config();
+
+// Health check server for Render (keeps the service alive)
+const PORT = process.env.PORT || 3001;
+const server = createServer((req, res) => {
+  if (req.url === '/health' || req.url === '/') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ status: 'ok', service: 'staffapp-bot' }));
+  } else {
+    res.writeHead(404);
+    res.end('Not Found');
+  }
+});
+server.listen(PORT, () => {
+  console.log(`Health check server listening on port ${PORT}`);
+});
 
 const client = new Client({
   intents: [
