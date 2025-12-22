@@ -52,7 +52,7 @@ export default function LoginPageContent() {
 
     // If user is logged in and verified, redirect to dashboard
     if (user && isVerified) {
-      router.replace('/');
+      router.replace('/overview');
       return;
     }
 
@@ -63,9 +63,8 @@ export default function LoginPageContent() {
   }, [user, isVerified, router, searchParams]);
 
   const handleDiscordLogin = () => {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://staffapp-9q1t.onrender.com/api';
-    const oauthUrl = `${apiUrl}/auth/discord`;
-    window.location.href = oauthUrl;
+    // Always go through the Next.js /api rewrite so the same build works across environments.
+    window.location.href = '/api/auth/discord';
   };
 
   const handleRequestCode = async () => {
@@ -99,7 +98,7 @@ export default function LoginPageContent() {
       // Refresh user data to get updated status
       await refreshUser();
       await checkVerification();
-      router.push('/');
+      router.push('/overview');
     } catch (err: any) {
       const errorMsg = err.response?.data?.error || 'Verification failed. Make sure the emoji code is in your Roblox bio/status.';
       setError(errorMsg);

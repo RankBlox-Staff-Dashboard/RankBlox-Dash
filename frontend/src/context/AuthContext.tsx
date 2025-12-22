@@ -8,7 +8,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   isVerified: boolean;
-  refreshUser: () => Promise<void>;
+  refreshUser: () => Promise<User | null>;
   checkVerification: () => Promise<void>;
 }
 
@@ -21,24 +21,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshUser = async () => {
     try {
-      if (typeof window === 'undefined') return;
+      if (typeof window === 'undefined') return null;
       
       const token = localStorage.getItem('token');
       if (!token) {
         setUser(null);
         setLoading(false);
-        return;
+        return null;
       }
 
       const response = await authAPI.getMe();
       setUser(response.data);
       setIsVerified(response.data.status === 'active' && response.data.roblox_id !== null);
+      return response.data;
     } catch (error) {
       console.error('Error fetching user:', error);
       setUser(null);
       if (typeof window !== 'undefined') {
         localStorage.removeItem('token');
       }
+      return null;
     } finally {
       setLoading(false);
     }

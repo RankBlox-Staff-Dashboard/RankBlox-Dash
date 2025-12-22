@@ -12,6 +12,7 @@ import ticketsRoutes from './routes/tickets';
 import managementRoutes from './routes/management';
 import permissionsRoutes from './routes/permissions';
 import botRoutes from './routes/bot';
+import adminRoutes from './routes/admin';
 import cron from 'node-cron';
 import { db } from './models/database';
 
@@ -55,6 +56,7 @@ app.use('/api/tickets', ticketsRoutes);
 app.use('/api/management', managementRoutes);
 app.use('/api/permissions', permissionsRoutes);
 app.use('/api/bot', botRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

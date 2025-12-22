@@ -7,7 +7,7 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { authAPI } from '@/services/api';
 
 const navigation = [
-  { name: 'Overview', path: '/', icon: '📊' },
+  { name: 'Overview', path: '/overview', icon: '📊' },
   { name: 'Tickets', path: '/tickets', icon: '🎫', permission: 'VIEW_TICKETS' },
   { name: 'Infractions', path: '/infractions', icon: '⚠️', permission: 'VIEW_INFRACTIONS' },
   { name: 'Analytics', path: '/analytics', icon: '📈', permission: 'VIEW_ANALYTICS' },
