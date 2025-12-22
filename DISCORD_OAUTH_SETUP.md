@@ -1,7 +1,7 @@
 # Discord OAuth Setup Guide
 
 ## The Problem
-Discord requires the redirect URI in the OAuth request to **exactly match** one of the redirect URIs registered in your Discord application settings.
+Discord requiress the redirect URI in the OAuth request to **exactly match** one of the redirect URIs registered in your Discord application settings.
 
 ## Step-by-Step Setup
 
