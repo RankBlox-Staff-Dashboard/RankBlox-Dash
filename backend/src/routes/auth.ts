@@ -4,14 +4,32 @@ import { generateToken, authenticateToken } from '../middleware/auth';
 import { db } from '../models/database';
 import { v4 as uuidv4 } from 'uuid';
 import { initializeUserPermissions } from '../services/permissions';
+import crypto from 'crypto';
 
 const router = Router();
+
+function getFrontendUrl(): string {
+  return process.env.FRONTEND_URL || 'https://staffap.netlify.app';
+}
+
+function cookieOptions() {
+  const isProd = process.env.NODE_ENV === 'production';
+  return {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: 'lax' as const,
+    path: '/',
+  };
+}
 
 /**
  * Initiate Discord OAuth flow
  */
 router.get('/discord', (req: Request, res: Response) => {
-  const state = req.query.state as string | undefined;
+  // Always generate and bind state server-side to prevent login CSRF / swapping.
+  const state = crypto.randomUUID();
+  res.cookie('oauth_state', state, { ...cookieOptions(), maxAge: 10 * 60 * 1000 });
+
   const url = getDiscordOAuthUrl(state);
   res.redirect(url);
 });
@@ -24,20 +42,26 @@ router.get('/discord/callback', async (req: Request, res: Response) => {
   const state = req.query.state as string;
 
   if (!code) {
-    return res.redirect(`${process.env.FRONTEND_URL || 'https://staffap.netlify.app'}/login?error=no_code`);
+    return res.redirect(`${getFrontendUrl()}/login?error=no_code`);
+  }
+
+  const expectedState = (req as any)?.cookies?.oauth_state as string | undefined;
+  res.clearCookie('oauth_state', cookieOptions());
+  if (!state || !expectedState || state !== expectedState) {
+    return res.redirect(`${getFrontendUrl()}/login?error=invalid_state`);
   }
 
   try {
     // Exchange code for access token
     const accessToken = await exchangeDiscordCode(code);
     if (!accessToken) {
-      return res.redirect(`${process.env.FRONTEND_URL || 'https://staffap.netlify.app'}/login?error=token_exchange_failed`);
+      return res.redirect(`${getFrontendUrl()}/login?error=token_exchange_failed`);
     }
 
     // Get Discord user info
     const discordUser = await getDiscordUser(accessToken);
     if (!discordUser) {
-      return res.redirect(`${process.env.FRONTEND_URL || 'https://staffap.netlify.app'}/login?error=user_fetch_failed`);
+      return res.redirect(`${getFrontendUrl()}/login?error=user_fetch_failed`);
     }
 
     // Find or create user
@@ -91,20 +115,21 @@ router.get('/discord/callback', async (req: Request, res: Response) => {
       throw new Error('Failed to create session');
     }
     
-    console.log('Session created successfully for user:', user.id, 'token:', token.substring(0, 20) + '...');
+    // Set httpOnly cookie as a safer default transport; frontend can still use Bearer token.
+    res.cookie('session', token, { ...cookieOptions(), maxAge: 7 * 24 * 60 * 60 * 1000 });
 
     // Initialize permissions if user just verified Roblox
     if (user.status === 'active' && user.rank !== null) {
       await initializeUserPermissions(user.id, user.rank);
     }
 
-    // Redirect to frontend with token
+    // Redirect to frontend with token in fragment (prevents referrer/header leakage)
     res.redirect(
-      `${process.env.FRONTEND_URL || 'https://staffap.netlify.app'}/auth/callback?token=${token}`
+      `${getFrontendUrl()}/auth/callback#token=${encodeURIComponent(token)}`
     );
   } catch (error) {
     console.error('Discord OAuth error:', error);
-    res.redirect(`${process.env.FRONTEND_URL || 'https://staffap.netlify.app'}/login?error=server_error`);
+    res.redirect(`${getFrontendUrl()}/login?error=server_error`);
   }
 });
 
@@ -151,6 +176,8 @@ router.post('/logout', authenticateToken, async (req: Request, res: Response) =>
   if (token) {
     await db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
   }
+  // Also clear cookie-based session if present
+  res.clearCookie('session', cookieOptions());
 
   res.json({ message: 'Logged out successfully' });
 });

@@ -1,7 +1,11 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../models/database';
+import { requireBotAuth } from '../middleware/botAuth';
 
 const router = Router();
+
+// All bot routes require shared-secret auth
+router.use(requireBotAuth);
 
 /**
  * Bot activity endpoint - receives activity updates from Discord bot
@@ -10,8 +14,11 @@ router.post('/activity', async (req: Request, res: Response) => {
   try {
     const { discord_id, messages_count } = req.body;
 
-    if (!discord_id || typeof messages_count !== 'number') {
+    if (!discord_id || typeof discord_id !== 'string' || typeof messages_count !== 'number') {
       return res.status(400).json({ error: 'discord_id and messages_count are required' });
+    }
+    if (!Number.isFinite(messages_count) || messages_count < 0) {
+      return res.status(400).json({ error: 'messages_count must be a non-negative number' });
     }
 
     // Find user by Discord ID
@@ -60,8 +67,11 @@ router.post('/tickets', async (req: Request, res: Response) => {
   try {
     const { discord_channel_id, discord_message_id } = req.body;
 
-    if (!discord_channel_id) {
+    if (!discord_channel_id || typeof discord_channel_id !== 'string') {
       return res.status(400).json({ error: 'discord_channel_id is required' });
+    }
+    if (discord_message_id !== undefined && discord_message_id !== null && typeof discord_message_id !== 'string') {
+      return res.status(400).json({ error: 'discord_message_id must be a string' });
     }
 
     // Check if ticket already exists
@@ -96,6 +106,9 @@ router.post('/tickets', async (req: Request, res: Response) => {
 router.get('/user/:discord_id', async (req: Request, res: Response) => {
   try {
     const discordId = req.params.discord_id;
+    if (!discordId || typeof discordId !== 'string') {
+      return res.status(400).json({ error: 'discord_id is required' });
+    }
 
     const user = await db
       .prepare(

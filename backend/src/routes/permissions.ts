@@ -1,9 +1,24 @@
 import { Router, Request, Response } from 'express';
 import { authenticateToken } from '../middleware/auth';
 import { getUserPermissionsArray } from '../services/permissions';
+import { PermissionFlag } from '../utils/types';
 
 const router = Router();
 router.use(authenticateToken);
+
+const VALID_PERMISSIONS: PermissionFlag[] = [
+  'VIEW_DASHBOARD',
+  'VIEW_TICKETS',
+  'CLAIM_TICKETS',
+  'VIEW_INFRACTIONS',
+  'VIEW_ALL_INFRACTIONS',
+  'ISSUE_INFRACTIONS',
+  'VOID_INFRACTIONS',
+  'VIEW_ANALYTICS',
+  'MANAGE_PERMISSIONS',
+  'MANAGE_USERS',
+  'MANAGE_CHANNELS',
+];
 
 /**
  * Get current user's permissions
@@ -34,6 +49,9 @@ router.get('/check', async (req: Request, res: Response) => {
 
   if (!permission) {
     return res.status(400).json({ error: 'permission query parameter is required' });
+  }
+  if (!VALID_PERMISSIONS.includes(permission as PermissionFlag)) {
+    return res.status(400).json({ error: 'Invalid permission' });
   }
 
   try {

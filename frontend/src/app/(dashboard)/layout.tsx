@@ -17,6 +17,10 @@ export default function DashboardLayout({
     if (!loading && !user) {
       router.replace('/login');
     }
+    // Verified/active users only in dashboard section
+    if (!loading && user && user.status !== 'active') {
+      router.replace('/login');
+    }
   }, [user, loading, router]);
 
   if (loading) {

@@ -21,7 +21,7 @@ function getCurrentWeekStart(): string {
 /**
  * Get user's activity stats
  */
-router.get('/stats', async (req: Request, res: Response) => {
+router.get('/stats', requirePermission('VIEW_DASHBOARD'), async (req: Request, res: Response) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Authentication required' });
   }
@@ -67,7 +67,7 @@ router.get('/stats', async (req: Request, res: Response) => {
 /**
  * Get user's infractions
  */
-router.get('/infractions', async (req: Request, res: Response) => {
+router.get('/infractions', requirePermission('VIEW_INFRACTIONS'), async (req: Request, res: Response) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Authentication required' });
   }
@@ -94,7 +94,7 @@ router.get('/infractions', async (req: Request, res: Response) => {
 /**
  * Get platform analytics (admin only)
  */
-router.get('/analytics', requireAdmin, async (req: Request, res: Response) => {
+router.get('/analytics', requireAdmin, requirePermission('VIEW_ANALYTICS'), async (req: Request, res: Response) => {
   try {
     // Total active users (platform-wide, not just staff)
     // This would typically come from your main user database

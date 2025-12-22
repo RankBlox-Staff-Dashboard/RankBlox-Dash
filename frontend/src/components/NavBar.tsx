@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { usePermissions } from '@/hooks/usePermissions';
+import { authAPI } from '@/services/api';
 
 const navigation = [
   { name: 'Overview', path: '/', icon: '📊' },
@@ -71,8 +72,14 @@ export function NavBar() {
           <button
             onClick={async () => {
               if (typeof window !== 'undefined') {
-                localStorage.removeItem('token');
-                window.location.href = '/login';
+                try {
+                  await authAPI.logout();
+                } catch {
+                  // best-effort
+                } finally {
+                  localStorage.removeItem('token');
+                  window.location.href = '/login';
+                }
               }
             }}
             className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-300 hover:bg-dark-border hover:text-white transition-colors"

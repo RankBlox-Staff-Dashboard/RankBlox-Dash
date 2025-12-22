@@ -27,14 +27,19 @@ const DEFAULT_ADMIN_PERMISSIONS: PermissionFlag[] = [
 export async function getUserPermissions(userId: number): Promise<Set<PermissionFlag>> {
   // Note: `rank` must be escaped with backticks because it's a MySQL reserved keyword
   const user = await db
-    .prepare('SELECT `rank` FROM users WHERE id = ?')
-    .get(userId) as { rank: number | null } | undefined;
+    .prepare('SELECT `rank`, status FROM users WHERE id = ?')
+    .get(userId) as { rank: number | null; status: string } | undefined;
 
   if (!user) {
     return new Set();
   }
 
   const permissions = new Set<PermissionFlag>();
+
+  // Inactive or unverified accounts should not receive staff permissions
+  if (user.status !== 'active') {
+    return permissions;
+  }
 
   // Add default permissions based on rank
   if (user.rank === null) {
@@ -74,6 +79,11 @@ export function requirePermission(permission: PermissionFlag) {
       return;
     }
 
+    if (req.user.status !== 'active') {
+      res.status(403).json({ error: 'Account is not active' });
+      return;
+    }
+
     const permissions = await getUserPermissions(req.user.id);
 
     if (!permissions.has(permission)) {
@@ -91,6 +101,11 @@ export function requirePermission(permission: PermissionFlag) {
 export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
   if (!req.user) {
     res.status(401).json({ error: 'Authentication required' });
+    return;
+  }
+
+  if (req.user.status !== 'active') {
+    res.status(403).json({ error: 'Account is not active' });
     return;
   }
 

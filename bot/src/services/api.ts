@@ -1,12 +1,20 @@
 import axios from 'axios';
 
-const BACKEND_API_URL = process.env.BACKEND_API_URL || 'http://localhost:3000/api';
+const BACKEND_API_URL = process.env.BACKEND_API_URL || 'http://localhost:8080/api';
+const BOT_API_TOKEN = process.env.BOT_API_TOKEN;
 
 const api = axios.create({
   baseURL: BACKEND_API_URL,
   headers: {
     'Content-Type': 'application/json',
   },
+});
+
+api.interceptors.request.use((config) => {
+  if (BOT_API_TOKEN) {
+    config.headers['X-Bot-Token'] = BOT_API_TOKEN;
+  }
+  return config;
 });
 
 export const botAPI = {

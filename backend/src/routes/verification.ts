@@ -35,6 +35,10 @@ router.post('/roblox/request', async (req: Request, res: Response) => {
     return res.status(401).json({ error: 'Authentication required' });
   }
 
+  if (req.user.status === 'inactive') {
+    return res.status(403).json({ error: 'Account is inactive' });
+  }
+
   try {
     // Check if user already has an active verification code
     const existing = await db
@@ -82,10 +86,24 @@ router.post('/roblox/verify', async (req: Request, res: Response) => {
     return res.status(401).json({ error: 'Authentication required' });
   }
 
+  if (req.user.status === 'inactive') {
+    return res.status(403).json({ error: 'Account is inactive' });
+  }
+
   const { roblox_username, emoji_code } = req.body;
 
   if (!roblox_username || !emoji_code) {
     return res.status(400).json({ error: 'roblox_username and emoji_code are required' });
+  }
+  if (typeof roblox_username !== 'string' || typeof emoji_code !== 'string') {
+    return res.status(400).json({ error: 'roblox_username and emoji_code must be strings' });
+  }
+  // Roblox usernames are 3-20 chars, alphanumeric + underscore
+  if (!/^[A-Za-z0-9_]{3,20}$/.test(roblox_username)) {
+    return res.status(400).json({ error: 'Invalid roblox_username format' });
+  }
+  if (emoji_code.length < 1 || emoji_code.length > 64) {
+    return res.status(400).json({ error: 'Invalid emoji_code' });
   }
 
   try {

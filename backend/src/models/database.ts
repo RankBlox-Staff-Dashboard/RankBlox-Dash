@@ -3,16 +3,24 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-// Database configuration from environment variables
+function requireEnv(name: string): string {
+  const v = process.env[name];
+  if (!v || v.trim().length === 0) {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+  return v;
+}
+
+// Database configuration from environment variables (no production secrets/defaults in code)
 const dbConfig = {
-  host: process.env.DB_HOST || 'ahsDB.zenohost.co.uk',
-  user: process.env.DB_USER || 'AHSStaff',
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME || 'ahstaffsecureencrypteddatabase',
+  host: process.env.DB_HOST || 'localhost',
+  user: requireEnv('DB_USER'),
+  password: requireEnv('DB_PASSWORD'),
+  database: requireEnv('DB_NAME'),
   waitForConnections: true,
-  connectionLimit: 10,
+  connectionLimit: Number(process.env.DB_CONNECTION_LIMIT || 10),
   queueLimit: 0,
-};
+} as const;
 
 // Create connection pool
 const pool = mysql.createPool(dbConfig);
