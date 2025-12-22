@@ -55,10 +55,13 @@ router.post('/roblox/request', async (req: Request, res: Response) => {
     const emojiCode = generateEmojiCode();
     const expiresAt = new Date();
     expiresAt.setMinutes(expiresAt.getMinutes() + 5); // 5 minutes expiry
+    
+    // Format datetime for MySQL (YYYY-MM-DD HH:MM:SS)
+    const mysqlDateTime = expiresAt.toISOString().slice(0, 19).replace('T', ' ');
 
     await db.prepare(
       'INSERT INTO verification_codes (user_id, emoji_code, expires_at, used) VALUES (?, ?, ?, ?)'
-    ).run(req.user.id, emojiCode, expiresAt.toISOString(), false);
+    ).run(req.user.id, emojiCode, mysqlDateTime, false);
 
     res.json({
       emoji_code: emojiCode,
