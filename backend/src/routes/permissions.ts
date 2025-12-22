@@ -8,13 +8,13 @@ router.use(authenticateToken);
 /**
  * Get current user's permissions
  */
-router.get('/', (req: Request, res: Response) => {
+router.get('/', async (req: Request, res: Response) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Authentication required' });
   }
 
   try {
-    const permissions = getUserPermissionsArray(req.user.id);
+    const permissions = await getUserPermissionsArray(req.user.id);
     res.json({ permissions });
   } catch (error) {
     console.error('Error fetching permissions:', error);
@@ -25,7 +25,7 @@ router.get('/', (req: Request, res: Response) => {
 /**
  * Check specific permission
  */
-router.get('/check', (req: Request, res: Response) => {
+router.get('/check', async (req: Request, res: Response) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Authentication required' });
   }
@@ -37,7 +37,7 @@ router.get('/check', (req: Request, res: Response) => {
   }
 
   try {
-    const permissions = getUserPermissionsArray(req.user.id);
+    const permissions = await getUserPermissionsArray(req.user.id);
     const hasPermission = permissions.includes(permission as any);
 
     res.json({ hasPermission, permission });

@@ -73,14 +73,14 @@ async function checkWeeklyQuotas() {
 
     // Issue infractions
     for (const log of activityLogs) {
-      // Check if infraction already issued for this week (PostgreSQL syntax)
+      // Check if infraction already issued for this week (MySQL syntax)
       const existing = await db
         .prepare(
           `SELECT id FROM infractions 
            WHERE user_id = ? 
            AND reason LIKE ? 
            AND voided = false 
-           AND created_at > CAST(? AS timestamp) - interval '7 days'`
+           AND created_at > DATE_SUB(?, INTERVAL 7 DAY)`
         )
         .get(
           log.user_id,

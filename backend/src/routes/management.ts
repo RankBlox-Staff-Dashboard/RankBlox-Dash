@@ -16,9 +16,9 @@ router.get('/users', async (req: Request, res: Response) => {
   try {
     const users = await db
       .prepare(
-        `SELECT id, discord_id, discord_username, roblox_username, rank, rank_name, status, created_at
+        `SELECT id, discord_id, discord_username, roblox_username, \`rank\`, rank_name, status, created_at
          FROM users
-         ORDER BY rank DESC NULLS LAST, created_at ASC`
+         ORDER BY \`rank\` IS NULL, \`rank\` DESC, created_at ASC`
       )
       .all() as any[];
 

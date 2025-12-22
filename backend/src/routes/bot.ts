@@ -15,7 +15,7 @@ router.post('/activity', async (req: Request, res: Response) => {
     }
 
     // Find user by Discord ID
-    const user = db
+    const user = await db
       .prepare('SELECT id FROM users WHERE discord_id = ?')
       .get(discord_id) as { id: number } | undefined;
 
@@ -32,16 +32,16 @@ router.post('/activity', async (req: Request, res: Response) => {
     const weekStartStr = monday.toISOString().split('T')[0];
 
     // Update or create activity log
-    const existing = db
+    const existing = await db
       .prepare('SELECT * FROM activity_logs WHERE user_id = ? AND week_start = ?')
       .get(user.id, weekStartStr) as any;
 
     if (existing) {
-      db.prepare(
+      await db.prepare(
         'UPDATE activity_logs SET messages_sent = ? WHERE user_id = ? AND week_start = ?'
       ).run(messages_count, user.id, weekStartStr);
     } else {
-      db.prepare(
+      await db.prepare(
         'INSERT INTO activity_logs (user_id, week_start, messages_sent) VALUES (?, ?, ?)'
       ).run(user.id, weekStartStr, messages_count);
     }
@@ -65,7 +65,7 @@ router.post('/tickets', async (req: Request, res: Response) => {
     }
 
     // Check if ticket already exists
-    const existing = db
+    const existing = await db
       .prepare('SELECT * FROM tickets WHERE discord_channel_id = ?')
       .get(discord_channel_id) as any;
 
@@ -74,7 +74,7 @@ router.post('/tickets', async (req: Request, res: Response) => {
     }
 
     // Create ticket
-    const result = db
+    const result = await db
       .prepare(
         'INSERT INTO tickets (discord_channel_id, discord_message_id, status) VALUES (?, ?, ?)'
       )
@@ -97,9 +97,9 @@ router.get('/user/:discord_id', async (req: Request, res: Response) => {
   try {
     const discordId = req.params.discord_id;
 
-    const user = db
+    const user = await db
       .prepare(
-        'SELECT id, discord_id, discord_username, roblox_username, rank, rank_name, status FROM users WHERE discord_id = ?'
+        'SELECT id, discord_id, discord_username, roblox_username, `rank`, rank_name, status FROM users WHERE discord_id = ?'
       )
       .get(discordId) as any;
 
@@ -119,7 +119,7 @@ router.get('/user/:discord_id', async (req: Request, res: Response) => {
  */
 router.get('/tracked-channels', async (req: Request, res: Response) => {
   try {
-    const channels = db
+    const channels = await db
       .prepare('SELECT discord_channel_id, channel_name FROM tracked_channels')
       .all() as any[];
 
