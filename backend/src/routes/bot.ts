@@ -2,11 +2,14 @@ import { Router, Request, Response } from 'express';
 import { db } from '../models/database';
 import { requireBotAuth } from '../middleware/botAuth';
 import { isImmuneRank } from '../utils/immunity';
+import { botRateLimit } from '../middleware/rateLimits';
+import { isValidDiscordId, parsePositiveInt, logSecurityEvent, getClientIp } from '../utils/security';
 
 const router = Router();
 
-// All bot routes require shared-secret auth
+// All bot routes require shared-secret auth and rate limiting
 router.use(requireBotAuth);
+router.use(botRateLimit);
 
 /**
  * Get current week start (Monday)
@@ -30,8 +33,14 @@ router.post('/activity', async (req: Request, res: Response) => {
     if (!discord_id || typeof discord_id !== 'string' || typeof messages_count !== 'number') {
       return res.status(400).json({ error: 'discord_id and messages_count are required' });
     }
-    if (!Number.isFinite(messages_count) || messages_count < 0) {
-      return res.status(400).json({ error: 'messages_count must be a non-negative number' });
+    
+    // Validate Discord ID format
+    if (!isValidDiscordId(discord_id)) {
+      return res.status(400).json({ error: 'Invalid discord_id format' });
+    }
+    
+    if (!Number.isFinite(messages_count) || messages_count < 0 || messages_count > 1000000) {
+      return res.status(400).json({ error: 'messages_count must be a non-negative number within reasonable bounds' });
     }
 
     // Find user by Discord ID
@@ -76,6 +85,17 @@ router.post('/message', async (req: Request, res: Response) => {
 
     if (!discord_id || !discord_message_id || !discord_channel_id || !guild_id) {
       return res.status(400).json({ error: 'discord_id, discord_message_id, discord_channel_id, and guild_id are required' });
+    }
+
+    // Validate all Discord snowflake IDs
+    if (!isValidDiscordId(discord_id) || !isValidDiscordId(discord_message_id) || 
+        !isValidDiscordId(discord_channel_id) || !isValidDiscordId(guild_id)) {
+      return res.status(400).json({ error: 'Invalid Discord ID format' });
+    }
+    
+    // Validate content_length if provided
+    if (content_length !== undefined && (typeof content_length !== 'number' || content_length < 0 || content_length > 4000)) {
+      return res.status(400).json({ error: 'Invalid content_length' });
     }
 
     // Find user by Discord ID
@@ -154,6 +174,17 @@ router.post('/messages/batch', async (req: Request, res: Response) => {
 
     if (messages.length > 100) {
       return res.status(400).json({ error: 'Maximum 100 messages per batch' });
+    }
+    
+    // Validate each message has valid Discord IDs
+    for (const msg of messages) {
+      if (!msg.discord_id || !msg.discord_message_id || !msg.discord_channel_id || !msg.guild_id) {
+        continue; // Skip invalid entries silently
+      }
+      if (!isValidDiscordId(msg.discord_id) || !isValidDiscordId(msg.discord_message_id) ||
+          !isValidDiscordId(msg.discord_channel_id) || !isValidDiscordId(msg.guild_id)) {
+        return res.status(400).json({ error: 'Invalid Discord ID format in batch' });
+      }
     }
 
     let recorded = 0;
@@ -243,8 +274,16 @@ router.post('/tickets', async (req: Request, res: Response) => {
     if (!discord_channel_id || typeof discord_channel_id !== 'string') {
       return res.status(400).json({ error: 'discord_channel_id is required' });
     }
-    if (discord_message_id !== undefined && discord_message_id !== null && typeof discord_message_id !== 'string') {
-      return res.status(400).json({ error: 'discord_message_id must be a string' });
+    
+    // Validate Discord channel ID format
+    if (!isValidDiscordId(discord_channel_id)) {
+      return res.status(400).json({ error: 'Invalid discord_channel_id format' });
+    }
+    
+    if (discord_message_id !== undefined && discord_message_id !== null) {
+      if (typeof discord_message_id !== 'string' || !isValidDiscordId(discord_message_id)) {
+        return res.status(400).json({ error: 'Invalid discord_message_id format' });
+      }
     }
 
     // Check if ticket already exists
@@ -283,6 +322,11 @@ router.post('/tickets/close', async (req: Request, res: Response) => {
     if (!discord_channel_id || typeof discord_channel_id !== 'string') {
       return res.status(400).json({ error: 'discord_channel_id is required' });
     }
+    
+    // Validate Discord channel ID format
+    if (!isValidDiscordId(discord_channel_id)) {
+      return res.status(400).json({ error: 'Invalid discord_channel_id format' });
+    }
 
     // Find and close the ticket
     const ticket = await db
@@ -319,6 +363,11 @@ router.get('/user/:discord_id', async (req: Request, res: Response) => {
     const discordId = req.params.discord_id;
     if (!discordId || typeof discordId !== 'string') {
       return res.status(400).json({ error: 'discord_id is required' });
+    }
+    
+    // Validate Discord ID format
+    if (!isValidDiscordId(discordId)) {
+      return res.status(400).json({ error: 'Invalid discord_id format' });
     }
 
     const user = await db

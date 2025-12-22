@@ -6,6 +6,17 @@ import { PermissionFlag } from '../utils/types';
 import { updateUserPermission } from '../services/permissions';
 import { isImmuneRank } from '../utils/immunity';
 import { performGroupSync, getSyncStatus } from '../services/groupSync';
+import { adminRateLimit, infractionRateLimit } from '../middleware/rateLimits';
+import { 
+  parsePositiveInt, 
+  isValidStringLength, 
+  hasSuspiciousPattern,
+  isValidDiscordId,
+  sanitizeString,
+  logSecurityEvent,
+  getClientIp,
+  getUserAgent
+} from '../utils/security';
 
 const router = Router();
 
@@ -13,6 +24,7 @@ const router = Router();
 router.use(authenticateToken);
 router.use(requireVerified);
 router.use(requireAdmin);
+router.use(adminRateLimit);
 
 /**
  * List all staff
@@ -39,7 +51,11 @@ router.get('/users', async (req: Request, res: Response) => {
  */
 router.put('/users/:id/permissions', async (req: Request, res: Response) => {
   try {
-    const userId = parseInt(req.params.id);
+    const userId = parsePositiveInt(req.params.id);
+    if (!userId) {
+      return res.status(400).json({ error: 'Invalid user ID' });
+    }
+    
     const { permission, granted } = req.body;
 
     if (!permission || typeof granted !== 'boolean') {
@@ -85,7 +101,11 @@ router.put('/users/:id/permissions', async (req: Request, res: Response) => {
  */
 router.put('/users/:id/status', async (req: Request, res: Response) => {
   try {
-    const userId = parseInt(req.params.id);
+    const userId = parsePositiveInt(req.params.id);
+    if (!userId) {
+      return res.status(400).json({ error: 'Invalid user ID' });
+    }
+    
     const { status } = req.body;
 
     if (!status || !['active', 'inactive', 'pending_verification'].includes(status)) {
@@ -142,10 +162,37 @@ router.post('/tracked-channels', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'discord_channel_id and channel_name are required' });
     }
 
+    // Validate Discord channel ID format
+    if (!isValidDiscordId(discord_channel_id)) {
+      return res.status(400).json({ error: 'Invalid discord_channel_id format' });
+    }
+
+    // Validate channel name length and content
+    if (!isValidStringLength(channel_name, 1, 100)) {
+      return res.status(400).json({ error: 'channel_name must be between 1 and 100 characters' });
+    }
+
+    // Check for suspicious patterns
+    if (hasSuspiciousPattern(channel_name)) {
+      logSecurityEvent({
+        type: 'SUSPICIOUS_INPUT',
+        ip: getClientIp(req),
+        userId: req.user?.id,
+        path: req.path,
+        method: req.method,
+        userAgent: getUserAgent(req),
+        details: 'Suspicious pattern in channel name',
+      });
+      return res.status(400).json({ error: 'Invalid channel_name' });
+    }
+
+    // Sanitize channel name for storage
+    const safeChannelName = sanitizeString(channel_name);
+
     try {
       await db.prepare(
         'INSERT INTO tracked_channels (discord_channel_id, channel_name) VALUES (?, ?)'
-      ).run(discord_channel_id, channel_name);
+      ).run(discord_channel_id, safeChannelName);
 
       res.json({ message: 'Tracked channel added successfully' });
     } catch (error: any) {
@@ -166,7 +213,10 @@ router.post('/tracked-channels', async (req: Request, res: Response) => {
  */
 router.delete('/tracked-channels/:id', async (req: Request, res: Response) => {
   try {
-    const channelId = parseInt(req.params.id);
+    const channelId = parsePositiveInt(req.params.id);
+    if (!channelId) {
+      return res.status(400).json({ error: 'Invalid channel ID' });
+    }
 
     const result = await db.prepare('DELETE FROM tracked_channels WHERE id = ?').run(channelId);
 
@@ -225,7 +275,11 @@ router.put('/loa/:id/review', async (req: Request, res: Response) => {
   }
 
   try {
-    const loaId = parseInt(req.params.id);
+    const loaId = parsePositiveInt(req.params.id);
+    if (!loaId) {
+      return res.status(400).json({ error: 'Invalid LOA ID' });
+    }
+    
     const { status, review_notes } = req.body;
 
     if (!status || !['approved', 'denied'].includes(status)) {
@@ -284,7 +338,7 @@ router.get('/infractions', async (req: Request, res: Response) => {
 /**
  * Issue an infraction to a user
  */
-router.post('/infractions', requirePermission('ISSUE_INFRACTIONS'), async (req: Request, res: Response) => {
+router.post('/infractions', infractionRateLimit, requirePermission('ISSUE_INFRACTIONS'), async (req: Request, res: Response) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Authentication required' });
   }
@@ -296,14 +350,39 @@ router.post('/infractions', requirePermission('ISSUE_INFRACTIONS'), async (req: 
       return res.status(400).json({ error: 'user_id, reason, and type are required' });
     }
 
+    // Validate user_id
+    const validUserId = parsePositiveInt(user_id);
+    if (!validUserId) {
+      return res.status(400).json({ error: 'Invalid user_id' });
+    }
+
     if (!['warning', 'strike'].includes(type)) {
       return res.status(400).json({ error: 'Invalid type. Must be warning or strike.' });
+    }
+
+    // Validate reason length
+    if (!isValidStringLength(reason, 10, 1000)) {
+      return res.status(400).json({ error: 'Reason must be between 10 and 1000 characters.' });
+    }
+
+    // Check for suspicious patterns in reason
+    if (hasSuspiciousPattern(reason)) {
+      logSecurityEvent({
+        type: 'SUSPICIOUS_INPUT',
+        ip: getClientIp(req),
+        userId: req.user.id,
+        path: req.path,
+        method: req.method,
+        userAgent: getUserAgent(req),
+        details: 'Suspicious pattern in infraction reason',
+      });
+      return res.status(400).json({ error: 'Invalid characters in reason.' });
     }
 
     // Check if target user exists and get their Discord ID and rank
     const targetUser = await db.prepare(
       'SELECT id, discord_id, discord_username, roblox_username, `rank` FROM users WHERE id = ?'
-    ).get(user_id) as { id: number; discord_id: string; discord_username: string; roblox_username: string | null; rank: number | null } | undefined;
+    ).get(validUserId) as { id: number; discord_id: string; discord_username: string; roblox_username: string | null; rank: number | null } | undefined;
 
     if (!targetUser) {
       return res.status(404).json({ error: 'User not found' });
@@ -317,10 +396,13 @@ router.post('/infractions', requirePermission('ISSUE_INFRACTIONS'), async (req: 
     // Get issuer's name for the DM
     const issuerName = req.user.roblox_username || req.user.discord_username || 'Management';
 
+    // Sanitize reason for storage
+    const safeReason = sanitizeString(reason);
+    
     // Create infraction
     const result = await db.prepare(
       `INSERT INTO infractions (user_id, reason, type, issued_by) VALUES (?, ?, ?, ?)`
-    ).run(user_id, reason, type, req.user.id);
+    ).run(validUserId, safeReason, type, req.user.id);
 
     const infractionId = result.lastInsertRowid;
     const issuedAt = new Date().toISOString();
@@ -380,7 +462,10 @@ router.post('/infractions', requirePermission('ISSUE_INFRACTIONS'), async (req: 
  */
 router.put('/infractions/:id/void', requirePermission('VOID_INFRACTIONS'), async (req: Request, res: Response) => {
   try {
-    const infractionId = parseInt(req.params.id);
+    const infractionId = parsePositiveInt(req.params.id);
+    if (!infractionId) {
+      return res.status(400).json({ error: 'Invalid infraction ID' });
+    }
 
     // Check if infraction exists
     const infraction = await db.prepare('SELECT * FROM infractions WHERE id = ?').get(infractionId) as any;
@@ -407,7 +492,10 @@ router.put('/infractions/:id/void', requirePermission('VOID_INFRACTIONS'), async
  */
 router.get('/users/:id/infractions', async (req: Request, res: Response) => {
   try {
-    const userId = parseInt(req.params.id);
+    const userId = parsePositiveInt(req.params.id);
+    if (!userId) {
+      return res.status(400).json({ error: 'Invalid user ID' });
+    }
 
     const infractions = await db
       .prepare(

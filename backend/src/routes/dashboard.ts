@@ -2,6 +2,17 @@ import { Router, Request, Response } from 'express';
 import { authenticateToken, requireVerified } from '../middleware/auth';
 import { requirePermission, requireAdmin } from '../middleware/permissions';
 import { db } from '../models/database';
+import { loaRateLimit } from '../middleware/rateLimits';
+import { 
+  isValidDateString, 
+  isValidStringLength, 
+  hasSuspiciousPattern,
+  sanitizeString,
+  parsePositiveInt,
+  logSecurityEvent,
+  getClientIp,
+  getUserAgent 
+} from '../utils/security';
 
 const router = Router();
 
@@ -183,7 +194,7 @@ router.get('/loa', async (req: Request, res: Response) => {
 /**
  * Create a new LOA request
  */
-router.post('/loa', async (req: Request, res: Response) => {
+router.post('/loa', loaRateLimit, async (req: Request, res: Response) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Authentication required' });
   }
@@ -193,6 +204,30 @@ router.post('/loa', async (req: Request, res: Response) => {
 
     if (!start_date || !end_date || !reason) {
       return res.status(400).json({ error: 'start_date, end_date, and reason are required' });
+    }
+
+    // Validate date format (YYYY-MM-DD)
+    if (!isValidDateString(start_date) || !isValidDateString(end_date)) {
+      return res.status(400).json({ error: 'Invalid date format. Use YYYY-MM-DD.' });
+    }
+
+    // Validate reason string
+    if (!isValidStringLength(reason, 10, 1000)) {
+      return res.status(400).json({ error: 'Reason must be between 10 and 1000 characters.' });
+    }
+
+    // Check for suspicious patterns in reason
+    if (hasSuspiciousPattern(reason)) {
+      logSecurityEvent({
+        type: 'SUSPICIOUS_INPUT',
+        ip: getClientIp(req),
+        userId: req.user.id,
+        path: req.path,
+        method: req.method,
+        userAgent: getUserAgent(req),
+        details: 'Suspicious pattern in LOA reason',
+      });
+      return res.status(400).json({ error: 'Invalid characters in reason.' });
     }
 
     // Validate dates
@@ -207,6 +242,12 @@ router.post('/loa', async (req: Request, res: Response) => {
 
     if (endDate < startDate) {
       return res.status(400).json({ error: 'End date must be after start date' });
+    }
+    
+    // Validate max LOA duration (e.g., 30 days max)
+    const maxDuration = 30 * 24 * 60 * 60 * 1000; // 30 days in ms
+    if (endDate.getTime() - startDate.getTime() > maxDuration) {
+      return res.status(400).json({ error: 'LOA duration cannot exceed 30 days.' });
     }
 
     // Check for existing pending or active LOA
@@ -249,7 +290,10 @@ router.delete('/loa/:id', async (req: Request, res: Response) => {
   }
 
   try {
-    const loaId = parseInt(req.params.id);
+    const loaId = parsePositiveInt(req.params.id);
+    if (!loaId) {
+      return res.status(400).json({ error: 'Invalid LOA ID' });
+    }
 
     // Check if LOA exists and belongs to user
     const loa = await db

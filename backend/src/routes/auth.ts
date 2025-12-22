@@ -5,6 +5,8 @@ import { db } from '../models/database';
 import { v4 as uuidv4 } from 'uuid';
 import { initializeUserPermissions } from '../services/permissions';
 import crypto from 'crypto';
+import { authRateLimit } from '../middleware/rateLimits';
+import { logSecurityEvent, getClientIp, getUserAgent } from '../utils/security';
 
 const router = Router();
 
@@ -28,7 +30,7 @@ function cookieOptions() {
 /**
  * Initiate Discord OAuth flow
  */
-router.get('/discord', (req: Request, res: Response) => {
+router.get('/discord', authRateLimit, (req: Request, res: Response) => {
   // Always generate and bind state server-side to prevent login CSRF / swapping.
   const state = crypto.randomUUID();
   res.cookie('oauth_state', state, { ...cookieOptions(), maxAge: 10 * 60 * 1000 });
@@ -40,7 +42,7 @@ router.get('/discord', (req: Request, res: Response) => {
 /**
  * Handle Discord OAuth callback
  */
-router.get('/discord/callback', async (req: Request, res: Response) => {
+router.get('/discord/callback', authRateLimit, async (req: Request, res: Response) => {
   const code = req.query.code as string;
   const state = req.query.state as string;
 
@@ -51,6 +53,14 @@ router.get('/discord/callback', async (req: Request, res: Response) => {
   const expectedState = (req as any)?.cookies?.oauth_state as string | undefined;
   res.clearCookie('oauth_state', cookieOptions());
   if (!state || !expectedState || state !== expectedState) {
+    logSecurityEvent({
+      type: 'AUTH_FAILURE',
+      ip: getClientIp(req),
+      path: req.path,
+      method: req.method,
+      userAgent: getUserAgent(req),
+      details: 'OAuth state mismatch - potential CSRF attempt',
+    });
     return res.redirect(`${getFrontendUrl()}/login?error=invalid_state`);
   }
 

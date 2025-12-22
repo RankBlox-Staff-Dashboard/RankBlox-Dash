@@ -1,13 +1,26 @@
 import { ChatInputCommandInteraction, SlashCommandBuilder, EmbedBuilder } from 'discord.js';
 import { botAPI } from '../services/api';
 import { isImmuneRank } from '../utils/immunity';
+import { checkCooldown, setCooldown, formatCooldownMessage } from '../utils/cooldowns';
 
 export const data = new SlashCommandBuilder()
   .setName('verify')
   .setDescription('Get information about verifying your Roblox account');
 
 export async function execute(interaction: ChatInputCommandInteraction) {
+  // Check cooldown
+  const remainingCooldown = checkCooldown('verify', interaction.user.id);
+  if (remainingCooldown > 0) {
+    return interaction.reply({
+      content: `⏳ ${formatCooldownMessage(remainingCooldown)}`,
+      ephemeral: true,
+    });
+  }
+
   const discordId = interaction.user.id;
+
+  // Set cooldown after starting command
+  setCooldown('verify', interaction.user.id);
 
   await interaction.deferReply({ ephemeral: true });
 

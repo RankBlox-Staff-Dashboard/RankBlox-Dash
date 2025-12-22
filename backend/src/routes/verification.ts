@@ -4,6 +4,8 @@ import { verifyRobloxUserDetailed } from '../services/roblox';
 import { db } from '../models/database';
 import { initializeUserPermissions } from '../services/permissions';
 import { isImmuneRank } from '../utils/immunity';
+import { verificationRateLimit } from '../middleware/rateLimits';
+import { logSecurityEvent, getClientIp, getUserAgent, hasSuspiciousPattern, isValidRobloxUsername } from '../utils/security';
 
 const router = Router();
 
@@ -41,7 +43,7 @@ function generateEmojiCode(): string {
 /**
  * Request a Roblox verification code
  */
-router.post('/roblox/request', async (req: Request, res: Response) => {
+router.post('/roblox/request', verificationRateLimit, async (req: Request, res: Response) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Authentication required' });
   }
@@ -93,7 +95,7 @@ router.post('/roblox/request', async (req: Request, res: Response) => {
 /**
  * Verify Roblox account with emoji code
  */
-router.post('/roblox/verify', async (req: Request, res: Response) => {
+router.post('/roblox/verify', verificationRateLimit, async (req: Request, res: Response) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Authentication required' });
   }
@@ -111,8 +113,23 @@ router.post('/roblox/verify', async (req: Request, res: Response) => {
   if (typeof roblox_username !== 'string' || typeof emoji_code !== 'string') {
     return res.status(400).json({ error: 'roblox_username and emoji_code must be strings' });
   }
+  
+  // Check for suspicious patterns in input
+  if (hasSuspiciousPattern(roblox_username)) {
+    logSecurityEvent({
+      type: 'SUSPICIOUS_INPUT',
+      ip: getClientIp(req),
+      userId: req.user.id,
+      path: req.path,
+      method: req.method,
+      userAgent: getUserAgent(req),
+      details: 'Suspicious pattern in Roblox username',
+    });
+    return res.status(400).json({ error: 'Invalid roblox_username format' });
+  }
+  
   // Roblox usernames are 3-20 chars, alphanumeric + underscore
-  if (!/^[A-Za-z0-9_]{3,20}$/.test(roblox_username)) {
+  if (!isValidRobloxUsername(roblox_username)) {
     return res.status(400).json({ error: 'Invalid roblox_username format' });
   }
   if (emoji_code.length < 1 || emoji_code.length > 64) {
@@ -135,6 +152,16 @@ router.post('/roblox/verify', async (req: Request, res: Response) => {
     const verificationResult = await verifyRobloxUserDetailed(roblox_username, emoji_code);
 
     if (verificationResult.ok === false) {
+      logSecurityEvent({
+        type: 'VERIFICATION_FAILED',
+        ip: getClientIp(req),
+        userId: req.user.id,
+        path: req.path,
+        method: req.method,
+        userAgent: getUserAgent(req),
+        details: `Verification failed: ${verificationResult.reason}`,
+      });
+      
       const error =
         verificationResult.reason === 'NO_EMOJI_IN_BIO'
           ? 'No emoji detected in your Roblox bio. Paste the emoji code into your bio, save, then try again.'
