@@ -15,6 +15,7 @@ import botRoutes from './routes/bot';
 import adminRoutes from './routes/admin';
 import cron from 'node-cron';
 import { db } from './models/database';
+import { startAutoSync } from './services/groupSync';
 
 dotenv.config();
 
@@ -52,11 +53,16 @@ app.use(rateLimit({
   legacyHeaders: false,
 }));
 
-// Initialize database
-initializeDatabase().catch(err => {
-  console.error('Failed to initialize database:', err);
-  process.exit(1);
-});
+// Initialize database and start auto-sync
+initializeDatabase()
+  .then(() => {
+    // Start automatic group rank synchronization
+    startAutoSync();
+  })
+  .catch(err => {
+    console.error('Failed to initialize database:', err);
+    process.exit(1);
+  });
 
 // Routes
 app.use('/api/auth', authRoutes);

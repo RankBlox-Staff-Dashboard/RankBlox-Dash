@@ -114,6 +114,25 @@ export const permissionsAPI = {
   checkPermission: (permission: PermissionFlag) => api.get<{ hasPermission: boolean; permission: string }>('/permissions/check', { params: { permission } }),
 };
 
+// Group Sync types
+export interface SyncResult {
+  success: boolean;
+  totalUsers: number;
+  updatedUsers: number;
+  failedUsers: number;
+  errors: string[];
+  startedAt: string;
+  completedAt: string;
+  durationMs: number;
+}
+
+export interface SyncStatus {
+  isSyncing: boolean;
+  lastSyncTime: string | null;
+  lastSyncResult: SyncResult | null;
+  nextScheduledSync: string | null;
+}
+
 // Management API (admin only)
 export const managementAPI = {
   getUsers: () => api.get<User[]>('/management/users'),
@@ -135,6 +154,9 @@ export const managementAPI = {
     api.post<{ message: string; infraction_id: number }>('/management/infractions', { user_id, reason, type }),
   voidInfraction: (infractionId: number) => api.put(`/management/infractions/${infractionId}/void`),
   getUserInfractions: (userId: number) => api.get<Infraction[]>(`/management/users/${userId}/infractions`),
+  // Group rank sync
+  getGroupSyncStatus: () => api.get<SyncStatus>('/management/group-sync/status'),
+  triggerGroupSync: () => api.post<{ message: string; result: SyncResult }>('/management/group-sync'),
 };
 
 export default api;

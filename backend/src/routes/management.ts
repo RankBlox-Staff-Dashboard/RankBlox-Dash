@@ -5,6 +5,7 @@ import { db } from '../models/database';
 import { PermissionFlag } from '../utils/types';
 import { updateUserPermission } from '../services/permissions';
 import { isImmuneRank } from '../utils/immunity';
+import { performGroupSync, getSyncStatus } from '../services/groupSync';
 
 const router = Router();
 
@@ -423,6 +424,46 @@ router.get('/users/:id/infractions', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error fetching user infractions:', error);
     res.status(500).json({ error: 'Failed to fetch user infractions' });
+  }
+});
+
+/**
+ * Get group rank sync status
+ */
+router.get('/group-sync/status', async (req: Request, res: Response) => {
+  try {
+    const status = getSyncStatus();
+    res.json(status);
+  } catch (error) {
+    console.error('Error getting sync status:', error);
+    res.status(500).json({ error: 'Failed to get sync status' });
+  }
+});
+
+/**
+ * Trigger manual group rank sync
+ */
+router.post('/group-sync', async (req: Request, res: Response) => {
+  try {
+    // Check if already syncing
+    const status = getSyncStatus();
+    if (status.isSyncing) {
+      return res.status(409).json({ 
+        error: 'Sync already in progress',
+        status 
+      });
+    }
+
+    // Perform sync
+    const result = await performGroupSync();
+
+    res.json({
+      message: result.success ? 'Group rank sync completed successfully' : 'Group rank sync completed with errors',
+      result
+    });
+  } catch (error: any) {
+    console.error('Error performing group sync:', error);
+    res.status(500).json({ error: error.message || 'Failed to perform group sync' });
   }
 });
 
