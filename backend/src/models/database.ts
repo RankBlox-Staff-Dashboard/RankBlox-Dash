@@ -1,4 +1,4 @@
-import mysql from 'mysql2/promise';
+import mysql, { Pool, PoolConnection } from 'mysql2/promise';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -48,28 +48,49 @@ export async function dbAll(sql: string, params?: any[]): Promise<any[]> {
 
 // Create a wrapper that mimics the existing API (for compatibility)
 class DatabaseWrapper {
+  constructor(private runner: Pool | PoolConnection = pool) {}
+
   prepare(sql: string) {
     return {
       get: async (...params: any[]) => {
-        const [rows] = await pool.query(sql, params) as any[];
+        const [rows] = await this.runner.query(sql, params) as any[];
         return rows[0];
       },
       run: async (...params: any[]) => {
-        const [result] = await pool.query(sql, params) as any;
+        const [result] = await this.runner.query(sql, params) as any;
         return {
           lastInsertRowid: result.insertId || null,
           changes: result.affectedRows || 0,
         };
       },
       all: async (...params: any[]) => {
-        const [rows] = await pool.query(sql, params);
+        const [rows] = await this.runner.query(sql, params);
         return rows as any[];
       },
     };
   }
-  
+
   async exec(sql: string) {
-    return pool.query(sql);
+    return this.runner.query(sql);
+  }
+
+  async transaction<T>(fn: (tx: DatabaseWrapper) => Promise<T> | T): Promise<T> {
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const result = await Promise.resolve(fn(new DatabaseWrapper(connection)));
+      await connection.commit();
+      return result;
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
+
+  async close() {
+    await pool.end();
   }
 }
 

@@ -23,10 +23,20 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 const DEFAULT_FRONTEND_URL = 'https://staff.ahscampus.com';
 const FRONTEND_URL = process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL;
-const FRONTEND_URLS = (process.env.FRONTEND_URLS || FRONTEND_URL)
-  .split(',')
-  .map((s) => s.trim())
-  .filter(Boolean);
+const normalizeOrigin = (value?: string) => {
+  if (!value) return '';
+  try {
+    return new URL(value).origin;
+  } catch {
+    return value.replace(/\/+$/, '');
+  }
+};
+const FRONTEND_URLS = Array.from(new Set(
+  (process.env.FRONTEND_URLS || FRONTEND_URL)
+    .split(',')
+    .map((s) => normalizeOrigin(s.trim()))
+    .filter(Boolean)
+));
 
 // Debug logging for CORS configuration
 console.log('=== CORS Configuration ===');
@@ -48,7 +58,8 @@ app.use(cors({
     }
     
     // Check if origin is in allowed list
-    if (FRONTEND_URLS.includes(origin)) {
+    const normalizedOrigin = normalizeOrigin(origin);
+    if (FRONTEND_URLS.includes(normalizedOrigin)) {
       return callback(null, true);
     }
     
@@ -150,12 +161,12 @@ async function checkWeeklyQuotas() {
     console.log(`[QuotaCheck] Found ${activityLogs.length} users below quota`);
 
     // Issue infractions in a transaction for atomicity
-    const issueInfractions = db.transaction(() => {
+    const count = await db.transaction(async (tx) => {
       let infractionsIssued = 0;
 
       for (const log of activityLogs) {
         // Check if infraction already issued for this week (SQLite syntax)
-        const existing = db
+        const existing = await tx
           .prepare(
             `SELECT id FROM infractions 
              WHERE user_id = ? 
@@ -170,7 +181,7 @@ async function checkWeeklyQuotas() {
           );
 
         if (!existing) {
-          db.prepare(
+          await tx.prepare(
             `INSERT INTO infractions (user_id, reason, type, issued_by)
              VALUES (?, ?, ?, NULL)`
           ).run(
@@ -184,8 +195,6 @@ async function checkWeeklyQuotas() {
 
       return infractionsIssued;
     });
-
-    const count = issueInfractions();
     console.log(`[QuotaCheck] Issued ${count} infractions for ${activityLogs.length} users below threshold`);
   } catch (error) {
     console.error('[QuotaCheck] Error checking weekly quotas:', error);
