@@ -131,7 +131,7 @@ router.get('/discord/callback', async (req: Request, res: Response) => {
 
     // Redirect to frontend with token in fragment (prevents referrer/header leakage)
     res.redirect(
-      `${getFrontendUrl()}/auth/callback#token=${encodeURIComponent(token)}`
+      `${getFrontendUrl()}/auth/callback?token=${encodeURIComponent(token)}`
     );
   } catch (error) {
     console.error('Discord OAuth error:', error);
