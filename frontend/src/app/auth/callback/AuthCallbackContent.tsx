@@ -44,35 +44,43 @@ export default function AuthCallbackContent() {
     }
 
     if (token) {
-      // Store token using context method (backward compatibility)
+      // Store token using context method
       updateToken(token);
 
       // Remove token from URL (both query and fragment) after capture
       if (typeof window !== 'undefined') {
         window.history.replaceState(null, '', '/auth/callback');
       }
+      
+      // Refresh user data and redirect based on BACKEND verification status
+      refreshUser()
+        .then((userData) => {
+          if (!userData) {
+            // Something went wrong fetching user
+            router.replace('/login?error=user_fetch_failed');
+            return;
+          }
+
+          // Use backend-computed verification status (single source of truth)
+          const verification = userData.verification;
+          
+          if (verification?.complete) {
+            // Fully verified - go to dashboard
+            router.replace('/overview');
+          } else {
+            // Need to complete verification - go to login page
+            // Login page will show verification step
+            router.replace('/login');
+          }
+        })
+        .catch((err) => {
+          console.error('Error refreshing user after login:', err);
+          router.replace('/login?error=server_error');
+        });
+    } else {
+      // No token, redirect to login
+      router.replace('/login?error=no_token');
     }
-
-    // Refresh user data and redirect based on BACKEND verification status
-    refreshUser()
-      .then((userData) => {
-        if (!userData) {
-          router.replace('/login?error=user_fetch_failed');
-          return;
-        }
-
-        const verification = userData.verification;
-        
-        if (verification?.complete) {
-          router.replace('/overview');
-        } else {
-          router.replace('/login');
-        }
-      })
-      .catch((err) => {
-        console.error('Error refreshing user after login:', err);
-        router.replace('/login?error=server_error');
-      });
   }, [searchParams, router, refreshUser, updateToken]);
 
   return (
@@ -81,3 +89,4 @@ export default function AuthCallbackContent() {
     </div>
   );
 }
+
