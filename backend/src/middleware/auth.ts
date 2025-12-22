@@ -44,12 +44,13 @@ export async function authenticateToken(
       .prepare('SELECT * FROM sessions WHERE token = ? AND expires_at > NOW()')
       .get(token) as { id: string; user_id: number; token: string; expires_at: Date } | undefined;
 
-    if (!session || session.token !== token) {
+    if (!session) {
+      console.error('Session not found or expired for token:', token.substring(0, 20) + '...');
       res.status(401).json({ error: 'Session expired or invalid' });
       return;
     }
 
-    // Get user info
+    // Get user info (allow all statuses including pending_verification)
     const user = await db
       .prepare('SELECT id, discord_id, rank, status FROM users WHERE id = ?')
       .get(decoded.userId) as { id: number; discord_id: string; rank: number | null; status: string } | undefined;

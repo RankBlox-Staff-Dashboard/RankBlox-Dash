@@ -46,11 +46,14 @@ router.get('/discord/callback', async (req: Request, res: Response) => {
       .get(discordUser.id) as any;
 
     if (!user) {
-      // Create new user - need to use RETURNING for PostgreSQL
+      // Create new user - PostgreSQL needs RETURNING to get the inserted row
       const insertResult = await db
         .prepare('INSERT INTO users (discord_id, discord_username, status) VALUES (?, ?, ?) RETURNING *')
         .get(discordUser.id, discordUser.username, 'pending_verification') as any;
       
+      if (!insertResult) {
+        throw new Error('Failed to create user');
+      }
       user = insertResult;
     } else {
       // Update username if changed
@@ -68,11 +71,23 @@ router.get('/discord/callback', async (req: Request, res: Response) => {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
 
-    // Delete old sessions and create new one (PostgreSQL uses ON CONFLICT instead of INSERT OR REPLACE)
+    // Delete old sessions and create new one
     await db.prepare('DELETE FROM sessions WHERE user_id = ?').run(user.id);
-    await db.prepare(
+    const sessionInsertResult = await db.prepare(
       'INSERT INTO sessions (id, user_id, token, expires_at) VALUES (?, ?, ?, ?)'
     ).run(sessionId, user.id, token, expiresAt.toISOString());
+    
+    // Verify session was created
+    const verifySession = await db
+      .prepare('SELECT * FROM sessions WHERE token = ?')
+      .get(token) as any;
+    
+    if (!verifySession) {
+      console.error('Failed to create session - session not found after insert');
+      throw new Error('Failed to create session');
+    }
+    
+    console.log('Session created successfully for user:', user.id, 'token:', token.substring(0, 20) + '...');
 
     // Initialize permissions if user just verified Roblox
     if (user.status === 'active' && user.rank !== null) {
