@@ -21,7 +21,7 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 8080;
-const DEFAULT_FRONTEND_URL = 'https://staffapp-frontend-y3za.onrender.com';
+const DEFAULT_FRONTEND_URL = 'https://staff.ahscampus.com';
 const FRONTEND_URL = process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL;
 const FRONTEND_URLS = (process.env.FRONTEND_URLS || FRONTEND_URL)
   .split(',')
