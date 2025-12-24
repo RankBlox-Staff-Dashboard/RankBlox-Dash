@@ -8,7 +8,7 @@ Copy these to: **Render Dashboard → Your Service → Environment**
 DATABASE_URL=postgresql://session_88kg_user:RDZ2tfqz8PViityji56kJZTJL6IHzvmq@dpg-d5484hv5r7bs73e8v6f0-a.virginia-postgres.render.com/session_88kg
 DISCORD_CLIENT_ID=1413264592368435382
 DISCORD_CLIENT_SECRET=Io4D-j14356IFptF-vB4ohghJtwNvbZp
-DISCORD_REDIRECT_URI=https://staffapp-9q1t.onrender.com/api/auth/discord/callback
+DISCORD_REDIRECT_URI=https://ahsback.zenohost.co.uk/api/auth/discord/callback
 JWT_SECRET=scpnox-staff-jwt-secret-2024-secure
 ROBLOX_GROUP_ID=32350433
 PORT=10000
@@ -23,7 +23,7 @@ FRONTEND_URL=https://staff.ahscampus.com
 Copy these to: **Vercel Dashboard → Your Project → Settings → Environment Variables**
 
 ```env
-VITE_API_URL=https://staffapp-9q1t.onrender.com/api
+NEXT_PUBLIC_API_URL=https://ahsback.zenohost.co.uk/api
 ```
 
 ---
@@ -61,13 +61,13 @@ VITE_API_URL=https://staffapp-9q1t.onrender.com/api
 
 **Render:**
 ```
-DISCORD_REDIRECT_URI=https://staffapp-9q1t.onrender.com/api/auth/discord/callback
+DISCORD_REDIRECT_URI=https://ahsback.zenohost.co.uk/api/auth/discord/callback
 FRONTEND_URL=https://staff.ahscampus.com
 ```
 
 **Vercel:**
 ```
-VITE_API_URL=https://staffapp-9q1t.onrender.com/api
+NEXT_PUBLIC_API_URL=https://ahsback.zenohost.co.uk/api
 ```
 
 **Discord Developer Portal:**

@@ -1,2 +1,2 @@
-VITE_API_URL=https://staffapp-9q1t.onrender.com/api
+NEXT_PUBLIC_API_URL=https://ahsback.zenohost.co.uk/api
 

@@ -17,7 +17,7 @@ The `token_exchange_failed` error occurs when Discord rejects the token exchange
 
 **Your current setup should be:**
 ```
-DISCORD_REDIRECT_URI=https://staffapp-9q1t.onrender.com/api/auth/discord/callback
+DISCORD_REDIRECT_URI=https://ahsback.zenohost.co.uk/api/auth/discord/callback
 ```
 
 **In Discord Developer Portal, you should have:**
@@ -48,7 +48,7 @@ https://staffapp-9q1t.onrender.com/api/auth/discord/callback
 **Solution:** Verify all these are set correctly in Render:
 - `DISCORD_CLIENT_ID=1413264592368435382`
 - `DISCORD_CLIENT_SECRET=Io4D-j14356IFptF-vB4ohghJtwNvbZp`
-- `DISCORD_REDIRECT_URI=https://staffapp-9q1t.onrender.com/api/auth/discord/callback`
+- `DISCORD_REDIRECT_URI=https://ahsback.zenohost.co.uk/api/auth/discord/callback`
 
 ## Debugging Steps
 
@@ -83,6 +83,6 @@ https://staffapp-9q1t.onrender.com/api/auth/discord/callback
 
 The redirect URI mismatch is the #1 cause. Make absolutely sure:
 1. Discord Developer Portal has: `https://staffapp-9q1t.onrender.com/api/auth/discord/callback`
-2. Render has: `DISCORD_REDIRECT_URI=https://staffapp-9q1t.onrender.com/api/auth/discord/callback`
+2. Render has: `DISCORD_REDIRECT_URI=https://ahsback.zenohost.co.uk/api/auth/discord/callback`
 3. Both match **character-for-character**
 

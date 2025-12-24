@@ -1,7 +1,7 @@
 import axios from 'axios';
 import type { User, Stats, Infraction, Ticket, Analytics, PermissionFlag, LOARequest } from '../types';
 
-const DEFAULT_PROD_API_URL = 'https://ahsback.zenohost.co.uk//api';
+const DEFAULT_PROD_API_URL = 'https://ahsback.zenohost.co.uk/api';
 
 export const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
