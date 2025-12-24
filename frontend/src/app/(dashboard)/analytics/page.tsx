@@ -59,9 +59,9 @@ export default function AnalyticsPage() {
         throw new Error('Invalid response from server');
       }
       
-      const allUsers = Array.isArray(response.data) ? response.data : [];
+      const allUsers = Array.isArray(response.data) ? (response.data as UserWithQuota[]) : [];
       // Filter for staff members (users with a rank)
-      const staffData = allUsers.filter((u: UserWithQuota) => u.rank !== null);
+      const staffData = allUsers.filter((u) => u.rank !== null);
       setStaffMembers(staffData);
     } catch (error: any) {
       console.error('Failed to fetch staff analytics:', error);
