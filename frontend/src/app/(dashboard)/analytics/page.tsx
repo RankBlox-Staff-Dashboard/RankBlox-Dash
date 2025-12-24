@@ -203,6 +203,10 @@ export default function AnalyticsPage() {
                     <div className="text-xs text-white/50 truncate">
                       {member.discord_username}
                     </div>
+                    <div className="text-xs text-white/60 mt-0.5">
+                      <MessageSquare className="w-3 h-3 inline mr-1" />
+                      {member.messages_sent ?? 0} / {member.messages_quota ?? 150} messages
+                    </div>
                     {member.rank && (
                       <div className="mt-1">
                         <RankBadge rank={member.rank} rankName={member.rank_name} />
