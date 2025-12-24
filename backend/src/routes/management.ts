@@ -15,19 +15,63 @@ router.use(requireVerified);
 router.use(requireAdmin);
 
 /**
+ * Get current week start (Monday)
+ */
+function getCurrentWeekStart(): string {
+  const now = new Date();
+  const day = now.getDay();
+  const diff = now.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
+  const monday = new Date(now.setDate(diff));
+  monday.setHours(0, 0, 0, 0);
+  return monday.toISOString().split('T')[0];
+}
+
+/**
  * List all staff
  */
 router.get('/users', async (req: Request, res: Response) => {
   try {
+    // Get current week start for quota calculation
+    const weekStart = getCurrentWeekStart();
+
     const users = await db
       .prepare(
-        `SELECT id, discord_id, discord_username, discord_avatar, roblox_id, roblox_username, \`rank\`, rank_name, status, created_at
-         FROM users
-         ORDER BY \`rank\` IS NULL, \`rank\` DESC, created_at ASC`
+        `SELECT 
+          u.id, 
+          u.discord_id, 
+          u.discord_username, 
+          u.discord_avatar, 
+          u.roblox_id, 
+          u.roblox_username, 
+          u.\`rank\`, 
+          u.rank_name, 
+          u.status, 
+          u.created_at,
+          COALESCE(MAX(CASE WHEN al.week_start = ? THEN al.messages_sent END), 0) as messages_sent
+         FROM users u
+         LEFT JOIN activity_logs al ON u.id = al.user_id
+         GROUP BY u.id, u.discord_id, u.discord_username, u.discord_avatar, u.roblox_id, u.roblox_username, u.\`rank\`, u.rank_name, u.status, u.created_at
+         ORDER BY u.\`rank\` IS NULL, u.\`rank\` DESC, u.created_at ASC`
       )
-      .all() as any[];
+      .all(weekStart) as any[];
 
-    res.json(users);
+    // Add quota information
+    const usersWithQuota = users.map((user) => {
+      const messagesSent = parseInt(user.messages_sent as any) || 0;
+      const messagesQuota = 100;
+      const quotaMet = messagesSent >= messagesQuota;
+      const quotaPercentage = Math.min((messagesSent / messagesQuota) * 100, 100);
+
+      return {
+        ...user,
+        messages_sent: messagesSent,
+        messages_quota: messagesQuota,
+        quota_met: quotaMet,
+        quota_percentage: quotaPercentage,
+      };
+    });
+
+    res.json(usersWithQuota);
   } catch (error) {
     console.error('Error fetching users:', error);
     res.status(500).json({ error: 'Failed to fetch users' });

@@ -14,28 +14,39 @@ import { Card } from '@/components/ui/Card';
 import { RobloxAvatar } from '@/components/RobloxAvatar';
 import { RankBadge } from '@/components/RankBadge';
 import { TabsGrid, type TabsGridItem } from '@/components/ui/TabsGrid';
-import { dashboardAPI, type StaffAnalytics, type NonStaffMember } from '@/services/api';
+import { managementAPI, dashboardAPI, type NonStaffMember } from '@/services/api';
+import type { User } from '@/types';
 import { cn } from '@/lib/cn';
 
 type AnalyticsTab = 'staff' | 'non-staff';
 
+// Extended User type with quota data from management API
+type UserWithQuota = User & {
+  messages_sent: number;
+  messages_quota: number;
+  quota_met: boolean;
+  quota_percentage: number;
+};
+
 export default function AnalyticsPage() {
   const [activeTab, setActiveTab] = useState<AnalyticsTab>('staff');
-  const [staffMembers, setStaffMembers] = useState<StaffAnalytics[]>([]);
+  const [staffMembers, setStaffMembers] = useState<UserWithQuota[]>([]);
   const [nonStaffMembers, setNonStaffMembers] = useState<NonStaffMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [nonStaffLoading, setNonStaffLoading] = useState(false);
 
   useEffect(() => {
-    const fetchStaffAnalytics = async () => {
+    const fetchStaffMembers = async () => {
       try {
         setLoading(true);
-        const response = await dashboardAPI.getStaffAnalytics();
-        setStaffMembers(response.data);
+        const response = await managementAPI.getUsers();
+        // Filter to only show staff members (those with a rank) and cast to UserWithQuota
+        const staff = response.data.filter(u => u.rank !== null) as UserWithQuota[];
+        setStaffMembers(staff);
       } catch (error: any) {
         // Only log non-404 errors to avoid console spam
         if (error?.response?.status !== 404) {
-          console.error('Failed to fetch staff analytics:', error);
+          console.error('Failed to fetch staff members:', error);
         }
         // Set empty array on error to show empty state
         setStaffMembers([]);
@@ -44,7 +55,7 @@ export default function AnalyticsPage() {
       }
     };
 
-    fetchStaffAnalytics();
+    fetchStaffMembers();
   }, []);
 
   useEffect(() => {
