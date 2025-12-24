@@ -27,13 +27,15 @@ function getCurrentWeekStart(): string {
 }
 
 /**
- * List all staff
+ * List all staff with current week message counts from MySQL
  */
 router.get('/users', async (req: Request, res: Response) => {
   try {
     // Get current week start for quota calculation
     const weekStart = getCurrentWeekStart();
+    console.log(`[Management API] Fetching users with week_start: ${weekStart}`);
 
+    // Query users with their current week message counts from activity_logs
     const users = await db
       .prepare(
         `SELECT 
@@ -47,18 +49,35 @@ router.get('/users', async (req: Request, res: Response) => {
           u.rank_name, 
           u.status, 
           u.created_at,
-          COALESCE((SELECT al.messages_sent FROM activity_logs al WHERE al.user_id = u.id AND al.week_start = ?), 0) as messages_sent
+          COALESCE(al.messages_sent, 0) as messages_sent
          FROM users u
+         LEFT JOIN activity_logs al ON al.user_id = u.id AND al.week_start = ?
          ORDER BY u.\`rank\` IS NULL, u.\`rank\` DESC, u.created_at ASC`
       )
       .all(weekStart) as any[];
 
-    // Add quota information
+    console.log(`[Management API] Found ${users.length} users from database`);
+
+    // Add quota information with proper type handling
     const usersWithQuota = users.map((user) => {
-      const messagesSent = parseInt(String(user.messages_sent || 0)) || 0;
+      // Ensure messages_sent is a number from MySQL
+      // MySQL may return as string or number depending on driver
+      const messagesSent = typeof user.messages_sent === 'string' 
+        ? parseInt(user.messages_sent, 10) 
+        : typeof user.messages_sent === 'number' 
+        ? user.messages_sent 
+        : 0;
+      
+      // Ensure it's a valid non-negative number
+      const messagesSentNum = isNaN(messagesSent) || messagesSent < 0 ? 0 : messagesSent;
       const messagesQuota = 150;
-      const quotaMet = messagesSent >= messagesQuota;
-      const quotaPercentage = Math.min((messagesSent / messagesQuota) * 100, 100);
+      const quotaMet = messagesSentNum >= messagesQuota;
+      const quotaPercentage = Math.min(Math.round((messagesSentNum / messagesQuota) * 100), 100);
+
+      // Log for debugging if messages count seems off
+      if (user.roblox_username === 'BlakeGamez0' || user.discord_username.includes('Blake')) {
+        console.log(`[Management API] User ${user.roblox_username || user.discord_username}: messages_sent=${messagesSentNum} from MySQL (raw: ${user.messages_sent})`);
+      }
 
       // Explicitly return all fields to ensure quota fields are included
       return {
@@ -72,13 +91,14 @@ router.get('/users', async (req: Request, res: Response) => {
         rank_name: user.rank_name,
         status: user.status,
         created_at: user.created_at,
-        messages_sent: messagesSent,
+        messages_sent: messagesSentNum,
         messages_quota: messagesQuota,
         quota_met: quotaMet,
         quota_percentage: quotaPercentage,
       };
     });
 
+    console.log(`[Management API] Returning ${usersWithQuota.length} users with quota data`);
     res.json(usersWithQuota);
   } catch (error) {
     console.error('Error fetching users:', error);

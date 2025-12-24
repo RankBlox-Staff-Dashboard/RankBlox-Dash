@@ -42,18 +42,40 @@ export function useStaffStats() {
         ? (response.data as any[])
         : [];
 
+      console.log(`[useStaffStats] Received ${allUsers.length} users from API`);
+
       // Filter for staff members (users with a rank) and normalize quota fields
       const staffData: UserWithQuota[] = allUsers
         .filter((u) => u.rank !== null)
         .map((u) => {
-          const messagesSent = typeof u.messages_sent === 'number' ? u.messages_sent : 0;
+          // Handle messages_sent - ensure it's a number
+          // Backend should already normalize this, but handle edge cases
+          const messagesSent = typeof u.messages_sent === 'string'
+            ? parseInt(u.messages_sent, 10)
+            : typeof u.messages_sent === 'number'
+            ? u.messages_sent
+            : 0;
+          
+          // Ensure valid number
+          const messagesSentNum = isNaN(messagesSent) || messagesSent < 0 ? 0 : messagesSent;
+          
           const messagesQuota = typeof u.messages_quota === 'number' 
             ? u.messages_quota 
             : getMessagesQuota();
 
           // Use centralized calculation functions to ensure consistency
-          const quotaMet = calculateQuotaMet(messagesSent, messagesQuota);
-          const quotaPercentage = calculateQuotaPercentage(messagesSent, messagesQuota);
+          const quotaMet = calculateQuotaMet(messagesSentNum, messagesQuota);
+          const quotaPercentage = calculateQuotaPercentage(messagesSentNum, messagesQuota);
+
+          // Debug logging for specific user
+          if (u.roblox_username === 'BlakeGamez0' || u.discord_username?.includes('Blake')) {
+            console.log(`[useStaffStats] Processing ${u.roblox_username || u.discord_username}:`, {
+              raw_messages_sent: u.messages_sent,
+              normalized: messagesSentNum,
+              quota_met: quotaMet,
+              quota_percentage: quotaPercentage,
+            });
+          }
 
           return {
             id: u.id,
@@ -66,13 +88,14 @@ export function useStaffStats() {
             rank_name: u.rank_name,
             status: u.status,
             created_at: u.created_at,
-            messages_sent: messagesSent,
+            messages_sent: messagesSentNum,
             messages_quota: messagesQuota,
             quota_met: quotaMet,
             quota_percentage: quotaPercentage,
           };
         });
 
+      console.log(`[useStaffStats] Filtered to ${staffData.length} staff members`);
       setStaffMembers(staffData);
     } catch (err: any) {
       console.error('Failed to fetch staff stats:', err);
