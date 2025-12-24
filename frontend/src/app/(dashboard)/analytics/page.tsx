@@ -16,12 +16,12 @@ import { Card } from '@/components/ui/Card';
 import { RobloxAvatar } from '@/components/RobloxAvatar';
 import { RankBadge } from '@/components/RankBadge';
 import { TabsGrid, type TabsGridItem } from '@/components/ui/TabsGrid';
-import { dashboardAPI, type NonStaffMember } from '@/services/api';
+import { managementAPI, dashboardAPI, type NonStaffMember } from '@/services/api';
 import { cn } from '@/lib/cn';
 
 type AnalyticsTab = 'staff' | 'non-staff';
 
-// User type with quota data from dashboard API
+// User type with quota data from management API
 interface UserWithQuota {
   id: number;
   discord_id: string;
@@ -33,7 +33,6 @@ interface UserWithQuota {
   rank_name: string | null;
   status: string;
   created_at: string;
-  minutes: number;
   messages_sent: number;
   messages_quota: number;
   quota_met: boolean;
@@ -53,14 +52,16 @@ export default function AnalyticsPage() {
     try {
       setLoading(true);
       setError(null);
-      // Use the dashboard analytics API endpoint
-      const response = await dashboardAPI.getStaffAnalytics();
+      // Use the management API endpoint (same as management panel)
+      const response = await managementAPI.getUsers();
       
       if (!response || !response.data) {
         throw new Error('Invalid response from server');
       }
       
-      const staffData = Array.isArray(response.data) ? response.data : [];
+      const allUsers = Array.isArray(response.data) ? response.data : [];
+      // Filter for staff members (users with a rank)
+      const staffData = allUsers.filter((u: UserWithQuota) => u.rank !== null);
       setStaffMembers(staffData);
     } catch (error: any) {
       console.error('Failed to fetch staff analytics:', error);
