@@ -57,7 +57,7 @@ router.get('/stats', requirePermission('VIEW_DASHBOARD'), async (req: Request, r
 
     res.json({
       messages_sent: activityLog.messages_sent || 0,
-      messages_quota: 150,
+      messages_quota: 100,
       tickets_claimed: activityLog.tickets_claimed || 0,
       tickets_resolved: activityLog.tickets_resolved || 0,
       infractions: parseInt(infractionCount.count as any) || 0,
@@ -145,7 +145,7 @@ router.get('/analytics/staff', requireAdmin, requirePermission('VIEW_ANALYTICS')
           u.status,
           COALESCE(SUM(al.minutes), 0) as total_minutes,
           COALESCE(MAX(CASE WHEN al.week_start = ? THEN al.messages_sent END), 0) as messages_sent,
-          150 as messages_quota
+          100 as messages_quota
         FROM users u
         LEFT JOIN activity_logs al ON u.id = al.user_id
         GROUP BY u.id, u.discord_id, u.discord_username, u.discord_avatar, u.roblox_id, u.roblox_username, u.\`rank\`, u.rank_name, u.status
@@ -156,7 +156,7 @@ router.get('/analytics/staff', requireAdmin, requirePermission('VIEW_ANALYTICS')
     // Format the response
     const staffAnalytics = staff.map((member) => {
       const messagesSent = parseInt(member.messages_sent as any) || 0;
-      const messagesQuota = 150;
+      const messagesQuota = 100;
       const quotaMet = messagesSent >= messagesQuota;
       const quotaPercentage = Math.min((messagesSent / messagesQuota) * 100, 100);
 
@@ -202,21 +202,40 @@ router.get('/analytics/non-staff', requireAdmin, requirePermission('VIEW_ANALYTI
       bot: boolean;
     }> = [];
 
-    try {
-      const botResponse = await fetch(`${botApiUrl}/server-members`, {
-        headers: {
-          'X-Bot-Token': botApiToken || '',
-        },
-      });
+    // Try to fetch from bot API
+    if (botApiToken && botApiUrl) {
+      try {
+        // Create abort controller for timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
-      if (botResponse.ok) {
-        const botData = await botResponse.json() as { members: typeof discordMembers };
-        discordMembers = botData.members || [];
-      } else {
-        console.error('Failed to fetch Discord members from bot:', botResponse.status);
+        const botResponse = await fetch(`${botApiUrl}/server-members`, {
+          headers: {
+            'X-Bot-Token': botApiToken,
+          },
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        if (botResponse.ok) {
+          const botData = await botResponse.json() as { members?: typeof discordMembers };
+          discordMembers = botData.members || [];
+        } else {
+          console.error(`Bot API returned ${botResponse.status} for server-members`);
+          // Continue with empty array - will return empty result
+        }
+      } catch (fetchError: any) {
+        // Handle timeout or network errors gracefully
+        if (fetchError.name === 'AbortError' || fetchError.name === 'TimeoutError' || fetchError.message?.includes('aborted')) {
+          console.error('Bot API request timed out or was aborted');
+        } else {
+          console.error('Error calling bot API:', fetchError.message || fetchError);
+        }
+        // Continue with empty array - will return empty result
       }
-    } catch (error) {
-      console.error('Error calling bot API:', error);
+    } else {
+      console.warn('BOT_API_URL or BOT_API_TOKEN not configured - cannot fetch Discord members');
     }
 
     // Get all staff members from database
@@ -238,10 +257,12 @@ router.get('/analytics/non-staff', requireAdmin, requirePermission('VIEW_ANALYTI
       }))
       .sort((a, b) => a.discord_username.localeCompare(b.discord_username)); // Sort alphabetically
 
+    // Always return array, even if empty (frontend handles empty state)
     res.json(nonStaffMembers);
   } catch (error) {
     console.error('Error fetching non-staff members:', error);
-    res.status(500).json({ error: 'Failed to fetch non-staff members' });
+    // Return empty array instead of error to allow frontend to show empty state
+    res.json([]);
   }
 });
 

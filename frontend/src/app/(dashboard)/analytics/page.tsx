@@ -5,7 +5,8 @@ import {
   BarChart3,
   CheckCircle2,
   XCircle,
-  UserX
+  UserX,
+  MessageSquare
 } from 'lucide-react';
 import { ProfileCard } from '@/components/ProfileCard';
 import { NavigationTabs } from '@/components/NavigationTabs';
@@ -13,31 +14,28 @@ import { Card } from '@/components/ui/Card';
 import { RobloxAvatar } from '@/components/RobloxAvatar';
 import { RankBadge } from '@/components/RankBadge';
 import { TabsGrid, type TabsGridItem } from '@/components/ui/TabsGrid';
-import { managementAPI, dashboardAPI, type NonStaffMember } from '@/services/api';
-import type { User } from '@/types';
+import { dashboardAPI, type StaffAnalytics, type NonStaffMember } from '@/services/api';
 import { cn } from '@/lib/cn';
 
 type AnalyticsTab = 'staff' | 'non-staff';
 
 export default function AnalyticsPage() {
   const [activeTab, setActiveTab] = useState<AnalyticsTab>('staff');
-  const [staffMembers, setStaffMembers] = useState<User[]>([]);
+  const [staffMembers, setStaffMembers] = useState<StaffAnalytics[]>([]);
   const [nonStaffMembers, setNonStaffMembers] = useState<NonStaffMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [nonStaffLoading, setNonStaffLoading] = useState(false);
 
   useEffect(() => {
-    const fetchStaffMembers = async () => {
+    const fetchStaffAnalytics = async () => {
       try {
         setLoading(true);
-        const response = await managementAPI.getUsers();
-        // Filter to only show staff members (those with a rank)
-        const staff = response.data.filter(u => u.rank !== null);
-        setStaffMembers(staff);
+        const response = await dashboardAPI.getStaffAnalytics();
+        setStaffMembers(response.data);
       } catch (error: any) {
         // Only log non-404 errors to avoid console spam
         if (error?.response?.status !== 404) {
-          console.error('Failed to fetch staff members:', error);
+          console.error('Failed to fetch staff analytics:', error);
         }
         // Set empty array on error to show empty state
         setStaffMembers([]);
@@ -46,7 +44,7 @@ export default function AnalyticsPage() {
       }
     };
 
-    fetchStaffMembers();
+    fetchStaffAnalytics();
   }, []);
 
   useEffect(() => {
@@ -77,9 +75,10 @@ export default function AnalyticsPage() {
     { key: 'non-staff', label: 'Non-Staff Members', icon: UserX },
   ];
 
-  // Calculate statistics
+  // Calculate statistics based on quota (100 messages)
+  // Active = met quota (100+ messages), Inactive = didn't meet quota
   const totalMembers = staffMembers.length;
-  const activeMembers = staffMembers.filter(m => m.status === 'active').length;
+  const activeMembers = staffMembers.filter(m => m.quota_met).length;
   const inactiveMembers = totalMembers - activeMembers;
 
   return (
@@ -161,7 +160,7 @@ export default function AnalyticsPage() {
                       size={48}
                       className="w-12 h-12 ring-2 ring-white/10 hover:ring-white/20 transition-all"
                     />
-                    {member.status === 'active' && (
+                    {member.quota_met && (
                       <div className="absolute -top-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center animate-bounce">
                         <CheckCircle2 className="w-3 h-3 text-white" />
                       </div>
@@ -172,7 +171,7 @@ export default function AnalyticsPage() {
                       <div className="text-sm font-semibold text-white truncate">
                         {member.roblox_username || member.discord_username}
                       </div>
-                      {member.status === 'active' ? (
+                      {member.quota_met ? (
                         <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0 animate-pulse" />
                       ) : (
                         <XCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
@@ -189,17 +188,45 @@ export default function AnalyticsPage() {
                   </div>
                 </div>
 
-                {/* Status Badge */}
-                <div className="flex items-center gap-2 pt-2 border-t border-white/10 animate-fadeIn" style={{ animationDelay: `${0.05 * index + 0.2}s` }}>
+                {/* Message Quota Progress */}
+                <div className="space-y-2 animate-fadeIn" style={{ animationDelay: `${0.05 * index + 0.2}s` }}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <MessageSquare className="w-4 h-4 text-white/50" />
+                      <span className="text-xs text-white/70">Message Quota (100)</span>
+                    </div>
+                    <span className={cn(
+                      "text-xs font-semibold",
+                      member.quota_met ? "text-emerald-400" : "text-white/70"
+                    )}>
+                      {member.messages_sent}/{member.messages_quota}
+                    </span>
+                  </div>
+                  <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
+                    <div
+                      className={cn(
+                        "h-full transition-all duration-500 ease-out",
+                        member.quota_met 
+                          ? "bg-emerald-500 animate-pulse" 
+                          : "bg-blue-500"
+                      )}
+                      style={{ 
+                        width: `${member.quota_percentage}%`,
+                        animationDelay: `${0.05 * index + 0.3}s`
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Status Badge - Based on quota */}
+                <div className="flex items-center gap-2 pt-2 border-t border-white/10 animate-fadeIn" style={{ animationDelay: `${0.05 * index + 0.25}s` }}>
                   <span className={cn(
                     "text-xs px-2 py-1 rounded-full font-medium",
-                    member.status === 'active' 
+                    member.quota_met 
                       ? "bg-emerald-500/20 text-emerald-400" 
-                      : member.status === 'inactive'
-                      ? "bg-red-500/20 text-red-400"
-                      : "bg-yellow-500/20 text-yellow-400"
+                      : "bg-red-500/20 text-red-400"
                   )}>
-                    {member.status.charAt(0).toUpperCase() + member.status.slice(1).replace('_', ' ')}
+                    {member.quota_met ? 'Active' : 'Inactive'}
                   </span>
                 </div>
               </div>
