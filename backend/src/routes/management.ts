@@ -47,10 +47,8 @@ router.get('/users', async (req: Request, res: Response) => {
           u.rank_name, 
           u.status, 
           u.created_at,
-          COALESCE(MAX(CASE WHEN al.week_start = ? THEN al.messages_sent END), 0) as messages_sent
+          COALESCE((SELECT al.messages_sent FROM activity_logs al WHERE al.user_id = u.id AND al.week_start = ?), 0) as messages_sent
          FROM users u
-         LEFT JOIN activity_logs al ON u.id = al.user_id
-         GROUP BY u.id, u.discord_id, u.discord_username, u.discord_avatar, u.roblox_id, u.roblox_username, u.\`rank\`, u.rank_name, u.status, u.created_at
          ORDER BY u.\`rank\` IS NULL, u.\`rank\` DESC, u.created_at ASC`
       )
       .all(weekStart) as any[];

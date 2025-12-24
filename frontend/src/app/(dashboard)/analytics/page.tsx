@@ -41,7 +41,9 @@ export default function AnalyticsPage() {
         setLoading(true);
         const response = await managementAPI.getUsers();
         // Management API returns all users with quota fields
-        setAllUsers(response.data as UserWithQuota[]);
+        // Ensure data is properly formatted
+        const usersData = Array.isArray(response.data) ? response.data : [];
+        setAllUsers(usersData as UserWithQuota[]);
       } catch (error: unknown) {
         // Only log non-404 errors to avoid console spam
         if (error && typeof error === 'object' && 'response' in error) {
