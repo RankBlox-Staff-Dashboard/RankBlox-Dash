@@ -51,6 +51,7 @@ router.get('/users', async (req: Request, res: Response) => {
     // Use explicit JOIN and ensure we're getting the actual MySQL data
     // IMPORTANT: This must match the logic in /dashboard/stats for consistency
     // LIMIT to first 10 staff members for performance
+    // Also get actual message count from discord_messages table for verification
     const users = await db
       .prepare(
         `SELECT 
@@ -64,7 +65,11 @@ router.get('/users', async (req: Request, res: Response) => {
           u.rank_name, 
           u.status, 
           u.created_at,
-          COALESCE(al.messages_sent, 0) as messages_sent
+          u.updated_at,
+          COALESCE(al.messages_sent, 0) as messages_sent,
+          COALESCE(al.minutes, 0) as minutes,
+          COALESCE(al.tickets_claimed, 0) as tickets_claimed,
+          COALESCE(al.tickets_resolved, 0) as tickets_resolved
          FROM users u
          LEFT JOIN activity_logs al ON al.user_id = u.id AND al.week_start = ?
          WHERE u.\`rank\` IS NOT NULL
@@ -72,6 +77,29 @@ router.get('/users', async (req: Request, res: Response) => {
          LIMIT 10`
       )
       .all(weekStart) as any[];
+    
+    // Get actual message counts from discord_messages table for verification
+    // This ensures we're showing the real count from the messages table
+    const weekStartDate = new Date(weekStart);
+    weekStartDate.setHours(0, 0, 0, 0);
+    const weekStartISO = weekStartDate.toISOString();
+    
+    const messageCounts = await db
+      .prepare(
+        `SELECT 
+          user_id,
+          COUNT(*) as actual_message_count
+         FROM discord_messages
+         WHERE created_at >= ?
+         GROUP BY user_id`
+      )
+      .all(weekStartISO) as any[];
+    
+    // Create a map of actual message counts
+    const actualMessageCountMap = new Map();
+    messageCounts.forEach((mc) => {
+      actualMessageCountMap.set(mc.user_id, parseInt(mc.actual_message_count as any) || 0);
+    });
 
     console.log(`[Management API] Found ${users.length} staff members from database (limited to 10)`);
 
@@ -96,17 +124,21 @@ router.get('/users', async (req: Request, res: Response) => {
 
     // Add quota information with proper type handling
     // IMPORTANT: This logic must match /dashboard/stats for consistency
+    // Use actual message count from discord_messages if available, otherwise use activity_logs
     const usersWithQuota = users.map((user) => {
-      // Convert messages_sent to number - handle database response types
-      // Match the exact logic from /dashboard/stats: activityLog.messages_sent || 0
-      let messagesSentNum = 0;
-      if (user.messages_sent !== null && user.messages_sent !== undefined) {
-        if (typeof user.messages_sent === 'string') {
-          messagesSentNum = parseInt(user.messages_sent, 10);
-        } else if (typeof user.messages_sent === 'number') {
-          messagesSentNum = user.messages_sent;
-        } else if (typeof user.messages_sent === 'bigint') {
-          messagesSentNum = Number(user.messages_sent);
+      // First, try to get actual count from discord_messages table (most accurate)
+      let messagesSentNum = actualMessageCountMap.get(user.id) || 0;
+      
+      // If no actual count found, fall back to activity_logs
+      if (messagesSentNum === 0) {
+        if (user.messages_sent !== null && user.messages_sent !== undefined) {
+          if (typeof user.messages_sent === 'string') {
+            messagesSentNum = parseInt(user.messages_sent, 10);
+          } else if (typeof user.messages_sent === 'number') {
+            messagesSentNum = user.messages_sent;
+          } else if (typeof user.messages_sent === 'bigint') {
+            messagesSentNum = Number(user.messages_sent);
+          }
         }
       }
       
@@ -120,19 +152,18 @@ router.get('/users', async (req: Request, res: Response) => {
       const quotaMet = messagesSentNum >= messagesQuota;
       const quotaPercentage = Math.min(Math.round((messagesSentNum / messagesQuota) * 100), 100);
 
-      // Log for debugging - log first 3 users
-      if (usersWithQuota.length <= 3) {
-        console.log(`[Management API] Processing user ${usersWithQuota.length}:`, {
-          username: user.roblox_username || user.discord_username,
-          raw_messages_sent: user.messages_sent,
-          type: typeof user.messages_sent,
-          normalized: messagesSentNum,
-          quota_met: quotaMet,
-          quota_percentage: quotaPercentage,
-          status: user.status,
-          rank: user.rank
-        });
-      }
+      // Log for debugging - log all users with message count comparison
+      const actualCount = actualMessageCountMap.get(user.id) || 0;
+      const activityLogCount = user.messages_sent || 0;
+      console.log(`[Management API] User: ${user.roblox_username || user.discord_username} (ID: ${user.id}):`, {
+        discord_messages_count: actualCount,
+        activity_logs_count: activityLogCount,
+        final_count_used: messagesSentNum,
+        quota_met: quotaMet,
+        quota_percentage: quotaPercentage,
+        status: user.status,
+        rank: user.rank
+      });
 
       // Return data - status should reflect quota_met for Active/Inactive display
       // The frontend uses quota_met to determine Active/Inactive, not just status field
@@ -147,10 +178,14 @@ router.get('/users', async (req: Request, res: Response) => {
         rank_name: user.rank_name,
         status: user.status, // Keep original status from database
         created_at: user.created_at,
-        messages_sent: messagesSentNum, // Actual count from activity_logs (must match dashboard/stats)
+        updated_at: user.updated_at,
+        messages_sent: messagesSentNum, // Actual count from discord_messages (most accurate) or activity_logs
         messages_quota: messagesQuota,
         quota_met: quotaMet, // This determines Active/Inactive in the UI
         quota_percentage: quotaPercentage,
+        minutes: user.minutes || 0,
+        tickets_claimed: user.tickets_claimed || 0,
+        tickets_resolved: user.tickets_resolved || 0,
       };
     });
 
