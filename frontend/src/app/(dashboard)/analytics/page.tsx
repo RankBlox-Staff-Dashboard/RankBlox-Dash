@@ -14,20 +14,11 @@ import { NavigationTabs } from '@/components/NavigationTabs';
 import { Card } from '@/components/ui/Card';
 import { RobloxAvatar } from '@/components/RobloxAvatar';
 import { RankBadge } from '@/components/RankBadge';
-import { dashboardAPI } from '@/services/api';
-import type { User } from '@/types';
+import { dashboardAPI, type StaffAnalytics } from '@/services/api';
 import { cn } from '@/lib/cn';
 
-interface StaffMember extends User {
-  minutes: number;
-  messages_sent: number;
-  messages_quota: number;
-  quota_met: boolean;
-  quota_percentage: number;
-}
-
 export default function AnalyticsPage() {
-  const [staffMembers, setStaffMembers] = useState<StaffMember[]>([]);
+  const [staffMembers, setStaffMembers] = useState<StaffAnalytics[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

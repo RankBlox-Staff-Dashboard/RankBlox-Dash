@@ -86,12 +86,20 @@ export const verificationAPI = {
 };
 
 // Dashboard API
+export interface StaffAnalytics extends User {
+  minutes: number;
+  messages_sent: number;
+  messages_quota: number;
+  quota_met: boolean;
+  quota_percentage: number;
+}
+
 export const dashboardAPI = {
   getStats: () => api.get<Stats>('/dashboard/stats'),
   getInfractions: () => api.get<Infraction[]>('/dashboard/infractions'),
   getAnalytics: () => api.get<Analytics>('/dashboard/analytics'),
   getStaffStats: (userId: number) => api.get<Stats>(`/dashboard/stats/${userId}`),
-  getStaffAnalytics: () => api.get<Array<User & { minutes: number }>>('/dashboard/analytics/staff'),
+  getStaffAnalytics: () => api.get<StaffAnalytics[]>('/dashboard/analytics/staff'),
 };
 
 // LOA API
