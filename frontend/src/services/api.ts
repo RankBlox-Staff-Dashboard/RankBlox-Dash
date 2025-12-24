@@ -85,8 +85,18 @@ export const verificationAPI = {
   getStatus: () => api.get<{ verified: boolean; roblox_username: string | null; rank: number | null; rank_name: string | null; status: string }>('/verification/roblox/status'),
 };
 
-// Dashboard API
-export interface StaffAnalytics extends User {
+// Staff Analytics type
+export interface StaffAnalytics {
+  id: number;
+  discord_id: string;
+  discord_username: string;
+  discord_avatar: string | null;
+  roblox_id: string | null;
+  roblox_username: string | null;
+  rank: number | null;
+  rank_name: string | null;
+  status: string;
+  created_at: string;
   minutes: number;
   messages_sent: number;
   messages_quota: number;
@@ -94,6 +104,7 @@ export interface StaffAnalytics extends User {
   quota_percentage: number;
 }
 
+// Non-Staff Member type
 export interface NonStaffMember {
   discord_id: string;
   discord_username: string;
@@ -101,11 +112,13 @@ export interface NonStaffMember {
   discord_avatar: string | null;
 }
 
+// Dashboard API
 export const dashboardAPI = {
   getStats: () => api.get<Stats>('/dashboard/stats'),
   getInfractions: () => api.get<Infraction[]>('/dashboard/infractions'),
   getAnalytics: () => api.get<Analytics>('/dashboard/analytics'),
   getStaffStats: (userId: number) => api.get<Stats>(`/dashboard/stats/${userId}`),
+  // IMPORTANT: Use the dashboard analytics endpoint, not management
   getStaffAnalytics: () => api.get<StaffAnalytics[]>('/dashboard/analytics/staff'),
   getNonStaffMembers: () => api.get<NonStaffMember[]>('/dashboard/analytics/non-staff'),
 };
