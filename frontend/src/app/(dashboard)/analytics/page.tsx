@@ -3,11 +3,8 @@
 import { useEffect, useState } from 'react';
 import { 
   BarChart3,
-  Clock,
   CheckCircle2,
   XCircle,
-  MessageSquare,
-  Users,
   UserX
 } from 'lucide-react';
 import { ProfileCard } from '@/components/ProfileCard';
@@ -16,28 +13,31 @@ import { Card } from '@/components/ui/Card';
 import { RobloxAvatar } from '@/components/RobloxAvatar';
 import { RankBadge } from '@/components/RankBadge';
 import { TabsGrid, type TabsGridItem } from '@/components/ui/TabsGrid';
-import { dashboardAPI, type StaffAnalytics, type NonStaffMember } from '@/services/api';
+import { managementAPI, dashboardAPI, type NonStaffMember } from '@/services/api';
+import type { User } from '@/types';
 import { cn } from '@/lib/cn';
 
 type AnalyticsTab = 'staff' | 'non-staff';
 
 export default function AnalyticsPage() {
   const [activeTab, setActiveTab] = useState<AnalyticsTab>('staff');
-  const [staffMembers, setStaffMembers] = useState<StaffAnalytics[]>([]);
+  const [staffMembers, setStaffMembers] = useState<User[]>([]);
   const [nonStaffMembers, setNonStaffMembers] = useState<NonStaffMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [nonStaffLoading, setNonStaffLoading] = useState(false);
 
   useEffect(() => {
-    const fetchStaffAnalytics = async () => {
+    const fetchStaffMembers = async () => {
       try {
         setLoading(true);
-        const response = await dashboardAPI.getStaffAnalytics();
-        setStaffMembers(response.data);
+        const response = await managementAPI.getUsers();
+        // Filter to only show staff members (those with a rank)
+        const staff = response.data.filter(u => u.rank !== null);
+        setStaffMembers(staff);
       } catch (error: any) {
         // Only log non-404 errors to avoid console spam
         if (error?.response?.status !== 404) {
-          console.error('Failed to fetch staff analytics:', error);
+          console.error('Failed to fetch staff members:', error);
         }
         // Set empty array on error to show empty state
         setStaffMembers([]);
@@ -46,7 +46,7 @@ export default function AnalyticsPage() {
       }
     };
 
-    fetchStaffAnalytics();
+    fetchStaffMembers();
   }, []);
 
   useEffect(() => {
@@ -79,8 +79,8 @@ export default function AnalyticsPage() {
 
   // Calculate statistics
   const totalMembers = staffMembers.length;
-  const quotaMetCount = staffMembers.filter(m => m.quota_met).length;
-  const quotaNotMetCount = totalMembers - quotaMetCount;
+  const activeMembers = staffMembers.filter(m => m.status === 'active').length;
+  const inactiveMembers = totalMembers - activeMembers;
 
   return (
     <div className="space-y-4">
@@ -108,8 +108,8 @@ export default function AnalyticsPage() {
                 <CheckCircle2 className="w-5 h-5 text-emerald-400" />
               </div>
               <div>
-                <div className="text-xs text-white/50">Quota Met</div>
-                <div className="text-lg font-bold text-white">{quotaMetCount}</div>
+                <div className="text-xs text-white/50">Active Members</div>
+                <div className="text-lg font-bold text-white">{activeMembers}</div>
               </div>
             </div>
           </Card>
@@ -119,8 +119,8 @@ export default function AnalyticsPage() {
                 <XCircle className="w-5 h-5 text-red-400" />
               </div>
               <div>
-                <div className="text-xs text-white/50">Quota Not Met</div>
-                <div className="text-lg font-bold text-white">{quotaNotMetCount}</div>
+                <div className="text-xs text-white/50">Inactive Members</div>
+                <div className="text-lg font-bold text-white">{inactiveMembers}</div>
               </div>
             </div>
           </Card>
@@ -134,12 +134,12 @@ export default function AnalyticsPage() {
             <BarChart3 className="w-5 h-5 text-blue-400 animate-pulse" />
             <div>
               <h3 className="text-base font-semibold text-white">Staff Analytics</h3>
-              <p className="text-xs text-white/50">All staff members with activity status</p>
+              <p className="text-xs text-white/50">All staff members</p>
             </div>
           </div>
 
         {loading ? (
-          <div className="text-center py-8 text-white/50 animate-pulse">Loading staff analytics...</div>
+          <div className="text-center py-8 text-white/50 animate-pulse">Loading staff members...</div>
         ) : staffMembers.length > 0 ? (
           <div className="space-y-3">
             {staffMembers.map((member, index) => (
@@ -161,7 +161,7 @@ export default function AnalyticsPage() {
                       size={48}
                       className="w-12 h-12 ring-2 ring-white/10 hover:ring-white/20 transition-all"
                     />
-                    {member.quota_met && (
+                    {member.status === 'active' && (
                       <div className="absolute -top-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center animate-bounce">
                         <CheckCircle2 className="w-3 h-3 text-white" />
                       </div>
@@ -170,9 +170,9 @@ export default function AnalyticsPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <div className="text-sm font-semibold text-white truncate">
-                        {member.roblox_username || 'No Roblox Username'}
+                        {member.roblox_username || member.discord_username}
                       </div>
-                      {member.quota_met ? (
+                      {member.status === 'active' ? (
                         <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0 animate-pulse" />
                       ) : (
                         <XCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
@@ -189,45 +189,8 @@ export default function AnalyticsPage() {
                   </div>
                 </div>
 
-                {/* Message Quota Progress */}
-                <div className="space-y-2 animate-fadeIn" style={{ animationDelay: `${0.05 * index + 0.2}s` }}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <MessageSquare className="w-4 h-4 text-white/50" />
-                      <span className="text-xs text-white/70">Message Quota</span>
-                    </div>
-                    <span className={cn(
-                      "text-xs font-semibold",
-                      member.quota_met ? "text-emerald-400" : "text-white/70"
-                    )}>
-                      {member.messages_sent}/{member.messages_quota}
-                    </span>
-                  </div>
-                  <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
-                    <div
-                      className={cn(
-                        "h-full transition-all duration-500 ease-out",
-                        member.quota_met 
-                          ? "bg-emerald-500 animate-pulse" 
-                          : "bg-blue-500"
-                      )}
-                      style={{ 
-                        width: `${member.quota_percentage}%`,
-                        animationDelay: `${0.05 * index + 0.3}s`
-                      }}
-                    />
-                  </div>
-                </div>
-
-                {/* Minutes */}
-                <div className="flex items-center gap-2 pt-2 border-t border-white/10 animate-fadeIn" style={{ animationDelay: `${0.05 * index + 0.25}s` }}>
-                  <Clock className="w-4 h-4 text-white/50" />
-                  <span className="text-xs text-white/50">Total Minutes:</span>
-                  <span className="text-sm font-semibold text-white">{member.minutes}</span>
-                </div>
-
                 {/* Status Badge */}
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 pt-2 border-t border-white/10 animate-fadeIn" style={{ animationDelay: `${0.05 * index + 0.2}s` }}>
                   <span className={cn(
                     "text-xs px-2 py-1 rounded-full font-medium",
                     member.status === 'active' 
