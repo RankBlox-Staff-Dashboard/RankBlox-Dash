@@ -65,7 +65,14 @@ export default function AnalyticsPage() {
                 className="flex items-center justify-between p-3 rounded-xl bg-white/5 hover:bg-white/10 transition"
               >
                 <div className="flex items-center gap-3 flex-1 min-w-0">
-                  <RobloxAvatar username={member.roblox_username} size="sm" />
+                  <RobloxAvatar
+                    robloxId={member.roblox_id}
+                    discordId={member.discord_id}
+                    discordAvatar={member.discord_avatar}
+                    alt={member.roblox_username || member.discord_username}
+                    size={40}
+                    className="w-10 h-10"
+                  />
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-semibold text-white truncate">
                       {member.roblox_username || 'No Roblox Username'}
