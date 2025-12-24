@@ -18,19 +18,40 @@ router.get('/roblox-avatar/:robloxId', async (req: Request, res: Response) => {
 
     // Fetch from Roblox API
     const robloxUrl = `https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${robloxId}&size=${size}&format=Png&isCircular=false`;
-    const response = await fetch(robloxUrl);
-
-    if (!response.ok) {
-      return res.status(response.status).json({ error: 'Failed to fetch avatar from Roblox' });
+    
+    let robloxResponse: globalThis.Response;
+    try {
+      robloxResponse = await fetch(robloxUrl);
+    } catch (fetchError) {
+      console.error('Error fetching from Roblox API:', fetchError);
+      // Return empty data structure that frontend can handle
+      return res.json({ data: [] });
     }
 
-    const data = await response.json();
+    if (!robloxResponse.ok) {
+      // If Roblox returns 404 or other error, return empty data structure
+      // Frontend will fallback to Discord avatar
+      if (robloxResponse.status === 404) {
+        return res.json({ data: [] });
+      }
+      console.error(`Roblox API returned ${robloxResponse.status} for user ${robloxId}`);
+      return res.json({ data: [] });
+    }
+
+    const data = await robloxResponse.json() as { data?: Array<{ imageUrl?: string }> };
+    
+    // Validate response structure
+    if (!data || !data.data || !Array.isArray(data.data)) {
+      console.error('Invalid response structure from Roblox API');
+      return res.json({ data: [] });
+    }
     
     // Return the data with CORS headers (handled by server CORS middleware)
     res.json(data);
   } catch (error) {
     console.error('Error proxying Roblox avatar:', error);
-    res.status(500).json({ error: 'Failed to proxy Roblox avatar' });
+    // Return empty data structure instead of error to allow frontend fallback
+    res.json({ data: [] });
   }
 });
 

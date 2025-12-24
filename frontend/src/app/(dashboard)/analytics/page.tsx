@@ -34,8 +34,13 @@ export default function AnalyticsPage() {
         setLoading(true);
         const response = await dashboardAPI.getStaffAnalytics();
         setStaffMembers(response.data);
-      } catch (error) {
-        console.error('Failed to fetch staff analytics:', error);
+      } catch (error: any) {
+        // Only log non-404 errors to avoid console spam
+        if (error?.response?.status !== 404) {
+          console.error('Failed to fetch staff analytics:', error);
+        }
+        // Set empty array on error to show empty state
+        setStaffMembers([]);
       } finally {
         setLoading(false);
       }
@@ -51,8 +56,13 @@ export default function AnalyticsPage() {
           setNonStaffLoading(true);
           const response = await dashboardAPI.getNonStaffMembers();
           setNonStaffMembers(response.data);
-        } catch (error) {
-          console.error('Failed to fetch non-staff members:', error);
+        } catch (error: any) {
+          // Only log non-404 errors to avoid console spam
+          if (error?.response?.status !== 404) {
+            console.error('Failed to fetch non-staff members:', error);
+          }
+          // Set empty array on error to show empty state
+          setNonStaffMembers([]);
         } finally {
           setNonStaffLoading(false);
         }

@@ -41,7 +41,18 @@ export function useRobloxAvatar(robloxId: string | null, size: '150x150' | '420x
         });
 
         if (!response.ok) {
-          throw new Error(`Failed to fetch avatar: ${response.status}`);
+          // 404 is expected if Roblox user doesn't exist - silently fallback
+          if (response.status === 404) {
+            if (!cancelled) {
+              setAvatarUrl(null);
+            }
+            return;
+          }
+          // For other errors, log but don't throw - allow fallback
+          if (!cancelled) {
+            setAvatarUrl(null);
+          }
+          return;
         }
 
         const data = await response.json();
@@ -51,12 +62,15 @@ export function useRobloxAvatar(robloxId: string | null, size: '150x150' | '420x
           AVATAR_CACHE.set(cacheKey, url);
           setAvatarUrl(url);
         } else if (!cancelled) {
-          // Fallback to default Roblox avatar
+          // Fallback to Discord avatar (handled by component)
           setAvatarUrl(null);
         }
       } catch (err) {
         if (!cancelled) {
-          console.error('Error fetching Roblox avatar:', err);
+          // Only log unexpected errors, not 404s
+          if (err instanceof Error && !err.message.includes('404')) {
+            console.error('Error fetching Roblox avatar:', err);
+          }
           setError(err instanceof Error ? err : new Error('Failed to fetch avatar'));
           setAvatarUrl(null);
         }
