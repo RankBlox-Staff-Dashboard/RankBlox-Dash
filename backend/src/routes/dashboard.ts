@@ -130,8 +130,7 @@ router.get('/analytics/staff', requireAdmin, requirePermission('VIEW_ANALYTICS')
   try {
     const weekStart = getCurrentWeekStart();
 
-    // Get all staff (not just active) with their current week activity
-    // Filter to only include users with a rank (staff members)
+    // First, get all staff members (users with a rank)
     const staff = await db
       .prepare(
         `SELECT 
@@ -144,24 +143,41 @@ router.get('/analytics/staff', requireAdmin, requirePermission('VIEW_ANALYTICS')
           u.\`rank\`,
           u.rank_name,
           u.status,
-          u.created_at,
-          COALESCE(SUM(al.minutes), 0) as total_minutes,
-          COALESCE(MAX(CASE WHEN al.week_start = ? THEN al.messages_sent END), 0) as messages_sent,
-          150 as messages_quota
+          u.created_at
         FROM users u
-        LEFT JOIN activity_logs al ON u.id = al.user_id
         WHERE u.\`rank\` IS NOT NULL
-        GROUP BY u.id, u.discord_id, u.discord_username, u.discord_avatar, u.roblox_id, u.roblox_username, u.\`rank\`, u.rank_name, u.status, u.created_at
         ORDER BY u.\`rank\` DESC, u.created_at ASC`
+      )
+      .all() as any[];
+
+    // Then, get all activity logs
+    const activityLogs = await db
+      .prepare(
+        `SELECT 
+          user_id,
+          COALESCE(SUM(minutes), 0) as total_minutes,
+          COALESCE(MAX(CASE WHEN week_start = ? THEN messages_sent END), 0) as messages_sent
+        FROM activity_logs
+        GROUP BY user_id`
       )
       .all(weekStart) as any[];
 
-    // Format the response
+    // Create a map of user_id to activity data for efficient lookup
+    const activityMap = new Map();
+    activityLogs.forEach((log) => {
+      activityMap.set(log.user_id, {
+        total_minutes: parseInt(log.total_minutes as any) || 0,
+        messages_sent: parseInt(log.messages_sent as any) || 0,
+      });
+    });
+
+    // Format the response by combining user data with activity data
     const staffAnalytics = staff.map((member) => {
-      const messagesSent = parseInt(member.messages_sent as any) || 0;
+      const activity = activityMap.get(member.id) || { total_minutes: 0, messages_sent: 0 };
+      const messagesSent = activity.messages_sent;
       const messagesQuota = 150;
       const quotaMet = messagesSent >= messagesQuota;
-      const quotaPercentage = Math.min((messagesSent / messagesQuota) * 100, 100);
+      const quotaPercentage = Math.min(Math.round((messagesSent / messagesQuota) * 100), 100);
 
       return {
         id: member.id,
@@ -174,7 +190,7 @@ router.get('/analytics/staff', requireAdmin, requirePermission('VIEW_ANALYTICS')
         rank_name: member.rank_name,
         status: member.status,
         created_at: member.created_at,
-        minutes: parseInt(member.total_minutes as any) || 0,
+        minutes: activity.total_minutes,
         messages_sent: messagesSent,
         messages_quota: messagesQuota,
         quota_met: quotaMet,
@@ -421,4 +437,3 @@ router.delete('/loa/:id', async (req: Request, res: Response) => {
 });
 
 export default router;
-
