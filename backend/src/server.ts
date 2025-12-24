@@ -13,6 +13,7 @@ import managementRoutes from './routes/management';
 import permissionsRoutes from './routes/permissions';
 import botRoutes from './routes/bot';
 import adminRoutes from './routes/admin';
+import publicRoutes from './routes/public';
 import cron from 'node-cron';
 import { db } from './models/database';
 import { startAutoSync } from './services/groupSync';
@@ -96,6 +97,7 @@ initializeDatabase()
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/verification', verificationRoutes);
+app.use('/api/public', publicRoutes); // Public routes (no auth required)
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/tickets', ticketsRoutes);
 app.use('/api/management', managementRoutes);

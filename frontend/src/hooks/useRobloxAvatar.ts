@@ -34,7 +34,7 @@ export function useRobloxAvatar(robloxId: string | null, size: '150x150' | '420x
       try {
         // Use backend proxy to avoid CORS issues
         const API_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
-        const proxyUrl = `${API_URL}/dashboard/roblox-avatar/${robloxId}?size=${size}`;
+        const proxyUrl = `${API_URL}/public/roblox-avatar/${robloxId}?size=${size}`;
         
         const response = await fetch(proxyUrl, {
           credentials: 'include',
