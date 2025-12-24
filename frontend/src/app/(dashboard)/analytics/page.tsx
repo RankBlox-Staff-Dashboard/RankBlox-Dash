@@ -16,84 +16,57 @@ import { Card } from '@/components/ui/Card';
 import { RobloxAvatar } from '@/components/RobloxAvatar';
 import { RankBadge } from '@/components/RankBadge';
 import { TabsGrid, type TabsGridItem } from '@/components/ui/TabsGrid';
-import { managementAPI, dashboardAPI, type NonStaffMember } from '@/services/api';
-import type { User } from '@/types';
+import { dashboardAPI, type NonStaffMember } from '@/services/api';
 import { cn } from '@/lib/cn';
 
 type AnalyticsTab = 'staff' | 'non-staff';
 
-// Extended User type with quota data from management API
-interface UserWithQuota extends User {
+// User type with quota data from dashboard API
+interface UserWithQuota {
+  id: number;
+  discord_id: string;
+  discord_username: string;
+  discord_avatar: string | null;
+  roblox_id: string | null;
+  roblox_username: string | null;
+  rank: number | null;
+  rank_name: string | null;
+  status: string;
+  created_at: string;
+  minutes: number;
   messages_sent: number;
   messages_quota: number;
   quota_met: boolean;
   quota_percentage: number;
 }
 
-// Validate and normalize user data from API
-function validateUserData(user: any): UserWithQuota | null {
-  try {
-    // Ensure required fields exist
-    if (!user || typeof user !== 'object') return null;
-    
-    const messagesSent = typeof user.messages_sent === 'number' ? user.messages_sent : 0;
-    const messagesQuota = typeof user.messages_quota === 'number' ? user.messages_quota : 150;
-    
-    // Calculate quota percentage safely
-    const quotaPercentage = messagesQuota > 0 
-      ? Math.round((messagesSent / messagesQuota) * 100)
-      : 0;
-    
-    // Determine if quota is met
-    const quotaMet = messagesSent >= messagesQuota;
-    
-    return {
-      ...user,
-      messages_sent: messagesSent,
-      messages_quota: messagesQuota,
-      quota_percentage: Math.min(quotaPercentage, 100),
-      quota_met: quotaMet,
-    } as UserWithQuota;
-  } catch (error) {
-    console.error('Error validating user data:', error);
-    return null;
-  }
-}
-
 export default function AnalyticsPage() {
   const [activeTab, setActiveTab] = useState<AnalyticsTab>('staff');
-  const [allUsers, setAllUsers] = useState<UserWithQuota[]>([]);
+  const [staffMembers, setStaffMembers] = useState<UserWithQuota[]>([]);
   const [nonStaffMembers, setNonStaffMembers] = useState<NonStaffMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [nonStaffLoading, setNonStaffLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [nonStaffError, setNonStaffError] = useState<string | null>(null);
 
-  const fetchUsers = async () => {
+  const fetchStaffAnalytics = async () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await managementAPI.getUsers();
+      // Use the dashboard analytics API endpoint
+      const response = await dashboardAPI.getStaffAnalytics();
       
-      // Validate response structure
       if (!response || !response.data) {
         throw new Error('Invalid response from server');
       }
       
-      const usersData = Array.isArray(response.data) ? response.data : [];
-      
-      // Validate and normalize each user
-      const validatedUsers = usersData
-        .map(validateUserData)
-        .filter((user): user is UserWithQuota => user !== null);
-      
-      setAllUsers(validatedUsers);
+      const staffData = Array.isArray(response.data) ? response.data : [];
+      setStaffMembers(staffData);
     } catch (error: any) {
-      console.error('Failed to fetch users:', error);
+      console.error('Failed to fetch staff analytics:', error);
       
-      // Set appropriate error message
       if (error?.response?.status === 404) {
-        setError('No users found');
+        setError('No staff members found');
       } else if (error?.response?.status === 401 || error?.response?.status === 403) {
         setError('You do not have permission to view this data');
       } else if (!navigator.onLine) {
@@ -102,7 +75,7 @@ export default function AnalyticsPage() {
         setError('Failed to load staff data. Please try again.');
       }
       
-      setAllUsers([]);
+      setStaffMembers([]);
     } finally {
       setLoading(false);
     }
@@ -124,7 +97,7 @@ export default function AnalyticsPage() {
       console.error('Failed to fetch non-staff members:', error);
       
       if (error?.response?.status === 404) {
-        setNonStaffError(null); // 404 means no non-staff members, not an error
+        setNonStaffError(null);
         setNonStaffMembers([]);
       } else if (error?.response?.status === 401 || error?.response?.status === 403) {
         setNonStaffError('You do not have permission to view this data');
@@ -141,7 +114,7 @@ export default function AnalyticsPage() {
   };
 
   useEffect(() => {
-    fetchUsers();
+    fetchStaffAnalytics();
   }, []);
 
   useEffect(() => {
@@ -150,28 +123,21 @@ export default function AnalyticsPage() {
     }
   }, [activeTab]);
 
-  // Filter to only show staff members (those with a rank)
-  const staffMembers = allUsers.filter((u: UserWithQuota) => u.rank !== null);
-
   const analyticsTabs: TabsGridItem[] = [
     { key: 'staff', label: 'Staff Analytics', icon: BarChart3 },
     { key: 'non-staff', label: 'Non-Staff Members', icon: UserX },
   ];
 
-  // Calculate statistics safely
+  // Calculate statistics from the data
   const totalMembers = staffMembers.length;
-  const activeMembers = staffMembers.filter((m: UserWithQuota) => m.quota_met === true).length;
+  const activeMembers = staffMembers.filter((m) => m.quota_met === true).length;
   const inactiveMembers = totalMembers - activeMembers;
 
   return (
     <div className="space-y-4">
-      {/* Profile Card */}
       <ProfileCard />
-
-      {/* Tabs Navigation */}
       <NavigationTabs />
 
-      {/* Analytics Tabs */}
       <Card className="p-4 animate-fadeInUp" style={{ animationDelay: '0.1s' }}>
         <TabsGrid
           items={analyticsTabs}
@@ -180,7 +146,6 @@ export default function AnalyticsPage() {
         />
       </Card>
 
-      {/* Statistics Summary - Only show for staff tab */}
       {activeTab === 'staff' && !loading && !error && (
         <div className="grid grid-cols-2 gap-3 animate-fadeInUp" style={{ animationDelay: '0.2s' }}>
           <Card className="p-4 animate-scaleIn" style={{ animationDelay: '0.3s' }}>
@@ -208,7 +173,6 @@ export default function AnalyticsPage() {
         </div>
       )}
 
-      {/* Staff Analytics Tab */}
       {activeTab === 'staff' && (
         <Card className="p-5 animate-fadeInUp" style={{ animationDelay: '0.5s' }}>
           <div className="flex items-center justify-between mb-4">
@@ -220,7 +184,7 @@ export default function AnalyticsPage() {
               </div>
             </div>
             <button
-              onClick={fetchUsers}
+              onClick={fetchStaffAnalytics}
               disabled={loading}
               className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors disabled:opacity-50"
               aria-label="Refresh staff data"
@@ -248,7 +212,7 @@ export default function AnalyticsPage() {
               <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-3" />
               <p className="text-white/70 mb-4">{error}</p>
               <button
-                onClick={fetchUsers}
+                onClick={fetchStaffAnalytics}
                 className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
               >
                 Try Again
@@ -256,7 +220,7 @@ export default function AnalyticsPage() {
             </div>
           ) : staffMembers.length > 0 ? (
             <div className="space-y-3">
-              {staffMembers.map((member: UserWithQuota, index: number) => (
+              {staffMembers.map((member, index) => (
                 <div 
                   key={member.id} 
                   className={cn(
@@ -307,7 +271,6 @@ export default function AnalyticsPage() {
                     </div>
                   </div>
 
-                  {/* Message Quota Progress */}
                   <div className="space-y-2 animate-fadeIn" style={{ animationDelay: `${0.05 * index + 0.2}s` }}>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -337,7 +300,6 @@ export default function AnalyticsPage() {
                     </div>
                   </div>
 
-                  {/* Status Badge */}
                   <div className="flex items-center gap-2 pt-2 border-t border-white/10 animate-fadeIn" style={{ animationDelay: `${0.05 * index + 0.25}s` }}>
                     <span className={cn(
                       "text-xs px-2 py-1 rounded-full font-medium",
@@ -360,7 +322,6 @@ export default function AnalyticsPage() {
         </Card>
       )}
 
-      {/* Non-Staff Members Tab */}
       {activeTab === 'non-staff' && (
         <Card className="p-5 animate-fadeInUp" style={{ animationDelay: '0.2s' }}>
           <div className="flex items-center justify-between mb-4">
@@ -408,7 +369,7 @@ export default function AnalyticsPage() {
             </div>
           ) : nonStaffMembers.length > 0 ? (
             <div className="space-y-3">
-              {nonStaffMembers.map((member: NonStaffMember, index: number) => (
+              {nonStaffMembers.map((member, index) => (
                 <div 
                   key={member.discord_id} 
                   className={cn(
