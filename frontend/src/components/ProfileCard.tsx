@@ -5,7 +5,7 @@ import { MessageSquare, AlertTriangle, ClipboardList, Users, User as UserIcon } 
 import { useAuth } from '@/context/AuthContext';
 import { useStats } from '@/hooks/useStats';
 import { useRobloxAvatar, getDiscordAvatarUrl } from '@/hooks/useRobloxAvatar';
-import { getActivityStatus, getMessagesQuota } from '@/utils/staffStats';
+import { getActivityStatus } from '@/utils/staffStats';
 import { Card } from './ui/Card';
 
 export function ProfileCard() {
@@ -54,11 +54,11 @@ export function ProfileCard() {
             </span>
             <span className="text-white/40">•</span>
             <span className={`text-sm font-medium ${
-              getActivityStatus(stats?.messages_sent ?? 0, stats?.messages_quota ?? getMessagesQuota()) === 'Active' 
+              getActivityStatus(user.status) === 'Active' 
                 ? 'text-green-400' 
                 : 'text-yellow-400'
             }`}>
-              {getActivityStatus(stats?.messages_sent ?? 0, stats?.messages_quota ?? getMessagesQuota())}
+              {getActivityStatus(user.status)}
             </span>
           </div>
         </div>

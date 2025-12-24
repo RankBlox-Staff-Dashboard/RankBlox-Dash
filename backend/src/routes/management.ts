@@ -35,7 +35,14 @@ router.get('/users', async (req: Request, res: Response) => {
     const weekStart = getCurrentWeekStart();
     console.log(`[Management API] Fetching users with week_start: ${weekStart}`);
 
+    // First, let's verify the activity_logs table has data for debugging
+    const testQuery = await db
+      .prepare('SELECT user_id, week_start, messages_sent FROM activity_logs WHERE week_start = ? LIMIT 5')
+      .all(weekStart) as any[];
+    console.log(`[Management API] Sample activity_logs for week ${weekStart}:`, JSON.stringify(testQuery, null, 2));
+
     // Query users with their current week message counts from activity_logs
+    // Use explicit JOIN and ensure we're getting the actual MySQL data
     const users = await db
       .prepare(
         `SELECT 
@@ -49,7 +56,7 @@ router.get('/users', async (req: Request, res: Response) => {
           u.rank_name, 
           u.status, 
           u.created_at,
-          COALESCE(al.messages_sent, 0) as messages_sent
+          IFNULL(al.messages_sent, 0) as messages_sent
          FROM users u
          LEFT JOIN activity_logs al ON al.user_id = u.id AND al.week_start = ?
          ORDER BY u.\`rank\` IS NULL, u.\`rank\` DESC, u.created_at ASC`
@@ -58,28 +65,50 @@ router.get('/users', async (req: Request, res: Response) => {
 
     console.log(`[Management API] Found ${users.length} users from database`);
 
+    // Debug: Log first few users to see actual MySQL data
+    if (users.length > 0) {
+      console.log(`[Management API] First 3 users raw from MySQL:`, 
+        users.slice(0, 3).map(u => ({
+          username: u.roblox_username || u.discord_username,
+          messages_sent: u.messages_sent,
+          messages_sent_type: typeof u.messages_sent,
+          status: u.status
+        }))
+      );
+    }
+
     // Add quota information with proper type handling
     const usersWithQuota = users.map((user) => {
-      // Ensure messages_sent is a number from MySQL
-      // MySQL may return as string or number depending on driver
-      const messagesSent = typeof user.messages_sent === 'string' 
-        ? parseInt(user.messages_sent, 10) 
-        : typeof user.messages_sent === 'number' 
-        ? user.messages_sent 
-        : 0;
+      // Convert messages_sent to number - handle MySQL response types
+      let messagesSentNum = 0;
+      if (user.messages_sent !== null && user.messages_sent !== undefined) {
+        if (typeof user.messages_sent === 'string') {
+          messagesSentNum = parseInt(user.messages_sent, 10);
+        } else if (typeof user.messages_sent === 'number') {
+          messagesSentNum = user.messages_sent;
+        }
+      }
       
-      // Ensure it's a valid non-negative number
-      const messagesSentNum = isNaN(messagesSent) || messagesSent < 0 ? 0 : messagesSent;
+      // Ensure valid number
+      if (isNaN(messagesSentNum) || messagesSentNum < 0) {
+        messagesSentNum = 0;
+      }
+
       const messagesQuota = 150;
       const quotaMet = messagesSentNum >= messagesQuota;
       const quotaPercentage = Math.min(Math.round((messagesSentNum / messagesQuota) * 100), 100);
 
-      // Log for debugging if messages count seems off
-      if (user.roblox_username === 'BlakeGamez0' || user.discord_username.includes('Blake')) {
-        console.log(`[Management API] User ${user.roblox_username || user.discord_username}: messages_sent=${messagesSentNum} from MySQL (raw: ${user.messages_sent})`);
+      // Log for debugging specific users
+      if (user.roblox_username === 'BlakeGamez0' || (user.discord_username && user.discord_username.includes('Blake'))) {
+        console.log(`[Management API] Processing BlakeGamez0:`, {
+          raw_messages_sent: user.messages_sent,
+          type: typeof user.messages_sent,
+          normalized: messagesSentNum,
+          status: user.status
+        });
       }
 
-      // Explicitly return all fields to ensure quota fields are included
+      // Return data - use user.status directly for Active/Inactive (simple logic)
       return {
         id: user.id,
         discord_id: user.discord_id,
@@ -89,9 +118,9 @@ router.get('/users', async (req: Request, res: Response) => {
         roblox_username: user.roblox_username,
         rank: user.rank,
         rank_name: user.rank_name,
-        status: user.status,
+        status: user.status, // Use the status from MySQL directly
         created_at: user.created_at,
-        messages_sent: messagesSentNum,
+        messages_sent: messagesSentNum, // Actual count from MySQL activity_logs
         messages_quota: messagesQuota,
         quota_met: quotaMet,
         quota_percentage: quotaPercentage,

@@ -22,14 +22,11 @@ export function calculateQuotaPercentage(
 }
 
 /**
- * Determine Active/Inactive status based on message count
- * This is a deterministic calculation, not based on the user's status field
+ * Get user activity status - simply use the status from the user object
+ * If status is 'active', return 'Active', otherwise return 'Inactive'
  */
-export function getActivityStatus(
-  messagesSent: number,
-  quota: number = MESSAGES_QUOTA
-): 'Active' | 'Inactive' {
-  return calculateQuotaMet(messagesSent, quota) ? 'Active' : 'Inactive';
+export function getActivityStatus(userStatus: string): 'Active' | 'Inactive' {
+  return userStatus === 'active' ? 'Active' : 'Inactive';
 }
 
 /**

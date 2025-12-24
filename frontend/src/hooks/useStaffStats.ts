@@ -43,21 +43,33 @@ export function useStaffStats() {
         : [];
 
       console.log(`[useStaffStats] Received ${allUsers.length} users from API`);
+      
+      // Debug: Log raw API response
+      if (allUsers.length > 0) {
+        const sampleUser = allUsers.find(u => u.roblox_username === 'BlakeGamez0' || u.discord_username?.includes('Blake'));
+        if (sampleUser) {
+          console.log(`[useStaffStats] Raw API data for BlakeGamez0:`, JSON.stringify(sampleUser, null, 2));
+        }
+      }
 
       // Filter for staff members (users with a rank) and normalize quota fields
       const staffData: UserWithQuota[] = allUsers
         .filter((u) => u.rank !== null)
         .map((u) => {
-          // Handle messages_sent - ensure it's a number
-          // Backend should already normalize this, but handle edge cases
-          const messagesSent = typeof u.messages_sent === 'string'
-            ? parseInt(u.messages_sent, 10)
-            : typeof u.messages_sent === 'number'
-            ? u.messages_sent
-            : 0;
+          // Handle messages_sent - ensure it's a number from API
+          let messagesSentNum = 0;
+          if (u.messages_sent !== null && u.messages_sent !== undefined) {
+            if (typeof u.messages_sent === 'string') {
+              messagesSentNum = parseInt(u.messages_sent, 10);
+            } else if (typeof u.messages_sent === 'number') {
+              messagesSentNum = u.messages_sent;
+            }
+          }
           
           // Ensure valid number
-          const messagesSentNum = isNaN(messagesSent) || messagesSent < 0 ? 0 : messagesSent;
+          if (isNaN(messagesSentNum) || messagesSentNum < 0) {
+            messagesSentNum = 0;
+          }
           
           const messagesQuota = typeof u.messages_quota === 'number' 
             ? u.messages_quota 
@@ -71,9 +83,10 @@ export function useStaffStats() {
           if (u.roblox_username === 'BlakeGamez0' || u.discord_username?.includes('Blake')) {
             console.log(`[useStaffStats] Processing ${u.roblox_username || u.discord_username}:`, {
               raw_messages_sent: u.messages_sent,
+              raw_type: typeof u.messages_sent,
               normalized: messagesSentNum,
+              status: u.status,
               quota_met: quotaMet,
-              quota_percentage: quotaPercentage,
             });
           }
 
@@ -86,9 +99,9 @@ export function useStaffStats() {
             roblox_username: u.roblox_username,
             rank: u.rank,
             rank_name: u.rank_name,
-            status: u.status,
+            status: u.status, // Keep status as-is from backend
             created_at: u.created_at,
-            messages_sent: messagesSentNum,
+            messages_sent: messagesSentNum, // Actual count from MySQL via API
             messages_quota: messagesQuota,
             quota_met: quotaMet,
             quota_percentage: quotaPercentage,
