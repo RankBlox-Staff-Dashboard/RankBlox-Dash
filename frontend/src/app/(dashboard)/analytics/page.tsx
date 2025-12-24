@@ -40,8 +40,18 @@ export default function AnalyticsPage() {
       try {
         setLoading(true);
         const response = await managementAPI.getUsers();
-        // Filter to only show staff members (those with a rank) and cast to UserWithQuota
-        const staff = response.data.filter(u => u.rank !== null) as UserWithQuota[];
+        // Filter to only show staff members (those with a rank)
+        // Map to ensure quota fields are properly typed
+        const staff = response.data
+          .filter(u => u.rank !== null)
+          .map(u => ({
+            ...u,
+            messages_sent: typeof u.messages_sent === 'number' ? u.messages_sent : parseInt(String(u.messages_sent || 0)),
+            messages_quota: typeof u.messages_quota === 'number' ? u.messages_quota : 100,
+            quota_met: typeof u.quota_met === 'boolean' ? u.quota_met : (typeof u.messages_sent === 'number' ? u.messages_sent : parseInt(String(u.messages_sent || 0))) >= 100,
+            quota_percentage: typeof u.quota_percentage === 'number' ? u.quota_percentage : Math.min(((typeof u.messages_sent === 'number' ? u.messages_sent : parseInt(String(u.messages_sent || 0))) / 100) * 100, 100),
+          })) as UserWithQuota[];
+        
         setStaffMembers(staff);
       } catch (error: any) {
         // Only log non-404 errors to avoid console spam

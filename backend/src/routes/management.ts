@@ -57,13 +57,23 @@ router.get('/users', async (req: Request, res: Response) => {
 
     // Add quota information
     const usersWithQuota = users.map((user) => {
-      const messagesSent = parseInt(user.messages_sent as any) || 0;
+      const messagesSent = parseInt(String(user.messages_sent || 0)) || 0;
       const messagesQuota = 100;
       const quotaMet = messagesSent >= messagesQuota;
       const quotaPercentage = Math.min((messagesSent / messagesQuota) * 100, 100);
 
+      // Explicitly return all fields to ensure quota fields are included
       return {
-        ...user,
+        id: user.id,
+        discord_id: user.discord_id,
+        discord_username: user.discord_username,
+        discord_avatar: user.discord_avatar,
+        roblox_id: user.roblox_id,
+        roblox_username: user.roblox_username,
+        rank: user.rank,
+        rank_name: user.rank_name,
+        status: user.status,
+        created_at: user.created_at,
         messages_sent: messagesSent,
         messages_quota: messagesQuota,
         quota_met: quotaMet,
