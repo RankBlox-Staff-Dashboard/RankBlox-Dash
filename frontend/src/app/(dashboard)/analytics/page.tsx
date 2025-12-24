@@ -14,44 +14,56 @@ import { Card } from '@/components/ui/Card';
 import { RobloxAvatar } from '@/components/RobloxAvatar';
 import { RankBadge } from '@/components/RankBadge';
 import { TabsGrid, type TabsGridItem } from '@/components/ui/TabsGrid';
-import { dashboardAPI, type NonStaffMember, type StaffAnalytics } from '@/services/api';
+import { managementAPI, dashboardAPI, type NonStaffMember } from '@/services/api';
+import type { User } from '@/types';
 import { cn } from '@/lib/cn';
 
 type AnalyticsTab = 'staff' | 'non-staff';
 
+// Extended User type with quota data from management API
+interface UserWithQuota extends User {
+  messages_sent: number;
+  messages_quota: number;
+  quota_met: boolean;
+  quota_percentage: number;
+}
+
 export default function AnalyticsPage() {
   const [activeTab, setActiveTab] = useState<AnalyticsTab>('staff');
-  const [staffMembers, setStaffMembers] = useState<StaffAnalytics[]>([]);
+  const [allUsers, setAllUsers] = useState<UserWithQuota[]>([]);
   const [nonStaffMembers, setNonStaffMembers] = useState<NonStaffMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [nonStaffLoading, setNonStaffLoading] = useState(false);
 
   useEffect(() => {
-    const fetchStaffMembers = async () => {
+    const fetchUsers = async () => {
       try {
         setLoading(true);
-        const response = await dashboardAPI.getStaffAnalytics();
-        // Backend already filters to staff members and includes quota fields
-        setStaffMembers(response.data);
+        const response = await managementAPI.getUsers();
+        // Management API returns all users with quota fields
+        setAllUsers(response.data as UserWithQuota[]);
       } catch (error: unknown) {
         // Only log non-404 errors to avoid console spam
         if (error && typeof error === 'object' && 'response' in error) {
           const axiosError = error as { response?: { status?: number } };
           if (axiosError.response?.status !== 404) {
-            console.error('Failed to fetch staff members:', error);
+            console.error('Failed to fetch users:', error);
           }
         } else {
-          console.error('Failed to fetch staff members:', error);
+          console.error('Failed to fetch users:', error);
         }
         // Set empty array on error to show empty state
-        setStaffMembers([]);
+        setAllUsers([]);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchStaffMembers();
+    fetchUsers();
   }, []);
+
+  // Filter to only show staff members (those with a rank) - same as management panel
+  const staffMembers = allUsers.filter((u: UserWithQuota) => u.rank !== null);
 
   useEffect(() => {
     if (activeTab === 'non-staff') {
@@ -89,7 +101,7 @@ export default function AnalyticsPage() {
   // Calculate statistics based on quota (150 messages)
   // Active = met quota (150+ messages), Inactive = didn't meet quota
   const totalMembers = staffMembers.length;
-  const activeMembers = staffMembers.filter((m: StaffAnalytics) => m.quota_met === true).length;
+  const activeMembers = staffMembers.filter((m: UserWithQuota) => m.quota_met === true).length;
   const inactiveMembers = totalMembers - activeMembers;
 
   return (
@@ -152,7 +164,7 @@ export default function AnalyticsPage() {
           <div className="text-center py-8 text-white/50 animate-pulse">Loading staff members...</div>
         ) : staffMembers.length > 0 ? (
           <div className="space-y-3">
-            {staffMembers.map((member: StaffAnalytics, index: number) => (
+            {staffMembers.map((member: UserWithQuota, index: number) => (
               <div 
                 key={member.id} 
                 className={cn(
