@@ -6,7 +6,9 @@ import {
   CheckCircle2,
   XCircle,
   UserX,
-  MessageSquare
+  MessageSquare,
+  RefreshCw,
+  AlertCircle
 } from 'lucide-react';
 import { ProfileCard } from '@/components/ProfileCard';
 import { NavigationTabs } from '@/components/NavigationTabs';
@@ -28,80 +30,135 @@ interface UserWithQuota extends User {
   quota_percentage: number;
 }
 
+// Validate and normalize user data from API
+function validateUserData(user: any): UserWithQuota | null {
+  try {
+    // Ensure required fields exist
+    if (!user || typeof user !== 'object') return null;
+    
+    const messagesSent = typeof user.messages_sent === 'number' ? user.messages_sent : 0;
+    const messagesQuota = typeof user.messages_quota === 'number' ? user.messages_quota : 150;
+    
+    // Calculate quota percentage safely
+    const quotaPercentage = messagesQuota > 0 
+      ? Math.round((messagesSent / messagesQuota) * 100)
+      : 0;
+    
+    // Determine if quota is met
+    const quotaMet = messagesSent >= messagesQuota;
+    
+    return {
+      ...user,
+      messages_sent: messagesSent,
+      messages_quota: messagesQuota,
+      quota_percentage: Math.min(quotaPercentage, 100),
+      quota_met: quotaMet,
+    } as UserWithQuota;
+  } catch (error) {
+    console.error('Error validating user data:', error);
+    return null;
+  }
+}
+
 export default function AnalyticsPage() {
   const [activeTab, setActiveTab] = useState<AnalyticsTab>('staff');
   const [allUsers, setAllUsers] = useState<UserWithQuota[]>([]);
   const [nonStaffMembers, setNonStaffMembers] = useState<NonStaffMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [nonStaffLoading, setNonStaffLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [nonStaffError, setNonStaffError] = useState<string | null>(null);
+
+  const fetchUsers = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await managementAPI.getUsers();
+      
+      // Validate response structure
+      if (!response || !response.data) {
+        throw new Error('Invalid response from server');
+      }
+      
+      const usersData = Array.isArray(response.data) ? response.data : [];
+      
+      // Validate and normalize each user
+      const validatedUsers = usersData
+        .map(validateUserData)
+        .filter((user): user is UserWithQuota => user !== null);
+      
+      setAllUsers(validatedUsers);
+    } catch (error: any) {
+      console.error('Failed to fetch users:', error);
+      
+      // Set appropriate error message
+      if (error?.response?.status === 404) {
+        setError('No users found');
+      } else if (error?.response?.status === 401 || error?.response?.status === 403) {
+        setError('You do not have permission to view this data');
+      } else if (!navigator.onLine) {
+        setError('No internet connection');
+      } else {
+        setError('Failed to load staff data. Please try again.');
+      }
+      
+      setAllUsers([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchNonStaffMembers = async () => {
+    try {
+      setNonStaffLoading(true);
+      setNonStaffError(null);
+      const response = await dashboardAPI.getNonStaffMembers();
+      
+      if (!response || !response.data) {
+        throw new Error('Invalid response from server');
+      }
+      
+      const members = Array.isArray(response.data) ? response.data : [];
+      setNonStaffMembers(members);
+    } catch (error: any) {
+      console.error('Failed to fetch non-staff members:', error);
+      
+      if (error?.response?.status === 404) {
+        setNonStaffError(null); // 404 means no non-staff members, not an error
+        setNonStaffMembers([]);
+      } else if (error?.response?.status === 401 || error?.response?.status === 403) {
+        setNonStaffError('You do not have permission to view this data');
+      } else if (!navigator.onLine) {
+        setNonStaffError('No internet connection');
+      } else {
+        setNonStaffError('Failed to load non-staff data. Please try again.');
+      }
+      
+      setNonStaffMembers([]);
+    } finally {
+      setNonStaffLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        setLoading(true);
-        const response = await managementAPI.getUsers();
-        // Management API returns all users with quota fields
-        // Ensure data is properly formatted
-        const usersData = Array.isArray(response.data) ? response.data : [];
-        setAllUsers(usersData as UserWithQuota[]);
-      } catch (error: unknown) {
-        // Only log non-404 errors to avoid console spam
-        if (error && typeof error === 'object' && 'response' in error) {
-          const axiosError = error as { response?: { status?: number } };
-          if (axiosError.response?.status !== 404) {
-            console.error('Failed to fetch users:', error);
-          }
-        } else {
-          console.error('Failed to fetch users:', error);
-        }
-        // Set empty array on error to show empty state
-        setAllUsers([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchUsers();
   }, []);
 
-  // Filter to only show staff members (those with a rank) - same as management panel
-  const staffMembers = allUsers.filter((u: UserWithQuota) => u.rank !== null);
-
   useEffect(() => {
     if (activeTab === 'non-staff') {
-      const fetchNonStaffMembers = async () => {
-        try {
-          setNonStaffLoading(true);
-          const response = await dashboardAPI.getNonStaffMembers();
-          setNonStaffMembers(response.data || []);
-        } catch (error: unknown) {
-          // Only log non-404 errors to avoid console spam
-          if (error && typeof error === 'object' && 'response' in error) {
-            const axiosError = error as { response?: { status?: number } };
-            if (axiosError.response?.status !== 404) {
-              console.error('Failed to fetch non-staff members:', error);
-            }
-          } else {
-            console.error('Failed to fetch non-staff members:', error);
-          }
-          // Set empty array on error to show empty state
-          setNonStaffMembers([]);
-        } finally {
-          setNonStaffLoading(false);
-        }
-      };
-
       fetchNonStaffMembers();
     }
   }, [activeTab]);
+
+  // Filter to only show staff members (those with a rank)
+  const staffMembers = allUsers.filter((u: UserWithQuota) => u.rank !== null);
 
   const analyticsTabs: TabsGridItem[] = [
     { key: 'staff', label: 'Staff Analytics', icon: BarChart3 },
     { key: 'non-staff', label: 'Non-Staff Members', icon: UserX },
   ];
 
-  // Calculate statistics based on quota (150 messages)
-  // Active = met quota (150+ messages), Inactive = didn't meet quota
+  // Calculate statistics safely
   const totalMembers = staffMembers.length;
   const activeMembers = staffMembers.filter((m: UserWithQuota) => m.quota_met === true).length;
   const inactiveMembers = totalMembers - activeMembers;
@@ -124,7 +181,7 @@ export default function AnalyticsPage() {
       </Card>
 
       {/* Statistics Summary - Only show for staff tab */}
-      {activeTab === 'staff' && (
+      {activeTab === 'staff' && !loading && !error && (
         <div className="grid grid-cols-2 gap-3 animate-fadeInUp" style={{ animationDelay: '0.2s' }}>
           <Card className="p-4 animate-scaleIn" style={{ animationDelay: '0.3s' }}>
             <div className="flex items-center gap-3">
@@ -154,135 +211,204 @@ export default function AnalyticsPage() {
       {/* Staff Analytics Tab */}
       {activeTab === 'staff' && (
         <Card className="p-5 animate-fadeInUp" style={{ animationDelay: '0.5s' }}>
-          <div className="flex items-center gap-2 mb-4">
-            <BarChart3 className="w-5 h-5 text-blue-400 animate-pulse" />
-            <div>
-              <h3 className="text-base font-semibold text-white">Staff Analytics</h3>
-              <p className="text-xs text-white/50">All staff members</p>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <BarChart3 className="w-5 h-5 text-blue-400 animate-pulse" />
+              <div>
+                <h3 className="text-base font-semibold text-white">Staff Analytics</h3>
+                <p className="text-xs text-white/50">All staff members</p>
+              </div>
             </div>
+            <button
+              onClick={fetchUsers}
+              disabled={loading}
+              className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors disabled:opacity-50"
+              aria-label="Refresh staff data"
+            >
+              <RefreshCw className={cn("w-4 h-4 text-white/70", loading && "animate-spin")} />
+            </button>
           </div>
 
-        {loading ? (
-          <div className="text-center py-8 text-white/50 animate-pulse">Loading staff members...</div>
-        ) : staffMembers.length > 0 ? (
-          <div className="space-y-3">
-            {staffMembers.map((member: UserWithQuota, index: number) => (
-              <div 
-                key={member.id} 
-                className={cn(
-                  "flex flex-col gap-3 p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-all duration-300",
-                  "animate-slideUp hover:scale-[1.02] hover:shadow-lg"
-                )}
-                style={{ animationDelay: `${0.05 * index}s` }}
-              >
-                <div className="flex items-center gap-3 flex-1 min-w-0">
-                  <div className="relative animate-scaleIn" style={{ animationDelay: `${0.05 * index + 0.1}s` }}>
-                    <RobloxAvatar
-                      robloxId={member.roblox_id}
-                      discordId={member.discord_id}
-                      discordAvatar={member.discord_avatar}
-                      alt={member.roblox_username || member.discord_username}
-                      size={48}
-                      className="w-12 h-12 ring-2 ring-white/10 hover:ring-white/20 transition-all"
-                    />
-                    {member.quota_met && (
-                      <div className="absolute -top-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center animate-bounce">
-                        <CheckCircle2 className="w-3 h-3 text-white" />
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <div className="text-sm font-semibold text-white truncate">
-                        {member.roblox_username || member.discord_username}
-                      </div>
-                      {member.quota_met ? (
-                        <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0 animate-pulse" />
-                      ) : (
-                        <XCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
-                      )}
+          {loading ? (
+            <div className="space-y-3">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="p-4 rounded-xl bg-white/5 animate-pulse">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-full bg-white/10" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-4 bg-white/10 rounded w-1/3" />
+                      <div className="h-3 bg-white/10 rounded w-1/4" />
                     </div>
-                    <div className="text-xs text-white/50 truncate">
-                      {member.discord_username}
-                    </div>
-                    <div className="text-xs text-white/60 mt-0.5">
-                      <MessageSquare className="w-3 h-3 inline mr-1" />
-                      {member.messages_sent ?? 0} / {member.messages_quota ?? 150} messages
-                    </div>
-                    {member.rank && (
-                      <div className="mt-1">
-                        <RankBadge rank={member.rank} rankName={member.rank_name} />
-                      </div>
-                    )}
                   </div>
                 </div>
-
-                {/* Message Quota Progress */}
-                <div className="space-y-2 animate-fadeIn" style={{ animationDelay: `${0.05 * index + 0.2}s` }}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <MessageSquare className="w-4 h-4 text-white/50" />
-                      <span className="text-xs text-white/70">Message Quota (150)</span>
+              ))}
+            </div>
+          ) : error ? (
+            <div className="text-center py-8">
+              <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-3" />
+              <p className="text-white/70 mb-4">{error}</p>
+              <button
+                onClick={fetchUsers}
+                className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
+              >
+                Try Again
+              </button>
+            </div>
+          ) : staffMembers.length > 0 ? (
+            <div className="space-y-3">
+              {staffMembers.map((member: UserWithQuota, index: number) => (
+                <div 
+                  key={member.id} 
+                  className={cn(
+                    "flex flex-col gap-3 p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-all duration-300",
+                    "animate-slideUp hover:scale-[1.02] hover:shadow-lg"
+                  )}
+                  style={{ animationDelay: `${0.05 * index}s` }}
+                >
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className="relative animate-scaleIn" style={{ animationDelay: `${0.05 * index + 0.1}s` }}>
+                      <RobloxAvatar
+                        robloxId={member.roblox_id}
+                        discordId={member.discord_id}
+                        discordAvatar={member.discord_avatar}
+                        alt={member.roblox_username || member.discord_username}
+                        size={48}
+                        className="w-12 h-12 ring-2 ring-white/10 hover:ring-white/20 transition-all"
+                      />
+                      {member.quota_met && (
+                        <div className="absolute -top-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center animate-bounce">
+                          <CheckCircle2 className="w-3 h-3 text-white" />
+                        </div>
+                      )}
                     </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="text-sm font-semibold text-white truncate">
+                          {member.roblox_username || member.discord_username}
+                        </div>
+                        {member.quota_met ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0 animate-pulse" />
+                        ) : (
+                          <XCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+                        )}
+                      </div>
+                      <div className="text-xs text-white/50 truncate">
+                        {member.discord_username}
+                      </div>
+                      <div className="text-xs text-white/60 mt-0.5">
+                        <MessageSquare className="w-3 h-3 inline mr-1" />
+                        {member.messages_sent} / {member.messages_quota} messages
+                      </div>
+                      {member.rank && (
+                        <div className="mt-1">
+                          <RankBadge rank={member.rank} rankName={member.rank_name} />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Message Quota Progress */}
+                  <div className="space-y-2 animate-fadeIn" style={{ animationDelay: `${0.05 * index + 0.2}s` }}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <MessageSquare className="w-4 h-4 text-white/50" />
+                        <span className="text-xs text-white/70">Message Quota</span>
+                      </div>
+                      <span className={cn(
+                        "text-xs font-semibold",
+                        member.quota_met ? "text-emerald-400" : "text-white/70"
+                      )}>
+                        {member.quota_percentage}%
+                      </span>
+                    </div>
+                    <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
+                      <div
+                        className={cn(
+                          "h-full transition-all duration-500 ease-out",
+                          member.quota_met 
+                            ? "bg-emerald-500 animate-pulse" 
+                            : "bg-blue-500"
+                        )}
+                        style={{ 
+                          width: `${member.quota_percentage}%`,
+                          animationDelay: `${0.05 * index + 0.3}s`
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Status Badge */}
+                  <div className="flex items-center gap-2 pt-2 border-t border-white/10 animate-fadeIn" style={{ animationDelay: `${0.05 * index + 0.25}s` }}>
                     <span className={cn(
-                      "text-xs font-semibold",
-                      member.quota_met ? "text-emerald-400" : "text-white/70"
+                      "text-xs px-2 py-1 rounded-full font-medium",
+                      member.quota_met 
+                        ? "bg-emerald-500/20 text-emerald-400" 
+                        : "bg-red-500/20 text-red-400"
                     )}>
-                      {member.messages_sent ?? 0}/{member.messages_quota ?? 150}
+                      {member.quota_met ? 'Active' : 'Inactive'}
                     </span>
                   </div>
-                  <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
-                    <div
-                      className={cn(
-                        "h-full transition-all duration-500 ease-out",
-                        member.quota_met 
-                          ? "bg-emerald-500 animate-pulse" 
-                          : "bg-blue-500"
-                      )}
-                      style={{ 
-                        width: `${Math.min(Math.max(member.quota_percentage ?? 0, 0), 100)}%`,
-                        animationDelay: `${0.05 * index + 0.3}s`
-                      }}
-                    />
-                  </div>
                 </div>
-
-                {/* Status Badge - Based on quota */}
-                <div className="flex items-center gap-2 pt-2 border-t border-white/10 animate-fadeIn" style={{ animationDelay: `${0.05 * index + 0.25}s` }}>
-                  <span className={cn(
-                    "text-xs px-2 py-1 rounded-full font-medium",
-                    member.quota_met 
-                      ? "bg-emerald-500/20 text-emerald-400" 
-                      : "bg-red-500/20 text-red-400"
-                  )}>
-                    {member.quota_met ? 'Active' : 'Inactive'}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-8 text-white/50 animate-pulse">No staff members found</div>
-        )}
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-white/50">
+              <BarChart3 className="w-12 h-12 text-white/20 mx-auto mb-3" />
+              <p>No staff members found</p>
+            </div>
+          )}
         </Card>
       )}
 
       {/* Non-Staff Members Tab */}
       {activeTab === 'non-staff' && (
         <Card className="p-5 animate-fadeInUp" style={{ animationDelay: '0.2s' }}>
-          <div className="flex items-center gap-2 mb-4">
-            <UserX className="w-5 h-5 text-orange-400 animate-pulse" />
-            <div>
-              <h3 className="text-base font-semibold text-white">Non-Staff Members</h3>
-              <p className="text-xs text-white/50">Discord server members not registered in staff portal</p>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <UserX className="w-5 h-5 text-orange-400 animate-pulse" />
+              <div>
+                <h3 className="text-base font-semibold text-white">Non-Staff Members</h3>
+                <p className="text-xs text-white/50">Discord server members not registered in staff portal</p>
+              </div>
             </div>
+            <button
+              onClick={fetchNonStaffMembers}
+              disabled={nonStaffLoading}
+              className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors disabled:opacity-50"
+              aria-label="Refresh non-staff data"
+            >
+              <RefreshCw className={cn("w-4 h-4 text-white/70", nonStaffLoading && "animate-spin")} />
+            </button>
           </div>
 
           {nonStaffLoading ? (
-            <div className="text-center py-8 text-white/50 animate-pulse">Loading non-staff members...</div>
+            <div className="space-y-3">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="p-4 rounded-xl bg-white/5 animate-pulse">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-full bg-white/10" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-4 bg-white/10 rounded w-1/3" />
+                      <div className="h-3 bg-white/10 rounded w-1/4" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : nonStaffError ? (
+            <div className="text-center py-8">
+              <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-3" />
+              <p className="text-white/70 mb-4">{nonStaffError}</p>
+              <button
+                onClick={fetchNonStaffMembers}
+                className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
+              >
+                Try Again
+              </button>
+            </div>
           ) : nonStaffMembers.length > 0 ? (
-                    <div className="space-y-3">
-                      {nonStaffMembers.map((member: NonStaffMember, index: number) => (
+            <div className="space-y-3">
+              {nonStaffMembers.map((member: NonStaffMember, index: number) => (
                 <div 
                   key={member.discord_id} 
                   className={cn(
@@ -314,7 +440,7 @@ export default function AnalyticsPage() {
               ))}
             </div>
           ) : (
-            <div className="text-center py-8 text-white/50 animate-pulse">
+            <div className="text-center py-8 text-white/50">
               <UserX className="w-12 h-12 text-white/20 mx-auto mb-3" />
               <p>All Discord members are registered in the staff portal</p>
             </div>
