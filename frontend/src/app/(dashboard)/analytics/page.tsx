@@ -1,343 +1,248 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import {
-  AlertTriangle,
+import { useEffect, useState } from 'react';
+import { 
+  TrendingUp, 
   BarChart3,
-  BookOpen,
-  ExternalLink,
-  LifeBuoy,
-  Menu,
-  MessageSquare,
-  Search,
-  Settings,
-  UserCheck,
   Users,
-  Database,
+  Building2,
   Shield,
-  TrendingUp,
-} from "lucide-react";
-import { useRouter } from "next/navigation";
+  Info
+} from 'lucide-react';
+import { ProfileCard } from '@/components/ProfileCard';
+import { NavigationTabs } from '@/components/NavigationTabs';
+import { Card } from '@/components/ui/Card';
+import { RobloxAvatar } from '@/components/RobloxAvatar';
+import { RankBadge } from '@/components/RankBadge';
+import { useAnalytics } from '@/hooks/useAnalytics';
+import { useStats } from '@/hooks/useStats';
+import { managementAPI } from '@/services/api';
+import type { User } from '@/types';
 
-import { Avatar } from "@/components/ui/Avatar";
-import { Badge } from "@/components/ui/Badge";
-import { Card } from "@/components/ui/Card";
-import { StatItem } from "@/components/ui/StatItem";
-import { TabsGrid } from "@/components/ui/TabsGrid";
-import { useStats } from "@/hooks/useStats";
-import { authAPI } from "@/services/api";
-import type { User } from "@/types";
+export default function AnalyticsPage() {
+  const { analytics, loading: analyticsLoading } = useAnalytics();
+  const { stats, loading: statsLoading } = useStats();
+  const [staffMembers, setStaffMembers] = useState<User[]>([]);
+  const [staffLoading, setStaffLoading] = useState(true);
+  const [staffStats, setStaffStats] = useState<Record<number, { messages: number; rank: number | null }>>({});
 
-export default function StaffDashboardPage() {
-  const router = useRouter();
-  const { stats } = useStats();
-  const [user, setUser] = useState<User | null>(null);
-  const [activeTab, setActiveTab] = useState("overview");
+  const loading = analyticsLoading || statsLoading || staffLoading;
 
   useEffect(() => {
-    const fetchUser = async () => {
+    const fetchStaffData = async () => {
       try {
-        const response = await authAPI.getMe();
-        setUser(response.data);
+        setStaffLoading(true);
+        const usersResponse = await managementAPI.getUsers();
+        const users = usersResponse.data.filter((user) => user.status === 'active');
+        setStaffMembers(users);
+
+        // Fetch stats for each staff member
+        const statsMap: Record<number, { messages: number; rank: number | null }> = {};
+        for (const user of users) {
+          try {
+            // In a real app, you'd have an endpoint to get stats for a specific user
+            // For now, we'll construct the stats object with available data
+            statsMap[user.id] = {
+              messages: 0, // This would come from the backend
+              rank: user.rank || 0,
+            };
+          } catch (error) {
+            console.error(`Failed to fetch stats for user ${user.id}:`, error);
+          }
+        }
+        setStaffStats(statsMap);
       } catch (error) {
-        console.error("Failed to fetch user:", error);
+        console.error('Failed to fetch staff data:', error);
+      } finally {
+        setStaffLoading(false);
       }
     };
-    fetchUser();
+
+    fetchStaffData();
   }, []);
 
-  // Check if user should see analytics (rank 10-255)
-  const canViewAnalytics = user?.rank
-    ? user.rank >= 10 && user.rank <= 255
-    : false;
-
-  // Check if quota is not met
-  const quotaNotMet = stats && stats.messages_sent < stats.messages_quota;
-
-  // Build tabs - add analytics if conditions are met
-  const tabs = [
-    { key: "overview", label: "Overview", icon: BarChart3 },
-    { key: "lookup", label: "Lookup", icon: Search },
-    { key: "infractions", label: "Infractions", icon: AlertTriangle },
-    { key: "settings", label: "Settings", icon: Settings },
-  ];
-
-  // Add analytics tab if eligible
-  if (canViewAnalytics && quotaNotMet) {
-    tabs.splice(1, 0, {
-      key: "analytics",
-      label: "Analytics",
-      icon: TrendingUp,
-    });
-  }
-
-  const handleTabChange = (key: string) => {
-    setActiveTab(key);
-    if (key === "analytics") {
-      router.push("/dashboard/analytics");
-    }
-  };
-
   return (
-    <div className="min-h-[100svh] bg-[radial-gradient(ellipse_at_top,rgba(255,255,255,0.055),transparent_55%),linear-gradient(to_bottom,#000,#050505_45%,#000)]">
-      <div className="mx-auto w-full max-w-[420px] pb-10">
-        <header className="px-4 pt-4">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-white/0 text-white/75 hover:bg-white/5 hover:text-white/90"
-              aria-label="Open menu"
-            >
-              <Menu className="h-[20px] w-[20px]" strokeWidth={2.2} />
-            </button>
+    <div className="space-y-4">
+      {/* Profile Card */}
+      <ProfileCard />
 
-            <div className="flex items-center gap-2">
-              <Shield
-                className="h-[18px] w-[18px] text-blue-400"
-                strokeWidth={2.2}
-              />
-              <div className="text-[20px] font-semibold tracking-tight text-white">
-                Atlanta High
+      {/* Tabs Navigation */}
+      <NavigationTabs />
+
+      {/* Performance Metrics */}
+      <Card className="p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <BarChart3 className="w-5 h-5 text-blue-400" />
+          <div>
+            <h3 className="text-base font-semibold text-white">Performance Metrics</h3>
+            <p className="text-xs text-white/50">Your ticket performance</p>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="text-center py-4 text-white/50">Loading metrics...</div>
+        ) : (
+          <div className="space-y-4">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-white/70">Cases Claimed</span>
+                <span className="text-sm font-semibold text-white">{stats?.tickets_claimed ?? 0}</span>
               </div>
-              <Badge className="ml-1 bg-rose-500/12 text-rose-200 ring-1 ring-rose-400/25">
-                Associate
-              </Badge>
+              <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-blue-500 rounded-full transition-all"
+                  style={{ width: `${Math.min((stats?.tickets_claimed ?? 0) * 10, 100)}%` }}
+                />
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-white/70">Cases Resolved</span>
+                <span className="text-sm font-semibold text-white">{stats?.tickets_resolved ?? 0}</span>
+              </div>
+              <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-emerald-500 rounded-full transition-all"
+                  style={{ width: `${Math.min((stats?.tickets_resolved ?? 0) * 10, 100)}%` }}
+                />
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-white/70">Message Quota</span>
+                <span className="text-sm font-semibold text-white">
+                  {stats?.messages_sent ?? 0}/{stats?.messages_quota ?? 150}
+                </span>
+              </div>
+              <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-purple-500 rounded-full transition-all"
+                  style={{ width: `${Math.min(((stats?.messages_sent ?? 0) / (stats?.messages_quota ?? 150)) * 100, 100)}%` }}
+                />
+              </div>
             </div>
           </div>
+        )}
+      </Card>
 
-          <div className="mt-4 h-px bg-white/10" />
-        </header>
-
-        <main className="px-4">
-          <Card className="mt-4 px-6 py-6">
-            <div className="flex items-start gap-4">
-              <Avatar />
-              <div className="min-w-0">
-                <div className="text-[22px] font-semibold tracking-[-0.02em] text-white">
-                  Welcome, Staff BlakeGamez0
-                </div>
-                <div className="mt-1 flex items-center gap-2 text-[14px] text-white/55">
-                  <span>Associate</span>
-                  <span className="text-white/30">•</span>
-                  <span className="inline-flex items-center gap-2 font-semibold text-emerald-300">
-                    <span className="h-[6px] w-[6px] rounded-full bg-emerald-400 shadow-[0_0_0_3px_rgba(16,185,129,0.12)]" />
-                    Active
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-6 grid grid-cols-2 gap-x-10 gap-y-6">
-              <StatItem
-                title="Messages"
-                value="0/150"
-                icon={MessageSquare}
-                tone="blue"
-              />
-              <StatItem
-                title="Infractions"
-                value="0"
-                icon={AlertTriangle}
-                tone="yellow"
-              />
-              <StatItem
-                title="Claimed"
-                value="2"
-                icon={Database}
-                tone="green"
-              />
-              <StatItem
-                title="Closed"
-                value="1"
-                icon={UserCheck}
-                tone="purple"
-              />
-            </div>
-          </Card>
-
-          <Card className="mt-4 p-3">
-            <TabsGrid
-              activeKey={activeTab}
-              items={tabs}
-              onTabChange={handleTabChange}
-            />
-          </Card>
-
-          <Card className="mt-5 px-5 py-5">
-            <div className="flex items-center gap-3">
-              <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-white/6 ring-1 ring-white/10">
-                <BookOpen
-                  className="h-[18px] w-[18px] text-white/80"
-                  strokeWidth={2.2}
-                />
-              </div>
-              <div>
-                <div className="text-[18px] font-semibold tracking-tight text-white">
-                  Staff Resources
-                </div>
-                <div className="mt-0.5 text-[13px] text-white/50">
-                  Staff information and help documentations
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-4 space-y-3">
-              <div className="flex items-center gap-3 rounded-3xl border border-white/10 bg-black/35 px-4 py-4">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-500/14 ring-1 ring-blue-400/20">
-                  <BookOpen
-                    className="h-[18px] w-[18px] text-blue-200"
-                    strokeWidth={2.2}
-                  />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-[15px] font-semibold text-white">
-                    Atlanta High Documentation
-                  </div>
-                  <div className="mt-0.5 text-[12px] text-white/45">
-                    Official staff guidelines and procedures
-                  </div>
-                </div>
-                <ExternalLink
-                  className="h-[18px] w-[18px] text-white/55"
-                  strokeWidth={2.2}
-                />
-              </div>
-
-              <div className="flex items-center gap-3 rounded-3xl border border-white/10 bg-black/25 px-4 py-4 opacity-70">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-500/14 ring-1 ring-violet-400/25">
-                  <Users
-                    className="h-[18px] w-[18px] text-violet-200"
-                    strokeWidth={2.2}
-                  />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-[15px] font-semibold text-white">
-                    Staff Documentation
-                  </div>
-                  <div className="mt-0.5 text-[12px] text-white/45">
-                    Coming Soon!
-                  </div>
-                </div>
-                <ExternalLink
-                  className="h-[18px] w-[18px] text-white/30"
-                  strokeWidth={2.2}
-                />
-              </div>
-
-              <div className="flex items-center gap-3 rounded-3xl border border-white/10 bg-black/35 px-4 py-4">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-500/14 ring-1 ring-emerald-400/25">
-                  <LifeBuoy
-                    className="h-[18px] w-[18px] text-emerald-200"
-                    strokeWidth={2.2}
-                  />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-[15px] font-semibold text-white">
-                    Support Center
-                  </div>
-                  <div className="mt-0.5 text-[12px] text-white/45">
-                    Get help with staff-related issues
-                  </div>
-                </div>
-                <ExternalLink
-                  className="h-[18px] w-[18px] text-white/55"
-                  strokeWidth={2.2}
-                />
-              </div>
-            </div>
-          </Card>
-
-          <Card className="mt-5 px-5 py-5">
-            <div className="flex items-center gap-3">
-              <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-white/6 ring-1 ring-white/10">
-                <AlertTriangle
-                  className="h-[18px] w-[18px] text-white/80"
-                  strokeWidth={2.2}
-                />
-              </div>
-              <div>
-                <div className="text-[18px] font-semibold tracking-tight text-white">
-                  Quick Reminders
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-4 space-y-3">
-              <div className="flex items-center justify-between gap-4 rounded-3xl border border-white/10 bg-black/35 px-4 py-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-500/14 ring-1 ring-blue-400/20">
-                    <MessageSquare
-                      className="h-[18px] w-[18px] text-blue-200"
-                      strokeWidth={2.2}
-                    />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-[15px] font-semibold text-white">
-                      Tracked Channels
-                    </div>
-                    <div className="mt-0.5 text-[12px] text-white/45">
-                      Messages tracked across designated Discord channels.
-                    </div>
-                  </div>
-                </div>
-                <Badge tone="blue" className="shrink-0">
-                  Message Quota
-                </Badge>
-              </div>
-
-              <div className="flex items-center justify-between gap-4 rounded-3xl border border-white/10 bg-black/35 px-4 py-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-500/14 ring-1 ring-amber-400/25">
-                    <Users
-                      className="h-[18px] w-[18px] text-amber-200"
-                      strokeWidth={2.2}
-                    />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-[15px] font-semibold text-white">
-                      Leave Of Absence
-                    </div>
-                    <div className="mt-0.5 text-[12px] text-white/45">
-                      Submit an LOA under your Account Settings.
-                    </div>
-                  </div>
-                </div>
-                <Badge tone="yellow" className="shrink-0 px-4">
-                  LOA
-                </Badge>
-              </div>
-
-              <div className="flex items-center justify-between gap-4 rounded-3xl border border-rose-400/20 bg-rose-500/6 px-4 py-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-500/14 ring-1 ring-rose-400/25">
-                    <AlertTriangle
-                      className="h-[18px] w-[18px] text-rose-200"
-                      strokeWidth={2.2}
-                    />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-[15px] font-semibold text-white">
-                      Failed Quota
-                    </div>
-                    <div className="mt-0.5 text-[12px] text-white/45">
-                      Failure to meet quota consecutively will lead to
-                      disciplinary action.
-                    </div>
-                  </div>
-                </div>
-                <Badge tone="red" className="shrink-0 px-4">
-                  Infractions
-                </Badge>
-              </div>
-            </div>
-          </Card>
-
-          <div className="mt-10 pb-4 text-center text-[12px] text-white/35">
-            © 2025 Atlanta High. All rights reserved.
+      {/* System Overview */}
+      <Card className="p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <TrendingUp className="w-5 h-5 text-emerald-400" />
+          <div>
+            <h3 className="text-base font-semibold text-white">System Overview</h3>
+            <p className="text-xs text-white/50">Platform-wide statistics</p>
           </div>
-        </main>
-      </div>
+        </div>
+
+        {loading ? (
+          <div className="text-center py-4 text-white/50">Loading analytics...</div>
+        ) : (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between p-3 rounded-xl bg-white/5">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                  <Users className="w-4 h-4 text-blue-300" />
+                </div>
+                <span className="text-sm text-white/70">Total Active Users</span>
+              </div>
+              <span className="text-base font-bold text-white">{analytics?.total_active_users ?? 0}</span>
+            </div>
+
+            <div className="flex items-center justify-between p-3 rounded-xl bg-white/5">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+                  <Building2 className="w-4 h-4 text-emerald-300" />
+                </div>
+                <span className="text-sm text-white/70">Active Workspaces</span>
+              </div>
+              <span className="text-base font-bold text-white">{analytics?.active_workspaces ?? 0}</span>
+            </div>
+
+            <div className="flex items-center justify-between p-3 rounded-xl bg-white/5">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-purple-500/20 flex items-center justify-center">
+                  <Shield className="w-4 h-4 text-purple-300" />
+                </div>
+                <span className="text-sm text-white/70">Total Staff</span>
+              </div>
+              <span className="text-base font-bold text-white">{analytics?.total_staff ?? 0}</span>
+            </div>
+          </div>
+        )}
+      </Card>
+
+      {/* Staff Members Overview */}
+      <Card className="p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <Users className="w-5 h-5 text-blue-400" />
+          <div>
+            <h3 className="text-base font-semibold text-white">Staff Members</h3>
+            <p className="text-xs text-white/50">Team performance overview</p>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="text-center py-8 text-white/50">Loading staff data...</div>
+        ) : staffMembers.length > 0 ? (
+          <div className="space-y-3">
+            {staffMembers.map((member) => (
+              <div key={member.id} className="flex items-center justify-between p-3 rounded-xl bg-white/5 hover:bg-white/10 transition">
+                <div className="flex items-center gap-3 flex-1">
+                  <RobloxAvatar username={member.roblox_username} size="sm" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-white truncate">
+                      {member.roblox_username || member.discord_username}
+                    </div>
+                    <div className="text-xs text-white/50">
+                      {member.discord_username}
+                    </div>
+                  </div>
+                  {member.rank && (
+                    <RankBadge rank={member.rank} rankName={member.rank_name} />
+                  )}
+                </div>
+                <div className="text-right">
+                  <div className="text-sm font-semibold text-white">
+                    {staffStats[member.id]?.messages ?? 0}
+                  </div>
+                  <div className="text-xs text-white/50">messages</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-white/50">No active staff members found</div>
+        )}
+      </Card>
+
+      {/* Analytics Information */}
+      <Card className="p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <Info className="w-5 h-5 text-blue-400" />
+          <div>
+            <h3 className="text-base font-semibold text-white">Analytics Information</h3>
+            <p className="text-xs text-white/50">Understanding your performance metrics</p>
+          </div>
+        </div>
+
+        <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/20">
+          <div className="flex items-start gap-3">
+            <Info className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <h4 className="text-sm font-medium text-blue-300 mb-2">Performance Evaluation</h4>
+              <p className="text-xs text-white/60 leading-relaxed">
+                Your performance is evaluated based on your message quota completion, ticket handling, 
+                and overall activity. Meeting your weekly message quota of 150 messages is required to 
+                maintain your staff position. Tickets claimed and closed are tracked to measure your 
+                contribution to user support.
+              </p>
+            </div>
+          </div>
+        </div>
+      </Card>
     </div>
   );
 }
-
