@@ -60,8 +60,18 @@ export default function AnalyticsPage() {
       }
       
       const allUsers = Array.isArray(response.data) ? (response.data as UserWithQuota[]) : [];
-      // Filter for staff members (users with a rank)
-      const staffData = allUsers.filter((u) => u.rank !== null);
+      // Filter for staff members (users with a rank) and ensure quota fields exist
+      const staffData = allUsers
+        .filter((u) => u.rank !== null)
+        .map((u) => ({
+          ...u,
+          messages_sent: typeof u.messages_sent === 'number' ? u.messages_sent : 0,
+          messages_quota: typeof u.messages_quota === 'number' ? u.messages_quota : 150,
+          quota_met: typeof u.quota_met === 'boolean' ? u.quota_met : (u.messages_sent || 0) >= 150,
+          quota_percentage: typeof u.quota_percentage === 'number' 
+            ? u.quota_percentage 
+            : Math.min((((u.messages_sent || 0) / 150) * 100), 100),
+        }));
       setStaffMembers(staffData);
     } catch (error: any) {
       console.error('Failed to fetch staff analytics:', error);
