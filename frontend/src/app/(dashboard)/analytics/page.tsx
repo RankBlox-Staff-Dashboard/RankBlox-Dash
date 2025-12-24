@@ -21,12 +21,13 @@ import { cn } from '@/lib/cn';
 type AnalyticsTab = 'staff' | 'non-staff';
 
 // Extended User type with quota data from management API
-type UserWithQuota = User & {
+// Backend already returns these fields, we just need to type them properly
+interface UserWithQuota extends User {
   messages_sent: number;
   messages_quota: number;
   quota_met: boolean;
   quota_percentage: number;
-};
+}
 
 export default function AnalyticsPage() {
   const [activeTab, setActiveTab] = useState<AnalyticsTab>('staff');
@@ -40,26 +41,9 @@ export default function AnalyticsPage() {
       try {
         setLoading(true);
         const response = await managementAPI.getUsers();
+        // Backend already returns quota fields, just cast to UserWithQuota[]
         // Filter to only show staff members (those with a rank)
-        // The management API returns users with quota fields, but TypeScript doesn't know about them
-        // So we cast to any first, then to UserWithQuota
-        const staff = (response.data as any[])
-          .filter((u: any) => u.rank !== null)
-          .map((u: any) => {
-            const messagesSent = typeof u.messages_sent === 'number' ? u.messages_sent : parseInt(String(u.messages_sent || 0));
-            const messagesQuota = typeof u.messages_quota === 'number' ? u.messages_quota : 100;
-            const quotaMet = typeof u.quota_met === 'boolean' ? u.quota_met : messagesSent >= messagesQuota;
-            const quotaPercentage = typeof u.quota_percentage === 'number' ? u.quota_percentage : Math.min((messagesSent / messagesQuota) * 100, 100);
-            
-            return {
-              ...u,
-              messages_sent: messagesSent,
-              messages_quota: messagesQuota,
-              quota_met: quotaMet,
-              quota_percentage: quotaPercentage,
-            } as UserWithQuota;
-          });
-        
+        const staff = (response.data as UserWithQuota[]).filter(u => u.rank !== null);
         setStaffMembers(staff);
       } catch (error: any) {
         // Only log non-404 errors to avoid console spam
@@ -107,7 +91,7 @@ export default function AnalyticsPage() {
   // Calculate statistics based on quota (100 messages)
   // Active = met quota (100+ messages), Inactive = didn't meet quota
   const totalMembers = staffMembers.length;
-  const activeMembers = staffMembers.filter(m => m.quota_met).length;
+  const activeMembers = staffMembers.filter((m: UserWithQuota) => m.quota_met === true).length;
   const inactiveMembers = totalMembers - activeMembers;
 
   return (
@@ -170,7 +154,7 @@ export default function AnalyticsPage() {
           <div className="text-center py-8 text-white/50 animate-pulse">Loading staff members...</div>
         ) : staffMembers.length > 0 ? (
           <div className="space-y-3">
-            {staffMembers.map((member, index) => (
+            {staffMembers.map((member: UserWithQuota, index: number) => (
               <div 
                 key={member.id} 
                 className={cn(
@@ -281,8 +265,8 @@ export default function AnalyticsPage() {
           {nonStaffLoading ? (
             <div className="text-center py-8 text-white/50 animate-pulse">Loading non-staff members...</div>
           ) : nonStaffMembers.length > 0 ? (
-            <div className="space-y-3">
-              {nonStaffMembers.map((member, index) => (
+                    <div className="space-y-3">
+                      {nonStaffMembers.map((member: NonStaffMember, index: number) => (
                 <div 
                   key={member.discord_id} 
                   className={cn(
