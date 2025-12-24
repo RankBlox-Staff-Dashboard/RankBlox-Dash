@@ -12,8 +12,10 @@ router.get('/roblox-avatar/:robloxId', async (req: Request, res: Response) => {
     const { robloxId } = req.params;
     const size = (req.query.size as string) || '150x150';
 
+    // Validate robloxId - if invalid, return empty data structure (never return 404)
     if (!robloxId || !/^\d+$/.test(robloxId)) {
-      return res.status(400).json({ error: 'Invalid Roblox ID' });
+      // Return empty data structure instead of error - frontend will use Discord fallback
+      return res.json({ data: [] });
     }
 
     // Fetch from Roblox API
@@ -21,37 +23,40 @@ router.get('/roblox-avatar/:robloxId', async (req: Request, res: Response) => {
     
     let robloxResponse: globalThis.Response;
     try {
-      robloxResponse = await fetch(robloxUrl);
+      // Create abort controller for timeout (consistent with other routes)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+
+      robloxResponse = await fetch(robloxUrl, {
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
     } catch (fetchError) {
-      console.error('Error fetching from Roblox API:', fetchError);
-      // Return empty data structure that frontend can handle
+      // Network errors, timeouts, etc. - return empty data structure
+      // Frontend will fallback to Discord avatar
       return res.json({ data: [] });
     }
 
     if (!robloxResponse.ok) {
-      // If Roblox returns 404 or other error, return empty data structure
+      // If Roblox returns 404 or any other error, return empty data structure
       // Frontend will fallback to Discord avatar
-      if (robloxResponse.status === 404) {
-        return res.json({ data: [] });
-      }
-      console.error(`Roblox API returned ${robloxResponse.status} for user ${robloxId}`);
       return res.json({ data: [] });
     }
 
     const data = await robloxResponse.json() as { data?: Array<{ imageUrl?: string }> };
     
-    // Validate response structure
-    if (!data || !data.data || !Array.isArray(data.data)) {
-      console.error('Invalid response structure from Roblox API');
+    // Validate response structure - if invalid, return empty data structure
+    if (!data || !data.data || !Array.isArray(data.data) || data.data.length === 0 || !data.data[0]?.imageUrl) {
       return res.json({ data: [] });
     }
     
     // Return the data with CORS headers (handled by server CORS middleware)
     res.json(data);
   } catch (error) {
-    console.error('Error proxying Roblox avatar:', error);
-    // Return empty data structure instead of error to allow frontend fallback
-    res.json({ data: [] });
+    // Any unexpected error - return empty data structure instead of error response
+    // Frontend will fallback to Discord avatar
+    return res.json({ data: [] });
   }
 });
 

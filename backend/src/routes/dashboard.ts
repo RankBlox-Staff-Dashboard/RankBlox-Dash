@@ -131,6 +131,7 @@ router.get('/analytics/staff', requireAdmin, requirePermission('VIEW_ANALYTICS')
     const weekStart = getCurrentWeekStart();
 
     // Get all staff (not just active) with their current week activity
+    // Filter to only include users with a rank (staff members)
     const staff = await db
       .prepare(
         `SELECT 
@@ -148,8 +149,9 @@ router.get('/analytics/staff', requireAdmin, requirePermission('VIEW_ANALYTICS')
           150 as messages_quota
         FROM users u
         LEFT JOIN activity_logs al ON u.id = al.user_id
+        WHERE u.\`rank\` IS NOT NULL
         GROUP BY u.id, u.discord_id, u.discord_username, u.discord_avatar, u.roblox_id, u.roblox_username, u.\`rank\`, u.rank_name, u.status
-        ORDER BY u.\`rank\` IS NULL, u.\`rank\` DESC, u.created_at ASC`
+        ORDER BY u.\`rank\` DESC, u.created_at ASC`
       )
       .all(weekStart) as any[];
 

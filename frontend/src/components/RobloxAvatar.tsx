@@ -31,7 +31,8 @@ export function RobloxAvatar({
   const discordAvatarUrl = getDiscordAvatarUrl(discordId, discordAvatar);
   
   // Use Roblox avatar if available and successfully loaded, otherwise Discord
-  const avatarUrl = robloxId && robloxAvatarUrl ? robloxAvatarUrl : discordAvatarUrl;
+  // Ensure we always have a valid URL (discordAvatarUrl is always valid)
+  const avatarUrl = (robloxId && robloxAvatarUrl && !error) ? robloxAvatarUrl : discordAvatarUrl;
   
   // Show placeholder during initial Roblox avatar load if we have a roblox_id
   if (loading && robloxId) {
@@ -42,6 +43,22 @@ export function RobloxAvatar({
       >
         <UserIcon className="w-1/2 h-1/2 text-white/40" />
       </div>
+    );
+  }
+
+  // Ensure we have a valid avatar URL (discordAvatarUrl is always valid, so this should never fail)
+  if (!avatarUrl) {
+    // Fallback to default Discord avatar if somehow both are missing
+    const fallbackUrl = `https://cdn.discordapp.com/embed/avatars/0.png`;
+    return (
+      <Image
+        src={fallbackUrl}
+        alt={alt}
+        width={size}
+        height={size}
+        className={`rounded-full ${className}`}
+        unoptimized
+      />
     );
   }
 

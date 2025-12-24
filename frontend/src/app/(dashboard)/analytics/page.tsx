@@ -14,24 +14,14 @@ import { Card } from '@/components/ui/Card';
 import { RobloxAvatar } from '@/components/RobloxAvatar';
 import { RankBadge } from '@/components/RankBadge';
 import { TabsGrid, type TabsGridItem } from '@/components/ui/TabsGrid';
-import { managementAPI, dashboardAPI, type NonStaffMember } from '@/services/api';
-import type { User } from '@/types';
+import { dashboardAPI, type NonStaffMember, type StaffAnalytics } from '@/services/api';
 import { cn } from '@/lib/cn';
 
 type AnalyticsTab = 'staff' | 'non-staff';
 
-// Extended User type with quota data from management API
-// Backend already returns these fields, we just need to type them properly
-interface UserWithQuota extends User {
-  messages_sent: number;
-  messages_quota: number;
-  quota_met: boolean;
-  quota_percentage: number;
-}
-
 export default function AnalyticsPage() {
   const [activeTab, setActiveTab] = useState<AnalyticsTab>('staff');
-  const [staffMembers, setStaffMembers] = useState<UserWithQuota[]>([]);
+  const [staffMembers, setStaffMembers] = useState<StaffAnalytics[]>([]);
   const [nonStaffMembers, setNonStaffMembers] = useState<NonStaffMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [nonStaffLoading, setNonStaffLoading] = useState(false);
@@ -40,14 +30,17 @@ export default function AnalyticsPage() {
     const fetchStaffMembers = async () => {
       try {
         setLoading(true);
-        const response = await managementAPI.getUsers();
-        // Backend already returns quota fields, just cast to UserWithQuota[]
-        // Filter to only show staff members (those with a rank)
-        const staff = (response.data as UserWithQuota[]).filter(u => u.rank !== null);
-        setStaffMembers(staff);
-      } catch (error: any) {
+        const response = await dashboardAPI.getStaffAnalytics();
+        // Backend already filters to staff members and includes quota fields
+        setStaffMembers(response.data);
+      } catch (error: unknown) {
         // Only log non-404 errors to avoid console spam
-        if (error?.response?.status !== 404) {
+        if (error && typeof error === 'object' && 'response' in error) {
+          const axiosError = error as { response?: { status?: number } };
+          if (axiosError.response?.status !== 404) {
+            console.error('Failed to fetch staff members:', error);
+          }
+        } else {
           console.error('Failed to fetch staff members:', error);
         }
         // Set empty array on error to show empty state
@@ -66,10 +59,15 @@ export default function AnalyticsPage() {
         try {
           setNonStaffLoading(true);
           const response = await dashboardAPI.getNonStaffMembers();
-          setNonStaffMembers(response.data);
-        } catch (error: any) {
+          setNonStaffMembers(response.data || []);
+        } catch (error: unknown) {
           // Only log non-404 errors to avoid console spam
-          if (error?.response?.status !== 404) {
+          if (error && typeof error === 'object' && 'response' in error) {
+            const axiosError = error as { response?: { status?: number } };
+            if (axiosError.response?.status !== 404) {
+              console.error('Failed to fetch non-staff members:', error);
+            }
+          } else {
             console.error('Failed to fetch non-staff members:', error);
           }
           // Set empty array on error to show empty state
@@ -91,7 +89,7 @@ export default function AnalyticsPage() {
   // Calculate statistics based on quota (150 messages)
   // Active = met quota (150+ messages), Inactive = didn't meet quota
   const totalMembers = staffMembers.length;
-  const activeMembers = staffMembers.filter((m: UserWithQuota) => m.quota_met === true).length;
+  const activeMembers = staffMembers.filter((m: StaffAnalytics) => m.quota_met === true).length;
   const inactiveMembers = totalMembers - activeMembers;
 
   return (
@@ -154,7 +152,7 @@ export default function AnalyticsPage() {
           <div className="text-center py-8 text-white/50 animate-pulse">Loading staff members...</div>
         ) : staffMembers.length > 0 ? (
           <div className="space-y-3">
-            {staffMembers.map((member: UserWithQuota, index: number) => (
+            {staffMembers.map((member: StaffAnalytics, index: number) => (
               <div 
                 key={member.id} 
                 className={cn(
@@ -212,7 +210,7 @@ export default function AnalyticsPage() {
                       "text-xs font-semibold",
                       member.quota_met ? "text-emerald-400" : "text-white/70"
                     )}>
-                      {member.messages_sent}/{member.messages_quota}
+                      {member.messages_sent ?? 0}/{member.messages_quota ?? 150}
                     </span>
                   </div>
                   <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
@@ -224,7 +222,7 @@ export default function AnalyticsPage() {
                           : "bg-blue-500"
                       )}
                       style={{ 
-                        width: `${member.quota_percentage}%`,
+                        width: `${Math.min(Math.max(member.quota_percentage ?? 0, 0), 100)}%`,
                         animationDelay: `${0.05 * index + 0.3}s`
                       }}
                     />
