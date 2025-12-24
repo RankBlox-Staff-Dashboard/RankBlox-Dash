@@ -16,73 +16,19 @@ import { Card } from '@/components/ui/Card';
 import { RobloxAvatar } from '@/components/RobloxAvatar';
 import { RankBadge } from '@/components/RankBadge';
 import { TabsGrid, type TabsGridItem } from '@/components/ui/TabsGrid';
-import { managementAPI, dashboardAPI, type NonStaffMember } from '@/services/api';
-import type { User } from '@/types';
+import { dashboardAPI, type NonStaffMember } from '@/services/api';
+import { useStaffStats, type UserWithQuota } from '@/hooks/useStaffStats';
+import { getActivityStatus } from '@/utils/staffStats';
 import { cn } from '@/lib/cn';
 
 type AnalyticsTab = 'staff' | 'non-staff';
 
-// User type with quota data from management API
-// The backend /management/users endpoint returns User fields plus quota fields
-interface UserWithQuota extends User {
-  messages_sent: number;
-  messages_quota: number;
-  quota_met: boolean;
-  quota_percentage: number;
-}
-
 export default function AnalyticsPage() {
   const [activeTab, setActiveTab] = useState<AnalyticsTab>('staff');
-  const [staffMembers, setStaffMembers] = useState<UserWithQuota[]>([]);
+  const { staffMembers, loading, error, refresh: refreshStaffStats } = useStaffStats();
   const [nonStaffMembers, setNonStaffMembers] = useState<NonStaffMember[]>([]);
-  const [loading, setLoading] = useState(true);
   const [nonStaffLoading, setNonStaffLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [nonStaffError, setNonStaffError] = useState<string | null>(null);
-
-  const fetchStaffAnalytics = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      // Use the management API endpoint (same as management panel)
-      const response = await managementAPI.getUsers();
-      
-      if (!response || !response.data) {
-        throw new Error('Invalid response from server');
-      }
-      
-      const allUsers = Array.isArray(response.data) ? (response.data as UserWithQuota[]) : [];
-      // Filter for staff members (users with a rank) and ensure quota fields exist
-      const staffData = allUsers
-        .filter((u) => u.rank !== null)
-        .map((u) => ({
-          ...u,
-          messages_sent: typeof u.messages_sent === 'number' ? u.messages_sent : 0,
-          messages_quota: typeof u.messages_quota === 'number' ? u.messages_quota : 150,
-          quota_met: typeof u.quota_met === 'boolean' ? u.quota_met : (u.messages_sent || 0) >= 150,
-          quota_percentage: typeof u.quota_percentage === 'number' 
-            ? u.quota_percentage 
-            : Math.min((((u.messages_sent || 0) / 150) * 100), 100),
-        }));
-      setStaffMembers(staffData);
-    } catch (error: any) {
-      console.error('Failed to fetch staff analytics:', error);
-      
-      if (error?.response?.status === 404) {
-        setError('No staff members found');
-      } else if (error?.response?.status === 401 || error?.response?.status === 403) {
-        setError('You do not have permission to view this data');
-      } else if (!navigator.onLine) {
-        setError('No internet connection');
-      } else {
-        setError('Failed to load staff data. Please try again.');
-      }
-      
-      setStaffMembers([]);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const fetchNonStaffMembers = async () => {
     try {
@@ -117,10 +63,6 @@ export default function AnalyticsPage() {
   };
 
   useEffect(() => {
-    fetchStaffAnalytics();
-  }, []);
-
-  useEffect(() => {
     if (activeTab === 'non-staff') {
       fetchNonStaffMembers();
     }
@@ -133,7 +75,7 @@ export default function AnalyticsPage() {
 
   // Calculate statistics from the data
   const totalMembers = staffMembers.length;
-  const activeMembers = staffMembers.filter((m) => m.quota_met === true).length;
+  const activeMembers = staffMembers.filter((m: UserWithQuota) => m.quota_met === true).length;
   const inactiveMembers = totalMembers - activeMembers;
 
   return (
@@ -187,7 +129,7 @@ export default function AnalyticsPage() {
               </div>
             </div>
             <button
-              onClick={fetchStaffAnalytics}
+              onClick={refreshStaffStats}
               disabled={loading}
               className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors disabled:opacity-50"
               aria-label="Refresh staff data"
@@ -215,7 +157,7 @@ export default function AnalyticsPage() {
               <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-3" />
               <p className="text-white/70 mb-4">{error}</p>
               <button
-                onClick={fetchStaffAnalytics}
+                onClick={refreshStaffStats}
                 className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
               >
                 Try Again
@@ -223,7 +165,7 @@ export default function AnalyticsPage() {
             </div>
           ) : staffMembers.length > 0 ? (
             <div className="space-y-3">
-              {staffMembers.map((member, index) => (
+              {staffMembers.map((member: UserWithQuota, index: number) => (
                 <div 
                   key={member.id} 
                   className={cn(
@@ -310,7 +252,7 @@ export default function AnalyticsPage() {
                         ? "bg-emerald-500/20 text-emerald-400" 
                         : "bg-red-500/20 text-red-400"
                     )}>
-                      {member.quota_met ? 'Active' : 'Inactive'}
+                      {getActivityStatus(member.messages_sent, member.messages_quota)}
                     </span>
                   </div>
                 </div>
@@ -372,7 +314,7 @@ export default function AnalyticsPage() {
             </div>
           ) : nonStaffMembers.length > 0 ? (
             <div className="space-y-3">
-              {nonStaffMembers.map((member, index) => (
+              {nonStaffMembers.map((member: NonStaffMember, index: number) => (
                 <div 
                   key={member.discord_id} 
                   className={cn(
