@@ -186,6 +186,66 @@ router.get('/analytics/staff', requireAdmin, requirePermission('VIEW_ANALYTICS')
 });
 
 /**
+ * Get Discord server members who aren't in the staff portal (admin only)
+ */
+router.get('/analytics/non-staff', requireAdmin, requirePermission('VIEW_ANALYTICS'), async (req: Request, res: Response) => {
+  try {
+    // Get all Discord server members from bot
+    const botApiUrl = process.env.BOT_API_URL || 'http://localhost:3001';
+    const botApiToken = process.env.BOT_API_TOKEN;
+
+    let discordMembers: Array<{
+      discord_id: string;
+      discord_username: string;
+      discord_display_name: string;
+      discord_avatar: string | null;
+      bot: boolean;
+    }> = [];
+
+    try {
+      const botResponse = await fetch(`${botApiUrl}/server-members`, {
+        headers: {
+          'X-Bot-Token': botApiToken || '',
+        },
+      });
+
+      if (botResponse.ok) {
+        const botData = await botResponse.json() as { members: typeof discordMembers };
+        discordMembers = botData.members || [];
+      } else {
+        console.error('Failed to fetch Discord members from bot:', botResponse.status);
+      }
+    } catch (error) {
+      console.error('Error calling bot API:', error);
+    }
+
+    // Get all staff members from database
+    const staffMembers = await db
+      .prepare('SELECT discord_id FROM users')
+      .all() as { discord_id: string }[];
+
+    const staffDiscordIds = new Set(staffMembers.map(m => m.discord_id));
+
+    // Find members who are in Discord but not in staff portal
+    // Note: Bot endpoint already filters out bots, but we check again for safety
+    const nonStaffMembers = discordMembers
+      .filter(member => !member.bot && !staffDiscordIds.has(member.discord_id))
+      .map(member => ({
+        discord_id: member.discord_id,
+        discord_username: member.discord_username,
+        discord_display_name: member.discord_display_name,
+        discord_avatar: member.discord_avatar,
+      }))
+      .sort((a, b) => a.discord_username.localeCompare(b.discord_username)); // Sort alphabetically
+
+    res.json(nonStaffMembers);
+  } catch (error) {
+    console.error('Error fetching non-staff members:', error);
+    res.status(500).json({ error: 'Failed to fetch non-staff members' });
+  }
+});
+
+/**
  * Get current LOA status for user
  */
 router.get('/loa/status', async (req: Request, res: Response) => {

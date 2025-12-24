@@ -94,12 +94,20 @@ export interface StaffAnalytics extends User {
   quota_percentage: number;
 }
 
+export interface NonStaffMember {
+  discord_id: string;
+  discord_username: string;
+  discord_display_name: string;
+  discord_avatar: string | null;
+}
+
 export const dashboardAPI = {
   getStats: () => api.get<Stats>('/dashboard/stats'),
   getInfractions: () => api.get<Infraction[]>('/dashboard/infractions'),
   getAnalytics: () => api.get<Analytics>('/dashboard/analytics'),
   getStaffStats: (userId: number) => api.get<Stats>(`/dashboard/stats/${userId}`),
   getStaffAnalytics: () => api.get<StaffAnalytics[]>('/dashboard/analytics/staff'),
+  getNonStaffMembers: () => api.get<NonStaffMember[]>('/dashboard/analytics/non-staff'),
 };
 
 // LOA API

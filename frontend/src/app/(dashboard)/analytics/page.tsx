@@ -7,19 +7,26 @@ import {
   CheckCircle2,
   XCircle,
   MessageSquare,
-  Users
+  Users,
+  UserX
 } from 'lucide-react';
 import { ProfileCard } from '@/components/ProfileCard';
 import { NavigationTabs } from '@/components/NavigationTabs';
 import { Card } from '@/components/ui/Card';
 import { RobloxAvatar } from '@/components/RobloxAvatar';
 import { RankBadge } from '@/components/RankBadge';
-import { dashboardAPI, type StaffAnalytics } from '@/services/api';
+import { TabsGrid, type TabsGridItem } from '@/components/ui/TabsGrid';
+import { dashboardAPI, type StaffAnalytics, type NonStaffMember } from '@/services/api';
 import { cn } from '@/lib/cn';
 
+type AnalyticsTab = 'staff' | 'non-staff';
+
 export default function AnalyticsPage() {
+  const [activeTab, setActiveTab] = useState<AnalyticsTab>('staff');
   const [staffMembers, setStaffMembers] = useState<StaffAnalytics[]>([]);
+  const [nonStaffMembers, setNonStaffMembers] = useState<NonStaffMember[]>([]);
   const [loading, setLoading] = useState(true);
+  const [nonStaffLoading, setNonStaffLoading] = useState(false);
 
   useEffect(() => {
     const fetchStaffAnalytics = async () => {
@@ -37,6 +44,29 @@ export default function AnalyticsPage() {
     fetchStaffAnalytics();
   }, []);
 
+  useEffect(() => {
+    if (activeTab === 'non-staff') {
+      const fetchNonStaffMembers = async () => {
+        try {
+          setNonStaffLoading(true);
+          const response = await dashboardAPI.getNonStaffMembers();
+          setNonStaffMembers(response.data);
+        } catch (error) {
+          console.error('Failed to fetch non-staff members:', error);
+        } finally {
+          setNonStaffLoading(false);
+        }
+      };
+
+      fetchNonStaffMembers();
+    }
+  }, [activeTab]);
+
+  const analyticsTabs: TabsGridItem[] = [
+    { key: 'staff', label: 'Staff Analytics', icon: BarChart3 },
+    { key: 'non-staff', label: 'Non-Staff Members', icon: UserX },
+  ];
+
   // Calculate statistics
   const totalMembers = staffMembers.length;
   const quotaMetCount = staffMembers.filter(m => m.quota_met).length;
@@ -50,41 +80,53 @@ export default function AnalyticsPage() {
       {/* Tabs Navigation */}
       <NavigationTabs />
 
-      {/* Statistics Summary */}
-      <div className="grid grid-cols-2 gap-3 animate-fadeInUp" style={{ animationDelay: '0.1s' }}>
-        <Card className="p-4 animate-scaleIn" style={{ animationDelay: '0.2s' }}>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center">
-              <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-            </div>
-            <div>
-              <div className="text-xs text-white/50">Quota Met</div>
-              <div className="text-lg font-bold text-white">{quotaMetCount}</div>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-4 animate-scaleIn" style={{ animationDelay: '0.3s' }}>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-red-500/20 flex items-center justify-center">
-              <XCircle className="w-5 h-5 text-red-400" />
-            </div>
-            <div>
-              <div className="text-xs text-white/50">Quota Not Met</div>
-              <div className="text-lg font-bold text-white">{quotaNotMetCount}</div>
-            </div>
-          </div>
-        </Card>
-      </div>
+      {/* Analytics Tabs */}
+      <Card className="p-4 animate-fadeInUp" style={{ animationDelay: '0.1s' }}>
+        <TabsGrid
+          items={analyticsTabs}
+          activeKey={activeTab}
+          onTabChange={(key) => setActiveTab(key as AnalyticsTab)}
+        />
+      </Card>
 
-      {/* Staff Analytics */}
-      <Card className="p-5 animate-fadeInUp" style={{ animationDelay: '0.4s' }}>
-        <div className="flex items-center gap-2 mb-4">
-          <BarChart3 className="w-5 h-5 text-blue-400 animate-pulse" />
-          <div>
-            <h3 className="text-base font-semibold text-white">Staff Analytics</h3>
-            <p className="text-xs text-white/50">All staff members with activity status</p>
-          </div>
+      {/* Statistics Summary - Only show for staff tab */}
+      {activeTab === 'staff' && (
+        <div className="grid grid-cols-2 gap-3 animate-fadeInUp" style={{ animationDelay: '0.2s' }}>
+          <Card className="p-4 animate-scaleIn" style={{ animationDelay: '0.3s' }}>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+                <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+              </div>
+              <div>
+                <div className="text-xs text-white/50">Quota Met</div>
+                <div className="text-lg font-bold text-white">{quotaMetCount}</div>
+              </div>
+            </div>
+          </Card>
+          <Card className="p-4 animate-scaleIn" style={{ animationDelay: '0.4s' }}>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-red-500/20 flex items-center justify-center">
+                <XCircle className="w-5 h-5 text-red-400" />
+              </div>
+              <div>
+                <div className="text-xs text-white/50">Quota Not Met</div>
+                <div className="text-lg font-bold text-white">{quotaNotMetCount}</div>
+              </div>
+            </div>
+          </Card>
         </div>
+      )}
+
+      {/* Staff Analytics Tab */}
+      {activeTab === 'staff' && (
+        <Card className="p-5 animate-fadeInUp" style={{ animationDelay: '0.5s' }}>
+          <div className="flex items-center gap-2 mb-4">
+            <BarChart3 className="w-5 h-5 text-blue-400 animate-pulse" />
+            <div>
+              <h3 className="text-base font-semibold text-white">Staff Analytics</h3>
+              <p className="text-xs text-white/50">All staff members with activity status</p>
+            </div>
+          </div>
 
         {loading ? (
           <div className="text-center py-8 text-white/50 animate-pulse">Loading staff analytics...</div>
@@ -193,7 +235,63 @@ export default function AnalyticsPage() {
         ) : (
           <div className="text-center py-8 text-white/50 animate-pulse">No staff members found</div>
         )}
-      </Card>
+        </Card>
+      )}
+
+      {/* Non-Staff Members Tab */}
+      {activeTab === 'non-staff' && (
+        <Card className="p-5 animate-fadeInUp" style={{ animationDelay: '0.2s' }}>
+          <div className="flex items-center gap-2 mb-4">
+            <UserX className="w-5 h-5 text-orange-400 animate-pulse" />
+            <div>
+              <h3 className="text-base font-semibold text-white">Non-Staff Members</h3>
+              <p className="text-xs text-white/50">Discord server members not registered in staff portal</p>
+            </div>
+          </div>
+
+          {nonStaffLoading ? (
+            <div className="text-center py-8 text-white/50 animate-pulse">Loading non-staff members...</div>
+          ) : nonStaffMembers.length > 0 ? (
+            <div className="space-y-3">
+              {nonStaffMembers.map((member, index) => (
+                <div 
+                  key={member.discord_id} 
+                  className={cn(
+                    "flex items-center gap-3 p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-all duration-300",
+                    "animate-slideUp hover:scale-[1.02] hover:shadow-lg"
+                  )}
+                  style={{ animationDelay: `${0.05 * index}s` }}
+                >
+                  <RobloxAvatar
+                    robloxId={null}
+                    discordId={member.discord_id}
+                    discordAvatar={member.discord_avatar}
+                    alt={member.discord_display_name || member.discord_username}
+                    size={48}
+                    className="w-12 h-12 ring-2 ring-orange-500/20 hover:ring-orange-500/40 transition-all"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-white truncate">
+                      {member.discord_display_name || member.discord_username}
+                    </div>
+                    <div className="text-xs text-white/50 truncate">
+                      @{member.discord_username}
+                    </div>
+                  </div>
+                  <span className="text-xs px-2 py-1 rounded-full font-medium bg-orange-500/20 text-orange-400">
+                    Not Registered
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-white/50 animate-pulse">
+              <UserX className="w-12 h-12 text-white/20 mx-auto mb-3" />
+              <p>All Discord members are registered in the staff portal</p>
+            </div>
+          )}
+        </Card>
+      )}
     </div>
   );
 }

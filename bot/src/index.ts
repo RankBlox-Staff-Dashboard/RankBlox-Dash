@@ -36,6 +36,7 @@ const client = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildMembers, // Required to fetch all guild members
   ],
 });
 
@@ -87,6 +88,61 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
       console.error('Error processing infraction notification:', error);
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Internal server error' }));
+    }
+    return;
+  }
+
+  // Get Discord server members endpoint
+  if (req.url === '/server-members' && req.method === 'GET') {
+    // Verify authentication
+    if (!verifyBotToken(req)) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+
+    try {
+      // Check if bot is ready
+      if (!client.isReady()) {
+        res.writeHead(503, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Bot is not ready yet' }));
+        return;
+      }
+
+      const guildId = process.env.GUILD_ID;
+      if (!guildId) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'GUILD_ID not configured' }));
+        return;
+      }
+
+      const guild = client.guilds.cache.get(guildId);
+      if (!guild) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Guild not found' }));
+        return;
+      }
+
+      // Fetch all members (this may take a moment for large servers)
+      // Use force: true to bypass cache and get fresh data
+      await guild.members.fetch({ force: false }); // Use cache if available for performance
+      
+      const members = guild.members.cache
+        .filter(member => !member.user.bot) // Filter out bots
+        .map(member => ({
+          discord_id: member.user.id,
+          discord_username: member.user.username,
+          discord_display_name: member.displayName,
+          discord_avatar: member.user.avatar,
+          bot: member.user.bot,
+        }));
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ members }));
+    } catch (error: any) {
+      console.error('Error fetching server members:', error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Internal server error', message: error.message }));
     }
     return;
   }
