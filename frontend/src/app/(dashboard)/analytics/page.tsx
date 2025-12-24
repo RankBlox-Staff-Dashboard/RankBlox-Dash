@@ -41,16 +41,24 @@ export default function AnalyticsPage() {
         setLoading(true);
         const response = await managementAPI.getUsers();
         // Filter to only show staff members (those with a rank)
-        // Map to ensure quota fields are properly typed
-        const staff = response.data
-          .filter(u => u.rank !== null)
-          .map(u => ({
-            ...u,
-            messages_sent: typeof u.messages_sent === 'number' ? u.messages_sent : parseInt(String(u.messages_sent || 0)),
-            messages_quota: typeof u.messages_quota === 'number' ? u.messages_quota : 100,
-            quota_met: typeof u.quota_met === 'boolean' ? u.quota_met : (typeof u.messages_sent === 'number' ? u.messages_sent : parseInt(String(u.messages_sent || 0))) >= 100,
-            quota_percentage: typeof u.quota_percentage === 'number' ? u.quota_percentage : Math.min(((typeof u.messages_sent === 'number' ? u.messages_sent : parseInt(String(u.messages_sent || 0))) / 100) * 100, 100),
-          })) as UserWithQuota[];
+        // The management API returns users with quota fields, but TypeScript doesn't know about them
+        // So we cast to any first, then to UserWithQuota
+        const staff = (response.data as any[])
+          .filter((u: any) => u.rank !== null)
+          .map((u: any) => {
+            const messagesSent = typeof u.messages_sent === 'number' ? u.messages_sent : parseInt(String(u.messages_sent || 0));
+            const messagesQuota = typeof u.messages_quota === 'number' ? u.messages_quota : 100;
+            const quotaMet = typeof u.quota_met === 'boolean' ? u.quota_met : messagesSent >= messagesQuota;
+            const quotaPercentage = typeof u.quota_percentage === 'number' ? u.quota_percentage : Math.min((messagesSent / messagesQuota) * 100, 100);
+            
+            return {
+              ...u,
+              messages_sent: messagesSent,
+              messages_quota: messagesQuota,
+              quota_met: quotaMet,
+              quota_percentage: quotaPercentage,
+            } as UserWithQuota;
+          });
         
         setStaffMembers(staff);
       } catch (error: any) {
