@@ -17,22 +17,14 @@ import { RobloxAvatar } from '@/components/RobloxAvatar';
 import { RankBadge } from '@/components/RankBadge';
 import { TabsGrid, type TabsGridItem } from '@/components/ui/TabsGrid';
 import { managementAPI, dashboardAPI, type NonStaffMember } from '@/services/api';
+import type { User } from '@/types';
 import { cn } from '@/lib/cn';
 
 type AnalyticsTab = 'staff' | 'non-staff';
 
 // User type with quota data from management API
-interface UserWithQuota {
-  id: number;
-  discord_id: string;
-  discord_username: string;
-  discord_avatar: string | null;
-  roblox_id: string | null;
-  roblox_username: string | null;
-  rank: number | null;
-  rank_name: string | null;
-  status: string;
-  created_at: string;
+// The backend /management/users endpoint returns User fields plus quota fields
+interface UserWithQuota extends User {
   messages_sent: number;
   messages_quota: number;
   quota_met: boolean;
