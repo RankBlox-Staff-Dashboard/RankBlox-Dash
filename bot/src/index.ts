@@ -124,8 +124,8 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
       }
 
       // Fetch all members (this may take a moment for large servers)
-      // Use force: true to bypass cache and get fresh data
-      await guild.members.fetch({ force: false }); // Use cache if available for performance
+      // Fetch all members to ensure cache is populated
+      await guild.members.fetch(); // Fetches all members and populates cache
       
       const members = guild.members.cache
         .filter(member => !member.user.bot) // Filter out bots
