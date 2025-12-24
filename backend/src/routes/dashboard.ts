@@ -124,13 +124,13 @@ router.get('/analytics', requireAdmin, requirePermission('VIEW_ANALYTICS'), asyn
 });
 
 /**
- * Get staff analytics with minutes (admin only)
+ * Get staff analytics with minutes and activity (admin only)
  */
 router.get('/analytics/staff', requireAdmin, requirePermission('VIEW_ANALYTICS'), async (req: Request, res: Response) => {
   try {
     const weekStart = getCurrentWeekStart();
 
-    // Get all active staff with their current week minutes
+    // Get all staff (not just active) with their current week activity
     const staff = await db
       .prepare(
         `SELECT 
@@ -143,28 +143,40 @@ router.get('/analytics/staff', requireAdmin, requirePermission('VIEW_ANALYTICS')
           u.\`rank\`,
           u.rank_name,
           u.status,
-          COALESCE(SUM(al.minutes), 0) as total_minutes
+          COALESCE(SUM(al.minutes), 0) as total_minutes,
+          COALESCE(MAX(CASE WHEN al.week_start = ? THEN al.messages_sent END), 0) as messages_sent,
+          150 as messages_quota
         FROM users u
         LEFT JOIN activity_logs al ON u.id = al.user_id
-        WHERE u.status = 'active'
         GROUP BY u.id, u.discord_id, u.discord_username, u.discord_avatar, u.roblox_id, u.roblox_username, u.\`rank\`, u.rank_name, u.status
         ORDER BY u.\`rank\` IS NULL, u.\`rank\` DESC, u.created_at ASC`
       )
-      .all() as any[];
+      .all(weekStart) as any[];
 
     // Format the response
-    const staffAnalytics = staff.map((member) => ({
-      id: member.id,
-      discord_id: member.discord_id,
-      discord_username: member.discord_username,
-      discord_avatar: member.discord_avatar,
-      roblox_id: member.roblox_id,
-      roblox_username: member.roblox_username,
-      rank: member.rank,
-      rank_name: member.rank_name,
-      status: member.status,
-      minutes: parseInt(member.total_minutes as any) || 0,
-    }));
+    const staffAnalytics = staff.map((member) => {
+      const messagesSent = parseInt(member.messages_sent as any) || 0;
+      const messagesQuota = 150;
+      const quotaMet = messagesSent >= messagesQuota;
+      const quotaPercentage = Math.min((messagesSent / messagesQuota) * 100, 100);
+
+      return {
+        id: member.id,
+        discord_id: member.discord_id,
+        discord_username: member.discord_username,
+        discord_avatar: member.discord_avatar,
+        roblox_id: member.roblox_id,
+        roblox_username: member.roblox_username,
+        rank: member.rank,
+        rank_name: member.rank_name,
+        status: member.status,
+        minutes: parseInt(member.total_minutes as any) || 0,
+        messages_sent: messagesSent,
+        messages_quota: messagesQuota,
+        quota_met: quotaMet,
+        quota_percentage: quotaPercentage,
+      };
+    });
 
     res.json(staffAnalytics);
   } catch (error) {

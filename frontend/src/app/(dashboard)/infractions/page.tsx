@@ -65,7 +65,7 @@ export default function InfractionsPage() {
             return (
               <div 
                 key={infraction.id}
-                className={`flex items-start gap-3 p-4 rounded-xl transition-all hover:scale-[1.01] animate-slideUp ${
+                className={`flex items-start gap-3 p-4 rounded-xl transition-all duration-300 hover:scale-[1.02] hover:shadow-lg animate-slideUp ${
                   infraction.type === 'strike' 
                     ? 'bg-red-500/10 border border-red-500/20' 
                     : 'bg-yellow-500/10 border border-yellow-500/20'

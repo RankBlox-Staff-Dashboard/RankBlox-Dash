@@ -160,8 +160,8 @@ export default function TicketsPage() {
             return (
               <div 
                 key={ticket.id}
-                className="p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all hover:scale-[1.01] animate-slideUp"
-                style={{ animationDelay: `${0.03 * index}s` }}
+                className="p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg animate-slideUp"
+                style={{ animationDelay: `${0.05 * index}s` }}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">

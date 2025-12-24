@@ -39,7 +39,8 @@ export default function OverviewPage() {
             href="https://docs.ahscampus.com" 
             target="_blank" 
             rel="noopener noreferrer"
-            className="flex items-center justify-between p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all hover:scale-[1.01] group"
+            className="flex items-center justify-between p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg group animate-slideUp"
+            style={{ animationDelay: '0.15s' }}
           >
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-lg bg-blue-500/20 flex items-center justify-center">
@@ -57,7 +58,8 @@ export default function OverviewPage() {
             href="https://discord.gg/firealarm" 
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center justify-between p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all hover:scale-[1.01] group"
+            className="flex items-center justify-between p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg group animate-slideUp"
+            style={{ animationDelay: '0.2s' }}
           >
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-lg bg-purple-500/20 flex items-center justify-center">
@@ -81,7 +83,7 @@ export default function OverviewPage() {
         </div>
 
         <div className="space-y-3">
-          <div className="flex items-start gap-3 p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 transition-all hover:bg-blue-500/15">
+          <div className="flex items-start gap-3 p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 transition-all duration-300 hover:bg-blue-500/15 hover:scale-[1.01] hover:shadow-lg animate-slideUp" style={{ animationDelay: '0.25s' }}>
             <div className="w-2 h-2 rounded-full bg-blue-400 mt-1.5 flex-shrink-0 animate-pulse" />
             <div className="flex-1">
               <div className="flex items-center justify-between mb-1">
@@ -96,7 +98,7 @@ export default function OverviewPage() {
             </div>
           </div>
 
-          <div className="flex items-start gap-3 p-3 rounded-xl bg-yellow-500/10 border border-yellow-500/20 transition-all hover:bg-yellow-500/15">
+          <div className="flex items-start gap-3 p-3 rounded-xl bg-yellow-500/10 border border-yellow-500/20 transition-all duration-300 hover:bg-yellow-500/15 hover:scale-[1.01] hover:shadow-lg animate-slideUp" style={{ animationDelay: '0.3s' }}>
             <div className="w-2 h-2 rounded-full bg-yellow-400 mt-1.5 flex-shrink-0 animate-pulse" />
             <div className="flex-1">
               <div className="flex items-center justify-between mb-1">
@@ -111,7 +113,7 @@ export default function OverviewPage() {
             </div>
           </div>
 
-          <div className="flex items-start gap-3 p-3 rounded-xl bg-red-500/10 border border-red-500/20 transition-all hover:bg-red-500/15">
+          <div className="flex items-start gap-3 p-3 rounded-xl bg-red-500/10 border border-red-500/20 transition-all duration-300 hover:bg-red-500/15 hover:scale-[1.01] hover:shadow-lg animate-slideUp" style={{ animationDelay: '0.35s' }}>
             <div className="w-2 h-2 rounded-full bg-red-400 mt-1.5 flex-shrink-0 animate-pulse" />
             <div className="flex-1">
               <div className="flex items-center justify-between mb-1">
