@@ -124,6 +124,56 @@ router.get('/analytics', requireAdmin, requirePermission('VIEW_ANALYTICS'), asyn
 });
 
 /**
+ * Get staff analytics with minutes (admin only)
+ */
+router.get('/analytics/staff', requireAdmin, requirePermission('VIEW_ANALYTICS'), async (req: Request, res: Response) => {
+  try {
+    const weekStart = getCurrentWeekStart();
+
+    // Get all active staff with their current week minutes
+    const staff = await db
+      .prepare(
+        `SELECT 
+          u.id,
+          u.discord_id,
+          u.discord_username,
+          u.discord_avatar,
+          u.roblox_id,
+          u.roblox_username,
+          u.\`rank\`,
+          u.rank_name,
+          u.status,
+          COALESCE(SUM(al.minutes), 0) as total_minutes
+        FROM users u
+        LEFT JOIN activity_logs al ON u.id = al.user_id
+        WHERE u.status = 'active'
+        GROUP BY u.id, u.discord_id, u.discord_username, u.discord_avatar, u.roblox_id, u.roblox_username, u.\`rank\`, u.rank_name, u.status
+        ORDER BY u.\`rank\` IS NULL, u.\`rank\` DESC, u.created_at ASC`
+      )
+      .all() as any[];
+
+    // Format the response
+    const staffAnalytics = staff.map((member) => ({
+      id: member.id,
+      discord_id: member.discord_id,
+      discord_username: member.discord_username,
+      discord_avatar: member.discord_avatar,
+      roblox_id: member.roblox_id,
+      roblox_username: member.roblox_username,
+      rank: member.rank,
+      rank_name: member.rank_name,
+      status: member.status,
+      minutes: parseInt(member.total_minutes as any) || 0,
+    }));
+
+    res.json(staffAnalytics);
+  } catch (error) {
+    console.error('Error fetching staff analytics:', error);
+    res.status(500).json({ error: 'Failed to fetch staff analytics' });
+  }
+});
+
+/**
  * Get current LOA status for user
  */
 router.get('/loa/status', async (req: Request, res: Response) => {

@@ -7,7 +7,8 @@ import {
   Search, 
   AlertTriangle, 
   Settings,
-  Shield
+  Shield,
+  BarChart3
 } from 'lucide-react';
 import { Card } from './ui/Card';
 import { cn } from '@/lib/cn';
@@ -25,6 +26,7 @@ const allTabs: Tab[] = [
   { key: 'overview', label: 'Overview', icon: LayoutDashboard, path: '/overview' },
   { key: 'lookup', label: 'Lookup', icon: Search, path: '/tickets' },
   { key: 'infractions', label: 'Infractions', icon: AlertTriangle, path: '/infractions' },
+  { key: 'analytics', label: 'Analytics', icon: BarChart3, path: '/analytics', requiresAdmin: true },
   { key: 'management', label: 'Management', icon: Shield, path: '/management', requiresAdmin: true },
   { key: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
 ];

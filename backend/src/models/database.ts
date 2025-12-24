@@ -180,10 +180,24 @@ export async function initializeDatabase() {
         messages_sent INT DEFAULT 0,
         tickets_claimed INT DEFAULT 0,
         tickets_resolved INT DEFAULT 0,
+        minutes INT DEFAULT 0,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
         UNIQUE KEY unique_user_week (user_id, week_start)
       )
     `);
+    
+    // Add minutes column if it doesn't exist (for existing tables)
+    await pool.query(`
+      ALTER TABLE activity_logs ADD COLUMN IF NOT EXISTS minutes INT DEFAULT 0
+    `).catch(() => {
+      // Column might already exist or MySQL doesn't support IF NOT EXISTS for columns
+      // Try alternative approach
+      pool.query(`
+        ALTER TABLE activity_logs ADD COLUMN minutes INT DEFAULT 0
+      `).catch(() => {
+        // Column already exists, ignore
+      });
+    });
     
     // Create index for faster lookups
     await pool.query(`

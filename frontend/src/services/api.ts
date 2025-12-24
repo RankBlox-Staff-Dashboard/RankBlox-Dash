@@ -91,6 +91,7 @@ export const dashboardAPI = {
   getInfractions: () => api.get<Infraction[]>('/dashboard/infractions'),
   getAnalytics: () => api.get<Analytics>('/dashboard/analytics'),
   getStaffStats: (userId: number) => api.get<Stats>(`/dashboard/stats/${userId}`),
+  getStaffAnalytics: () => api.get<Array<User & { minutes: number }>>('/dashboard/analytics/staff'),
 };
 
 // LOA API
