@@ -150,31 +150,43 @@ router.get('/analytics/staff', requireAdmin, requirePermission('VIEW_ANALYTICS')
       )
       .all() as any[];
 
-    // Then, get all activity logs
-    const activityLogs = await db
+    // Get total minutes for all staff (sum across all weeks)
+    const totalMinutes = await db
       .prepare(
         `SELECT 
           user_id,
-          COALESCE(SUM(minutes), 0) as total_minutes,
-          COALESCE(MAX(CASE WHEN week_start = ? THEN messages_sent END), 0) as messages_sent
+          COALESCE(SUM(minutes), 0) as total_minutes
         FROM activity_logs
         GROUP BY user_id`
       )
+      .all() as any[];
+
+    // Get current week's messages_sent for all staff
+    const currentWeekMessages = await db
+      .prepare(
+        `SELECT 
+          user_id,
+          messages_sent
+        FROM activity_logs
+        WHERE week_start = ?`
+      )
       .all(weekStart) as any[];
 
-    // Create a map of user_id to activity data for efficient lookup
-    const activityMap = new Map();
-    activityLogs.forEach((log) => {
-      activityMap.set(log.user_id, {
-        total_minutes: parseInt(log.total_minutes as any) || 0,
-        messages_sent: parseInt(log.messages_sent as any) || 0,
-      });
+    // Create maps for efficient lookup
+    const minutesMap = new Map();
+    totalMinutes.forEach((log) => {
+      minutesMap.set(log.user_id, parseInt(log.total_minutes as any) || 0);
+    });
+
+    const messagesMap = new Map();
+    currentWeekMessages.forEach((log) => {
+      messagesMap.set(log.user_id, parseInt(log.messages_sent as any) || 0);
     });
 
     // Format the response by combining user data with activity data
     const staffAnalytics = staff.map((member) => {
-      const activity = activityMap.get(member.id) || { total_minutes: 0, messages_sent: 0 };
-      const messagesSent = activity.messages_sent;
+      const totalMinutes = minutesMap.get(member.id) || 0;
+      const messagesSent = messagesMap.get(member.id) || 0;
       const messagesQuota = 150;
       const quotaMet = messagesSent >= messagesQuota;
       const quotaPercentage = Math.min(Math.round((messagesSent / messagesQuota) * 100), 100);
@@ -190,7 +202,7 @@ router.get('/analytics/staff', requireAdmin, requirePermission('VIEW_ANALYTICS')
         rank_name: member.rank_name,
         status: member.status,
         created_at: member.created_at,
-        minutes: activity.total_minutes,
+        minutes: totalMinutes,
         messages_sent: messagesSent,
         messages_quota: messagesQuota,
         quota_met: quotaMet,
