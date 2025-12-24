@@ -22,10 +22,17 @@ export function calculateQuotaPercentage(
 }
 
 /**
- * Get user activity status - simply use the status from the user object
- * If status is 'active', return 'Active', otherwise return 'Inactive'
+ * Get user activity status based on quota_met
+ * A user is Active if they've met their quota, Inactive otherwise
+ * This ensures consistency with the quota display logic
  */
-export function getActivityStatus(userStatus: string): 'Active' | 'Inactive' {
+export function getActivityStatus(userStatus: string, quotaMet?: boolean): 'Active' | 'Inactive' {
+  // If quota_met is provided, use it to determine Active/Inactive
+  // This ensures the status matches the actual quota achievement
+  if (quotaMet !== undefined) {
+    return quotaMet ? 'Active' : 'Inactive';
+  }
+  // Fallback to status field for backwards compatibility
   return userStatus === 'active' ? 'Active' : 'Inactive';
 }
 

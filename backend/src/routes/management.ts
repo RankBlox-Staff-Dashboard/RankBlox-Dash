@@ -43,6 +43,7 @@ router.get('/users', async (req: Request, res: Response) => {
 
     // Query users with their current week message counts from activity_logs
     // Use explicit JOIN and ensure we're getting the actual MySQL data
+    // IMPORTANT: This must match the logic in /dashboard/stats for consistency
     const users = await db
       .prepare(
         `SELECT 
@@ -56,7 +57,7 @@ router.get('/users', async (req: Request, res: Response) => {
           u.rank_name, 
           u.status, 
           u.created_at,
-          IFNULL(al.messages_sent, 0) as messages_sent
+          COALESCE(al.messages_sent, 0) as messages_sent
          FROM users u
          LEFT JOIN activity_logs al ON al.user_id = u.id AND al.week_start = ?
          ORDER BY u.\`rank\` IS NULL, u.\`rank\` DESC, u.created_at ASC`
@@ -78,23 +79,28 @@ router.get('/users', async (req: Request, res: Response) => {
     }
 
     // Add quota information with proper type handling
+    // IMPORTANT: This logic must match /dashboard/stats for consistency
     const usersWithQuota = users.map((user) => {
-      // Convert messages_sent to number - handle MySQL response types
+      // Convert messages_sent to number - handle database response types
+      // Match the exact logic from /dashboard/stats: activityLog.messages_sent || 0
       let messagesSentNum = 0;
       if (user.messages_sent !== null && user.messages_sent !== undefined) {
         if (typeof user.messages_sent === 'string') {
           messagesSentNum = parseInt(user.messages_sent, 10);
         } else if (typeof user.messages_sent === 'number') {
           messagesSentNum = user.messages_sent;
+        } else if (typeof user.messages_sent === 'bigint') {
+          messagesSentNum = Number(user.messages_sent);
         }
       }
       
-      // Ensure valid number
+      // Ensure valid number (match dashboard/stats logic)
       if (isNaN(messagesSentNum) || messagesSentNum < 0) {
         messagesSentNum = 0;
       }
 
       const messagesQuota = 150;
+      // Quota is met if messages_sent >= quota (same as dashboard/stats)
       const quotaMet = messagesSentNum >= messagesQuota;
       const quotaPercentage = Math.min(Math.round((messagesSentNum / messagesQuota) * 100), 100);
 
@@ -104,11 +110,13 @@ router.get('/users', async (req: Request, res: Response) => {
           raw_messages_sent: user.messages_sent,
           type: typeof user.messages_sent,
           normalized: messagesSentNum,
+          quota_met: quotaMet,
           status: user.status
         });
       }
 
-      // Return data - use user.status directly for Active/Inactive (simple logic)
+      // Return data - status should reflect quota_met for Active/Inactive display
+      // The frontend uses quota_met to determine Active/Inactive, not just status field
       return {
         id: user.id,
         discord_id: user.discord_id,
@@ -118,11 +126,11 @@ router.get('/users', async (req: Request, res: Response) => {
         roblox_username: user.roblox_username,
         rank: user.rank,
         rank_name: user.rank_name,
-        status: user.status, // Use the status from MySQL directly
+        status: user.status, // Keep original status from database
         created_at: user.created_at,
-        messages_sent: messagesSentNum, // Actual count from MySQL activity_logs
+        messages_sent: messagesSentNum, // Actual count from activity_logs (must match dashboard/stats)
         messages_quota: messagesQuota,
-        quota_met: quotaMet,
+        quota_met: quotaMet, // This determines Active/Inactive in the UI
         quota_percentage: quotaPercentage,
       };
     });

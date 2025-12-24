@@ -252,7 +252,7 @@ export default function AnalyticsPage() {
                         ? "bg-emerald-500/20 text-emerald-400" 
                         : "bg-red-500/20 text-red-400"
                     )}>
-                      {getActivityStatus(member.status)}
+                      {getActivityStatus(member.status, member.quota_met)}
                     </span>
                   </div>
                 </div>
