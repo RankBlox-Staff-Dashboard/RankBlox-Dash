@@ -37,13 +37,20 @@ router.get('/users', async (req: Request, res: Response) => {
 
     // First, let's verify the activity_logs table has data for debugging
     const testQuery = await db
-      .prepare('SELECT user_id, week_start, messages_sent FROM activity_logs WHERE week_start = ? LIMIT 5')
+      .prepare('SELECT user_id, week_start, messages_sent FROM activity_logs WHERE week_start = ? LIMIT 10')
       .all(weekStart) as any[];
-    console.log(`[Management API] Sample activity_logs for week ${weekStart}:`, JSON.stringify(testQuery, null, 2));
+    console.log(`[Management API] Activity logs for week ${weekStart}:`, JSON.stringify(testQuery, null, 2));
+    
+    // Also check total staff count
+    const staffCount = await db
+      .prepare('SELECT COUNT(*) as count FROM users WHERE `rank` IS NOT NULL')
+      .get() as { count: number };
+    console.log(`[Management API] Total staff members in database: ${staffCount.count}`);
 
     // Query users with their current week message counts from activity_logs
     // Use explicit JOIN and ensure we're getting the actual MySQL data
     // IMPORTANT: This must match the logic in /dashboard/stats for consistency
+    // LIMIT to first 10 staff members for performance
     const users = await db
       .prepare(
         `SELECT 
@@ -60,22 +67,31 @@ router.get('/users', async (req: Request, res: Response) => {
           COALESCE(al.messages_sent, 0) as messages_sent
          FROM users u
          LEFT JOIN activity_logs al ON al.user_id = u.id AND al.week_start = ?
-         ORDER BY u.\`rank\` IS NULL, u.\`rank\` DESC, u.created_at ASC`
+         WHERE u.\`rank\` IS NOT NULL
+         ORDER BY u.\`rank\` DESC, u.created_at ASC
+         LIMIT 10`
       )
       .all(weekStart) as any[];
 
-    console.log(`[Management API] Found ${users.length} users from database`);
+    console.log(`[Management API] Found ${users.length} staff members from database (limited to 10)`);
 
-    // Debug: Log first few users to see actual MySQL data
+    // Debug: Log all users to see actual MySQL data
     if (users.length > 0) {
-      console.log(`[Management API] First 3 users raw from MySQL:`, 
-        users.slice(0, 3).map(u => ({
+      console.log(`[Management API] All ${users.length} staff members raw from MySQL:`, 
+        users.map(u => ({
+          id: u.id,
           username: u.roblox_username || u.discord_username,
+          discord_username: u.discord_username,
           messages_sent: u.messages_sent,
           messages_sent_type: typeof u.messages_sent,
-          status: u.status
+          messages_sent_value: u.messages_sent,
+          status: u.status,
+          rank: u.rank,
+          rank_name: u.rank_name
         }))
       );
+    } else {
+      console.log(`[Management API] No staff members found in database`);
     }
 
     // Add quota information with proper type handling
@@ -104,14 +120,17 @@ router.get('/users', async (req: Request, res: Response) => {
       const quotaMet = messagesSentNum >= messagesQuota;
       const quotaPercentage = Math.min(Math.round((messagesSentNum / messagesQuota) * 100), 100);
 
-      // Log for debugging specific users
-      if (user.roblox_username === 'BlakeGamez0' || (user.discord_username && user.discord_username.includes('Blake'))) {
-        console.log(`[Management API] Processing BlakeGamez0:`, {
+      // Log for debugging - log first 3 users
+      if (usersWithQuota.length <= 3) {
+        console.log(`[Management API] Processing user ${usersWithQuota.length}:`, {
+          username: user.roblox_username || user.discord_username,
           raw_messages_sent: user.messages_sent,
           type: typeof user.messages_sent,
           normalized: messagesSentNum,
           quota_met: quotaMet,
-          status: user.status
+          quota_percentage: quotaPercentage,
+          status: user.status,
+          rank: user.rank
         });
       }
 

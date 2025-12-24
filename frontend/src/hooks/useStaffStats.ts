@@ -44,12 +44,19 @@ export function useStaffStats() {
 
       console.log(`[useStaffStats] Received ${allUsers.length} users from API`);
       
-      // Debug: Log raw API response
+      // Debug: Log all users received from API
       if (allUsers.length > 0) {
-        const sampleUser = allUsers.find(u => u.roblox_username === 'BlakeGamez0' || u.discord_username?.includes('Blake'));
-        if (sampleUser) {
-          console.log(`[useStaffStats] Raw API data for BlakeGamez0:`, JSON.stringify(sampleUser, null, 2));
-        }
+        console.log(`[useStaffStats] All users from API:`, allUsers.map(u => ({
+          id: u.id,
+          username: u.roblox_username || u.discord_username,
+          messages_sent: u.messages_sent,
+          messages_sent_type: typeof u.messages_sent,
+          quota_met: u.quota_met,
+          status: u.status,
+          rank: u.rank
+        })));
+      } else {
+        console.log(`[useStaffStats] No users received from API`);
       }
 
       // Filter for staff members (users with a rank) and normalize quota fields
