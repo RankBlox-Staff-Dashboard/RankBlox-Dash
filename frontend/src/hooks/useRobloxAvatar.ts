@@ -32,10 +32,13 @@ export function useRobloxAvatar(robloxId: string | null, size: '150x150' | '420x
       setError(null);
 
       try {
-        // Use the official Roblox Thumbnails API
-        const response = await fetch(
-          `https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${robloxId}&size=${size}&format=Png&isCircular=false`
-        );
+        // Use backend proxy to avoid CORS issues
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
+        const proxyUrl = `${API_URL}/dashboard/roblox-avatar/${robloxId}?size=${size}`;
+        
+        const response = await fetch(proxyUrl, {
+          credentials: 'include',
+        });
 
         if (!response.ok) {
           throw new Error(`Failed to fetch avatar: ${response.status}`);
