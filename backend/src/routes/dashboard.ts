@@ -57,7 +57,7 @@ router.get('/stats', requirePermission('VIEW_DASHBOARD'), async (req: Request, r
 
     res.json({
       messages_sent: activityLog.messages_sent || 0,
-      messages_quota: 100,
+      messages_quota: 150,
       tickets_claimed: activityLog.tickets_claimed || 0,
       tickets_resolved: activityLog.tickets_resolved || 0,
       infractions: parseInt(infractionCount.count as any) || 0,
@@ -145,7 +145,7 @@ router.get('/analytics/staff', requireAdmin, requirePermission('VIEW_ANALYTICS')
           u.status,
           COALESCE(SUM(al.minutes), 0) as total_minutes,
           COALESCE(MAX(CASE WHEN al.week_start = ? THEN al.messages_sent END), 0) as messages_sent,
-          100 as messages_quota
+          150 as messages_quota
         FROM users u
         LEFT JOIN activity_logs al ON u.id = al.user_id
         GROUP BY u.id, u.discord_id, u.discord_username, u.discord_avatar, u.roblox_id, u.roblox_username, u.\`rank\`, u.rank_name, u.status
@@ -156,7 +156,7 @@ router.get('/analytics/staff', requireAdmin, requirePermission('VIEW_ANALYTICS')
     // Format the response
     const staffAnalytics = staff.map((member) => {
       const messagesSent = parseInt(member.messages_sent as any) || 0;
-      const messagesQuota = 100;
+      const messagesQuota = 150;
       const quotaMet = messagesSent >= messagesQuota;
       const quotaPercentage = Math.min((messagesSent / messagesQuota) * 100, 100);
 

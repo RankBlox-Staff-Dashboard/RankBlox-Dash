@@ -88,8 +88,8 @@ export default function AnalyticsPage() {
     { key: 'non-staff', label: 'Non-Staff Members', icon: UserX },
   ];
 
-  // Calculate statistics based on quota (100 messages)
-  // Active = met quota (100+ messages), Inactive = didn't meet quota
+  // Calculate statistics based on quota (150 messages)
+  // Active = met quota (150+ messages), Inactive = didn't meet quota
   const totalMembers = staffMembers.length;
   const activeMembers = staffMembers.filter((m: UserWithQuota) => m.quota_met === true).length;
   const inactiveMembers = totalMembers - activeMembers;
@@ -206,7 +206,7 @@ export default function AnalyticsPage() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <MessageSquare className="w-4 h-4 text-white/50" />
-                      <span className="text-xs text-white/70">Message Quota (100)</span>
+                      <span className="text-xs text-white/70">Message Quota (150)</span>
                     </div>
                     <span className={cn(
                       "text-xs font-semibold",

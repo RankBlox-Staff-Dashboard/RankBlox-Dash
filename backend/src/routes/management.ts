@@ -58,7 +58,7 @@ router.get('/users', async (req: Request, res: Response) => {
     // Add quota information
     const usersWithQuota = users.map((user) => {
       const messagesSent = parseInt(String(user.messages_sent || 0)) || 0;
-      const messagesQuota = 100;
+      const messagesQuota = 150;
       const quotaMet = messagesSent >= messagesQuota;
       const quotaPercentage = Math.min((messagesSent / messagesQuota) * 100, 100);
 

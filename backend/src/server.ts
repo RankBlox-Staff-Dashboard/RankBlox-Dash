@@ -151,7 +151,7 @@ async function checkWeeklyQuotas() {
       .prepare(
         `SELECT user_id, messages_sent 
          FROM activity_logs 
-         WHERE week_start = ? AND messages_sent < 100`
+         WHERE week_start = ? AND messages_sent < 150`
       )
       .all(lastWeekStart) as { user_id: number; messages_sent: number }[];
 
@@ -178,7 +178,7 @@ async function checkWeeklyQuotas() {
           )
           .get(
             log.user_id,
-            'Failed to meet 100 messages this week%',
+            'Failed to meet 150 messages this week%',
             lastWeekStart
           );
 
@@ -188,7 +188,7 @@ async function checkWeeklyQuotas() {
              VALUES (?, ?, ?, NULL)`
           ).run(
             log.user_id,
-            `Failed to meet 100 messages this week. Only sent ${log.messages_sent} messages.`,
+            `Failed to meet 150 messages this week. Only sent ${log.messages_sent} messages.`,
             'warning'
           );
           infractionsIssued++;
