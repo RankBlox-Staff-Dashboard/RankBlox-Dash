@@ -98,8 +98,14 @@ router.get('/users', async (req: Request, res: Response) => {
     // Create a map of actual message counts
     const actualMessageCountMap = new Map();
     messageCounts.forEach((mc) => {
-      actualMessageCountMap.set(mc.user_id, parseInt(mc.actual_message_count as any) || 0);
+      const count = parseInt(mc.actual_message_count as any) || 0;
+      actualMessageCountMap.set(mc.user_id, count);
     });
+    
+    console.log(`[Management API] Found ${messageCounts.length} users with messages in discord_messages table`);
+    if (messageCounts.length > 0) {
+      console.log(`[Management API] Message counts map:`, Array.from(actualMessageCountMap.entries()).slice(0, 5));
+    }
 
     console.log(`[Management API] Found ${users.length} staff members from database (limited to 10)`);
 
@@ -126,14 +132,21 @@ router.get('/users', async (req: Request, res: Response) => {
     // IMPORTANT: This logic must match /dashboard/stats for consistency
     // Use actual message count from discord_messages if available, otherwise use activity_logs
     const usersWithQuota = users.map((user) => {
-      // First, try to get actual count from discord_messages table (most accurate)
-      let messagesSentNum = actualMessageCountMap.get(user.id) || 0;
+      // Initialize to 0 to ensure we always have a number
+      let messagesSentNum: number = 0;
       
-      // If no actual count found, fall back to activity_logs
-      if (messagesSentNum === 0) {
+      // First, try to get actual count from discord_messages table (most accurate)
+      const discordCount = actualMessageCountMap.get(user.id);
+      if (discordCount !== undefined && discordCount !== null && !isNaN(discordCount)) {
+        messagesSentNum = Number(discordCount);
+      } else {
+        // If discord_messages count not available, try activity_logs
         if (user.messages_sent !== null && user.messages_sent !== undefined) {
           if (typeof user.messages_sent === 'string') {
-            messagesSentNum = parseInt(user.messages_sent, 10);
+            const parsed = parseInt(user.messages_sent, 10);
+            if (!isNaN(parsed)) {
+              messagesSentNum = parsed;
+            }
           } else if (typeof user.messages_sent === 'number') {
             messagesSentNum = user.messages_sent;
           } else if (typeof user.messages_sent === 'bigint') {
@@ -142,7 +155,7 @@ router.get('/users', async (req: Request, res: Response) => {
         }
       }
       
-      // Ensure valid number (match dashboard/stats logic)
+      // Final safeguard: Ensure we always have a valid number (default to 0 if everything fails)
       if (isNaN(messagesSentNum) || messagesSentNum < 0) {
         messagesSentNum = 0;
       }
@@ -153,11 +166,11 @@ router.get('/users', async (req: Request, res: Response) => {
       const quotaPercentage = Math.min(Math.round((messagesSentNum / messagesQuota) * 100), 100);
 
       // Log for debugging - log all users with message count comparison
-      const actualCount = actualMessageCountMap.get(user.id) || 0;
-      const activityLogCount = user.messages_sent || 0;
+      const actualCount = actualMessageCountMap.get(user.id);
+      const activityLogCount = user.messages_sent;
       console.log(`[Management API] User: ${user.roblox_username || user.discord_username} (ID: ${user.id}):`, {
-        discord_messages_count: actualCount,
-        activity_logs_count: activityLogCount,
+        discord_messages_count: actualCount !== undefined ? actualCount : 'not found',
+        activity_logs_count: activityLogCount !== undefined ? activityLogCount : 'not found',
         final_count_used: messagesSentNum,
         quota_met: quotaMet,
         quota_percentage: quotaPercentage,
