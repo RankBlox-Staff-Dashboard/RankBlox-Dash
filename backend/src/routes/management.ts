@@ -180,7 +180,9 @@ router.get('/users', async (req: Request, res: Response) => {
 
       // Return data - status should reflect quota_met for Active/Inactive display
       // The frontend uses quota_met to determine Active/Inactive, not just status field
+      // Include all the same data fields as the MySQL query script output
       return {
+        // User table data (same as query script)
         id: user.id,
         discord_id: user.discord_id,
         discord_username: user.discord_username,
@@ -192,6 +194,8 @@ router.get('/users', async (req: Request, res: Response) => {
         status: user.status, // Keep original status from database
         created_at: user.created_at,
         updated_at: user.updated_at,
+        
+        // Current week activity (same as query script)
         messages_sent: messagesSentNum, // Actual count from discord_messages (most accurate) or activity_logs
         messages_quota: messagesQuota,
         quota_met: quotaMet, // This determines Active/Inactive in the UI
@@ -199,6 +203,7 @@ router.get('/users', async (req: Request, res: Response) => {
         minutes: user.minutes || 0,
         tickets_claimed: user.tickets_claimed || 0,
         tickets_resolved: user.tickets_resolved || 0,
+        week_start: weekStart, // Current week start date
       };
     });
 

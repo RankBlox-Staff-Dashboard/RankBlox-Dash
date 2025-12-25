@@ -8,7 +8,10 @@ import {
   UserX,
   MessageSquare,
   RefreshCw,
-  AlertCircle
+  AlertCircle,
+  Clock,
+  Ticket,
+  UserCheck
 } from 'lucide-react';
 import { ProfileCard } from '@/components/ProfileCard';
 import { NavigationTabs } from '@/components/NavigationTabs';
@@ -242,6 +245,22 @@ export default function AnalyticsPage() {
                           animationDelay: `${0.05 * index + 0.3}s`
                         }}
                       />
+                    </div>
+                    
+                    {/* Additional stats matching MySQL query output */}
+                    <div className="grid grid-cols-3 gap-2 pt-2 border-t border-white/10">
+                      <div className="flex items-center gap-1.5">
+                        <Clock className="w-3 h-3 text-white/40" />
+                        <span className="text-xs text-white/60">{member.minutes || 0}m</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Ticket className="w-3 h-3 text-white/40" />
+                        <span className="text-xs text-white/60">{member.tickets_claimed || 0}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <UserCheck className="w-3 h-3 text-white/40" />
+                        <span className="text-xs text-white/60">{member.tickets_resolved || 0}</span>
+                      </div>
                     </div>
                   </div>
 

@@ -10,12 +10,18 @@ import {
 /**
  * Extended User type with quota statistics
  * This matches the backend response from /management/users
+ * Includes all the same data fields as the MySQL query script output
  */
 export interface UserWithQuota extends User {
   messages_sent: number;
   messages_quota: number;
   quota_met: boolean;
   quota_percentage: number;
+  minutes: number;
+  tickets_claimed: number;
+  tickets_resolved: number;
+  week_start?: string;
+  updated_at?: string;
 }
 
 /**
