@@ -356,56 +356,75 @@ router.get('/tracked-channels', async (req: Request, res: Response) => {
 
 /**
  * Get all staff with quota information (for inactive-staff command)
+ * Uses the same query logic as /management/users but without LIMIT and accessible via bot auth
  */
 router.get('/staff/quota', async (req: Request, res: Response) => {
   try {
-    // Get current week start for quota calculation
+    // Get current week start for quota calculation (same as management endpoint)
     const weekStart = getCurrentWeekStart();
     const weekStartDateTime = `${weekStart} 00:00:00`;
 
-    // Optimized query: Get all staff with their message counts in a single query
-    const staffWithQuota = await db
+    // Get ALL staff members (no limit, unlike management endpoint)
+    const staffUsers = await db
       .prepare(
-        `SELECT 
-          u.id,
-          u.discord_id,
-          u.discord_username,
-          u.roblox_username,
-          u.\`rank\`,
-          u.rank_name,
-          u.status,
-          COALESCE(COUNT(dm.id), 0) as messages_sent
-        FROM users u
-        LEFT JOIN discord_messages dm ON u.id = dm.user_id AND dm.created_at >= ?
-        WHERE u.\`rank\` IS NOT NULL
-        GROUP BY u.id, u.discord_id, u.discord_username, u.roblox_username, u.\`rank\`, u.rank_name, u.status
-        ORDER BY u.\`rank\` DESC, u.created_at ASC`
+        `SELECT * FROM users 
+         WHERE \`rank\` IS NOT NULL
+         ORDER BY \`rank\` DESC, created_at ASC`
       )
-      .all(weekStartDateTime) as any[];
+      .all() as any[];
 
-    // Process results and calculate quota metrics
-    const messagesQuota = 150;
-    const result = staffWithQuota.map((row) => {
-      const messagesSentNum = parseInt(row.messages_sent as any) || 0;
-      const quotaMet = messagesSentNum >= messagesQuota;
-      const quotaPercentage = Math.min(Math.round((messagesSentNum / messagesQuota) * 100), 100);
+    // For each user, get their complete information (same logic as management endpoint)
+    const usersWithQuota = await Promise.all(staffUsers.map(async (user) => {
+      // Get current week's activity log
+      const currentWeekActivity = await db
+        .prepare('SELECT * FROM activity_logs WHERE user_id = ? AND week_start = ?')
+        .all(user.id, weekStart) as any[];
+      
+      // Get message count from discord_messages for current week (source of truth)
+      const messageCount = await db
+        .prepare('SELECT COUNT(*) as count FROM discord_messages WHERE user_id = ? AND created_at >= ?')
+        .all(user.id, weekStartDateTime) as any[];
+      
+      // Get tickets claimed by this user
+      const tickets = await db
+        .prepare('SELECT * FROM tickets WHERE claimed_by = ?')
+        .all(user.id) as any[];
+      
+      // Calculate values (same logic as management endpoint)
+      const messagesSentNum = messageCount?.[0]?.count ? parseInt(messageCount[0].count as any) : 0;
+      const minutes = currentWeekActivity?.[0]?.minutes ? parseInt(currentWeekActivity[0].minutes as any) : 0;
+      const ticketsClaimed = tickets?.length || 0;
+      const ticketsResolved = tickets?.filter((t: any) => t.status === 'resolved')?.length || 0;
+      
+      // Use discord_messages count (source of truth)
+      const finalMessagesSent = messagesSentNum;
+      const messagesQuota = 150;
+      const quotaMet = finalMessagesSent >= messagesQuota;
+      const quotaPercentage = Math.min(Math.round((finalMessagesSent / messagesQuota) * 100), 100);
 
+      // Return data in the same format as management endpoint
       return {
-        id: row.id,
-        discord_id: row.discord_id,
-        discord_username: row.discord_username,
-        roblox_username: row.roblox_username,
-        rank: row.rank,
-        rank_name: row.rank_name,
-        status: row.status,
-        messages_sent: messagesSentNum,
+        id: user.id,
+        discord_id: user.discord_id,
+        discord_username: user.discord_username,
+        discord_avatar: user.discord_avatar,
+        roblox_id: user.roblox_id,
+        roblox_username: user.roblox_username,
+        rank: user.rank,
+        rank_name: user.rank_name,
+        status: user.status,
+        messages_sent: finalMessagesSent,
         messages_quota: messagesQuota,
         quota_met: quotaMet,
         quota_percentage: quotaPercentage,
+        minutes: minutes,
+        tickets_claimed: ticketsClaimed,
+        tickets_resolved: ticketsResolved,
+        week_start: weekStart,
       };
-    });
+    }));
 
-    res.json(result);
+    res.json(usersWithQuota);
   } catch (error) {
     console.error('Error fetching staff quota:', error);
     res.status(500).json({ error: 'Failed to fetch staff quota' });
