@@ -7,20 +7,18 @@ export const data = new SlashCommandBuilder()
   .setDescription('List all staff members who haven\'t completed their quota');
 
 export async function execute(interaction: ChatInputCommandInteraction) {
-  // Check if interaction is already replied/deferred
-  if (interaction.replied || interaction.deferred) {
-    return;
-  }
-
+  // Defer immediately to prevent interaction timeout (must respond within 3 seconds)
   try {
     await interaction.deferReply({ flags: 64 }); // Ephemeral flag
   } catch (error: any) {
-    // If defer fails, interaction might be expired
+    // If defer fails (e.g., interaction expired), just return silently
+    // This can happen if there's network latency or the interaction token expired
     if (error.code === 10062) {
-      console.error('Interaction expired before defer:', error);
-      return;
+      return; // Interaction expired, nothing we can do
     }
-    throw error;
+    // For other errors, log and return
+    console.error('Error deferring reply:', error);
+    return;
   }
 
   try {

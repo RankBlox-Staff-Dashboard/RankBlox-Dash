@@ -226,12 +226,18 @@ client.on(Events.InteractionCreate, async (interaction) => {
   try {
     await command.execute(interaction);
   } catch (error: any) {
-    console.error(`Error executing ${interaction.commandName}:`, error);
+    // Silently handle interaction expiration - this is expected and can't be prevented
+    if (error.code === 10062) {
+      return; // Interaction expired, nothing we can do
+    }
     
-    // Don't try to respond if interaction is expired or already handled
-    if (error.code === 10062 || interaction.replied || interaction.deferred) {
+    // Don't try to respond if interaction is already handled
+    if (interaction.replied || interaction.deferred) {
       return;
     }
+    
+    // Log other errors
+    console.error(`Error executing ${interaction.commandName}:`, error);
 
     try {
       const reply = {
@@ -251,6 +257,16 @@ client.on(Events.InteractionCreate, async (interaction) => {
       }
     }
   }
+});
+
+// Handle unhandled promise rejections (especially interaction timeouts)
+process.on('unhandledRejection', (error: any) => {
+  // Silently ignore interaction expiration errors (10062) - these are expected
+  if (error?.code === 10062) {
+    return;
+  }
+  // Log other unhandled rejections
+  console.error('Unhandled promise rejection:', error);
 });
 
 const token = process.env.DISCORD_BOT_TOKEN;
