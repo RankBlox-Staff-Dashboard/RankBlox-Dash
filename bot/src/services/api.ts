@@ -88,6 +88,9 @@ export const botAPI = {
   // Send infraction notification DM
   sendInfractionNotification: (data: InfractionNotification) =>
     api.post('/bot/notify-infraction', data),
+
+  // Get all staff with quota information
+  getStaffQuota: () => api.get('/bot/staff/quota'),
 };
 
 export default api;

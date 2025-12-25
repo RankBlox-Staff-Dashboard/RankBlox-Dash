@@ -354,5 +354,57 @@ router.get('/tracked-channels', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * Get all staff with quota information (for inactive-staff command)
+ */
+router.get('/staff/quota', async (req: Request, res: Response) => {
+  try {
+    // Get current week start for quota calculation
+    const weekStart = getCurrentWeekStart();
+    const weekStartDateTime = `${weekStart} 00:00:00`;
+
+    // Get all staff members (no limit)
+    const staffUsers = await db
+      .prepare(
+        `SELECT * FROM users 
+         WHERE \`rank\` IS NOT NULL
+         ORDER BY \`rank\` DESC, created_at ASC`
+      )
+      .all() as any[];
+
+    // For each user, get their quota information
+    const staffWithQuota = await Promise.all(staffUsers.map(async (user) => {
+      // Get message count from discord_messages for current week
+      const messageCount = await db
+        .prepare('SELECT COUNT(*) as count FROM discord_messages WHERE user_id = ? AND created_at >= ?')
+        .all(user.id, weekStartDateTime) as any[];
+
+      const messagesSentNum = messageCount?.[0]?.count ? parseInt(messageCount[0].count as any) : 0;
+      const messagesQuota = 150;
+      const quotaMet = messagesSentNum >= messagesQuota;
+      const quotaPercentage = Math.min(Math.round((messagesSentNum / messagesQuota) * 100), 100);
+
+      return {
+        id: user.id,
+        discord_id: user.discord_id,
+        discord_username: user.discord_username,
+        roblox_username: user.roblox_username,
+        rank: user.rank,
+        rank_name: user.rank_name,
+        status: user.status,
+        messages_sent: messagesSentNum,
+        messages_quota: messagesQuota,
+        quota_met: quotaMet,
+        quota_percentage: quotaPercentage,
+      };
+    }));
+
+    res.json(staffWithQuota);
+  } catch (error) {
+    console.error('Error fetching staff quota:', error);
+    res.status(500).json({ error: 'Failed to fetch staff quota' });
+  }
+});
+
 export default router;
 
