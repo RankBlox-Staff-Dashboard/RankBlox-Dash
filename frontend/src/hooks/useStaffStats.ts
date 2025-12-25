@@ -118,6 +118,11 @@ export function useStaffStats() {
             messages_quota: messagesQuota,
             quota_met: quotaMet,
             quota_percentage: quotaPercentage,
+            minutes: u.minutes || 0,
+            tickets_claimed: u.tickets_claimed || 0,
+            tickets_resolved: u.tickets_resolved || 0,
+            week_start: u.week_start,
+            updated_at: u.updated_at,
           };
         });
 

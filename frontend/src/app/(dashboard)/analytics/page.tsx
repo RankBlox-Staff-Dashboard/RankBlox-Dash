@@ -16,7 +16,6 @@ import {
 import { ProfileCard } from '@/components/ProfileCard';
 import { NavigationTabs } from '@/components/NavigationTabs';
 import { Card } from '@/components/ui/Card';
-import { RobloxAvatar } from '@/components/RobloxAvatar';
 import { RankBadge } from '@/components/RankBadge';
 import { TabsGrid, type TabsGridItem } from '@/components/ui/TabsGrid';
 import { dashboardAPI, type NonStaffMember } from '@/services/api';
@@ -178,21 +177,6 @@ export default function AnalyticsPage() {
                   style={{ animationDelay: `${0.05 * index}s` }}
                 >
                   <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div className="relative animate-scaleIn" style={{ animationDelay: `${0.05 * index + 0.1}s` }}>
-                      <RobloxAvatar
-                        robloxId={member.roblox_id}
-                        discordId={member.discord_id}
-                        discordAvatar={member.discord_avatar}
-                        alt={member.roblox_username || member.discord_username}
-                        size={48}
-                        className="w-12 h-12 ring-2 ring-white/10 hover:ring-white/20 transition-all"
-                      />
-                      {member.quota_met && (
-                        <div className="absolute -top-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center animate-bounce">
-                          <CheckCircle2 className="w-3 h-3 text-white" />
-                        </div>
-                      )}
-                    </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <div className="text-sm font-semibold text-white truncate">
@@ -342,14 +326,6 @@ export default function AnalyticsPage() {
                   )}
                   style={{ animationDelay: `${0.05 * index}s` }}
                 >
-                  <RobloxAvatar
-                    robloxId={null}
-                    discordId={member.discord_id}
-                    discordAvatar={member.discord_avatar}
-                    alt={member.discord_display_name || member.discord_username}
-                    size={48}
-                    className="w-12 h-12 ring-2 ring-orange-500/20 hover:ring-orange-500/40 transition-all"
-                  />
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-semibold text-white truncate">
                       {member.discord_display_name || member.discord_username}
