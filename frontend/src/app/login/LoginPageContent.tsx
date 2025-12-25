@@ -238,7 +238,7 @@ export default function LoginPageContent() {
                 <div className="bg-white/5 border border-white/10 rounded-xl px-4 py-4 text-center">
                   <p className="text-3xl mb-2">{emojiCode}</p>
                   <p className="text-sm text-white/60">
-                    Place this code in your Roblox bio or status
+                    Place this code in your Roblox bio
                   </p>
                 </div>
                 <button
