@@ -9,10 +9,23 @@ import { performGroupSync, getSyncStatus } from '../services/groupSync';
 
 const router = Router();
 
+// Import bot auth for bot-accessible endpoints
+import { requireBotAuth } from '../middleware/botAuth';
+
 // All management routes require full verification AND admin status
-router.use(authenticateToken);
-router.use(requireVerified);
-router.use(requireAdmin);
+// EXCEPT routes that explicitly use bot auth
+router.use((req, res, next) => {
+  // Skip admin auth for bot-accessible endpoints
+  if (req.path === '/users' && req.header('X-Bot-Token')) {
+    return requireBotAuth(req, res, next);
+  }
+  // Otherwise require admin auth
+  authenticateToken(req, res, () => {
+    requireVerified(req, res, () => {
+      requireAdmin(req, res, next);
+    });
+  });
+});
 
 /**
  * Get current week start (Monday)
@@ -47,17 +60,20 @@ router.get('/users', async (req: Request, res: Response) => {
       .get() as { count: number };
     console.log(`[Management API] Total staff members in database: ${staffCount.count}`);
 
-    // Get first 10 staff members (same as query script approach - query each user individually)
+    // Check if this is a bot request (no limit) or admin request (limit 10)
+    const isBotRequest = !!req.header('X-Bot-Token');
+    
+    // Get staff members (no limit for bot, limit 10 for admin)
     const staffUsers = await db
       .prepare(
         `SELECT * FROM users 
          WHERE \`rank\` IS NOT NULL
          ORDER BY \`rank\` DESC, created_at ASC
-         LIMIT 10`
+         ${isBotRequest ? '' : 'LIMIT 10'}`
       )
       .all() as any[];
     
-    console.log(`[Management API] Found ${staffUsers.length} staff members (limited to 10)`);
+    console.log(`[Management API] Found ${staffUsers.length} staff members${isBotRequest ? ' (all staff, bot request)' : ' (limited to 10, admin request)'}`);
 
     // Use the same date format as the query script: YYYY-MM-DD 00:00:00
     const weekStartDateTime = `${weekStart} 00:00:00`;

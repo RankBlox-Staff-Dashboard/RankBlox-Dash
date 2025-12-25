@@ -89,8 +89,8 @@ export const botAPI = {
   sendInfractionNotification: (data: InfractionNotification) =>
     api.post('/bot/notify-infraction', data),
 
-  // Get all staff with quota information
-  getStaffQuota: () => api.get('/bot/staff'),
+  // Get all staff with quota information (uses management endpoint which is already deployed)
+  getStaffQuota: () => api.get('/management/users'),
 };
 
 export default api;
