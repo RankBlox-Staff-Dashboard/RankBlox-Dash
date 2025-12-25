@@ -52,6 +52,7 @@ router.get('/users', async (req: Request, res: Response) => {
     // IMPORTANT: This must match the logic in /dashboard/stats for consistency
     // LIMIT to first 10 staff members for performance
     // Also get actual message count from discord_messages table for verification
+    // Use CAST to ensure messages_sent is always a number
     const users = await db
       .prepare(
         `SELECT 
@@ -78,22 +79,29 @@ router.get('/users', async (req: Request, res: Response) => {
       )
       .all(weekStart) as any[];
     
+    console.log(`[Management API] Query returned ${users.length} users (should be 10 max)`);
+    
     // Get actual message counts from discord_messages table for verification
     // This ensures we're showing the real count from the messages table
-    const weekStartDate = new Date(weekStart);
-    weekStartDate.setHours(0, 0, 0, 0);
-    const weekStartISO = weekStartDate.toISOString();
+    // Use the same date format as the query script: YYYY-MM-DD 00:00:00
+    const weekStartDateTime = `${weekStart} 00:00:00`;
     
-    const messageCounts = await db
+    console.log(`[Management API] Querying discord_messages for week >= ${weekStartDateTime}`);
+    
+    // Get message counts for ONLY the users we're returning (the 10 staff members)
+    const userIds = users.map(u => u.id);
+    const placeholders = userIds.map(() => '?').join(',');
+    
+    const messageCounts = userIds.length > 0 ? await db
       .prepare(
         `SELECT 
           user_id,
           COUNT(*) as actual_message_count
          FROM discord_messages
-         WHERE created_at >= ?
+         WHERE created_at >= ? AND user_id IN (${placeholders})
          GROUP BY user_id`
       )
-      .all(weekStartISO) as any[];
+      .all(weekStartDateTime, ...userIds) as any[] : [];
     
     // Create a map of actual message counts
     const actualMessageCountMap = new Map();
@@ -102,7 +110,7 @@ router.get('/users', async (req: Request, res: Response) => {
       actualMessageCountMap.set(mc.user_id, count);
     });
     
-    console.log(`[Management API] Found ${messageCounts.length} users with messages in discord_messages table`);
+    console.log(`[Management API] Found ${messageCounts.length} users with messages in discord_messages table (out of ${userIds.length} queried)`);
     if (messageCounts.length > 0) {
       console.log(`[Management API] Message counts map:`, Array.from(actualMessageCountMap.entries()).slice(0, 5));
     }
@@ -208,6 +216,24 @@ router.get('/users', async (req: Request, res: Response) => {
     });
 
     console.log(`[Management API] Returning ${usersWithQuota.length} users with quota data`);
+    
+    // Verify we're only returning 10 users
+    if (usersWithQuota.length > 10) {
+      console.warn(`[Management API] WARNING: Returning ${usersWithQuota.length} users, but should be limited to 10!`);
+    }
+    
+    // Log sample of what we're returning
+    if (usersWithQuota.length > 0) {
+      const sample = usersWithQuota[0];
+      console.log(`[Management API] Sample response (first user):`, {
+        id: sample.id,
+        username: sample.roblox_username || sample.discord_username,
+        messages_sent: sample.messages_sent,
+        quota_met: sample.quota_met,
+        quota_percentage: sample.quota_percentage
+      });
+    }
+    
     res.json(usersWithQuota);
   } catch (error) {
     console.error('Error fetching users:', error);

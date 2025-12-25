@@ -6,7 +6,7 @@ const path = require('path');
 dotenv.config({ path: path.join(__dirname, '.env') });
 
 async function queryUser() {
-  const username = 'Preston_iscool1123';
+  const username = 'OwenReed407';
   
   // Allow credentials to be passed as command line arguments
   // Usage: node query_user.js [host] [user] [password] [database]
