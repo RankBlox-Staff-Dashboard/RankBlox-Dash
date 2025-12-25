@@ -225,17 +225,30 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
   try {
     await command.execute(interaction);
-  } catch (error) {
+  } catch (error: any) {
     console.error(`Error executing ${interaction.commandName}:`, error);
-    const reply = {
-      content: 'There was an error while executing this command!',
-      ephemeral: true,
-    };
+    
+    // Don't try to respond if interaction is expired or already handled
+    if (error.code === 10062 || interaction.replied || interaction.deferred) {
+      return;
+    }
 
-    if (interaction.replied || interaction.deferred) {
-      await interaction.followUp(reply);
-    } else {
-      await interaction.reply(reply);
+    try {
+      const reply = {
+        content: 'There was an error while executing this command!',
+        flags: 64, // Ephemeral flag
+      };
+
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp(reply);
+      } else {
+        await interaction.reply(reply);
+      }
+    } catch (replyError: any) {
+      // Ignore interaction expired errors
+      if (replyError.code !== 10062) {
+        console.error('Error sending error reply:', replyError);
+      }
     }
   }
 });

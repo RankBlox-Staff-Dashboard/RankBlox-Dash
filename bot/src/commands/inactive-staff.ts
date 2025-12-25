@@ -13,7 +13,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   }
 
   try {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: 64 }); // Ephemeral flag
   } catch (error: any) {
     // If defer fails, interaction might be expired
     if (error.code === 10062) {
@@ -145,6 +145,10 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     
     if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
       errorMessage = 'Could not connect to the server. Please try again later.';
+    } else if (error.response?.status === 404) {
+      errorMessage = 'The backend endpoint is not available. Please contact an administrator.';
+    } else if (error.response?.status) {
+      errorMessage = `Backend error (${error.response.status}). Please try again later.`;
     }
 
     const errorEmbed = new EmbedBuilder()
@@ -156,10 +160,11 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     try {
       await interaction.editReply({ embeds: [errorEmbed] });
     } catch (err: any) {
-      // Ignore interaction expired errors
+      // Ignore interaction expired errors - don't log or throw
       if (err.code !== 10062) {
         console.error('Error sending error embed:', err);
       }
+      // Don't rethrow - we've handled the error
     }
   }
 }
