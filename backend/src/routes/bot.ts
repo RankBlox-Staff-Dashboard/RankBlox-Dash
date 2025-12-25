@@ -356,20 +356,15 @@ router.get('/tracked-channels', async (req: Request, res: Response) => {
 
 /**
  * Get all staff with quota information (for inactive-staff command)
- * Uses the same query pattern as query_user.js
+ * Uses the exact same query logic as /management/users but without LIMIT and accessible via bot auth
  */
 router.get('/staff', async (req: Request, res: Response) => {
   try {
-    // Get current week start (same as query_user.js)
-    const now = new Date();
-    const day = now.getDay();
-    const diff = now.getDate() - day + (day === 0 ? -6 : 1);
-    const monday = new Date(now.setDate(diff));
-    monday.setHours(0, 0, 0, 0);
-    const weekStart = monday.toISOString().split('T')[0];
+    // Get current week start for quota calculation (same as management endpoint)
+    const weekStart = getCurrentWeekStart();
     const weekStartDateTime = `${weekStart} 00:00:00`;
 
-    // Get ALL staff members (same query pattern as query_user.js)
+    // Get ALL staff members (no limit, unlike management endpoint which limits to 10)
     const staffUsers = await db
       .prepare(
         `SELECT * FROM users 
@@ -378,37 +373,40 @@ router.get('/staff', async (req: Request, res: Response) => {
       )
       .all() as any[];
 
-    // For each user, get their complete information (same pattern as query_user.js)
+    // For each user, get their complete information (same as management endpoint)
     const usersWithQuota = await Promise.all(staffUsers.map(async (user) => {
-      // Get current week's activity log (same as query_user.js)
+      // Get current week's activity log (same as management endpoint)
       const currentWeekActivity = await db
         .prepare('SELECT * FROM activity_logs WHERE user_id = ? AND week_start = ?')
         .all(user.id, weekStart) as any[];
       
-      // Get message count from discord_messages for current week (same as query_user.js - source of truth)
+      // Get message count from discord_messages for current week (same as management endpoint)
       const messageCount = await db
         .prepare('SELECT COUNT(*) as count FROM discord_messages WHERE user_id = ? AND created_at >= ?')
         .all(user.id, weekStartDateTime) as any[];
       
-      // Get tickets claimed by this user (same as query_user.js)
+      // Get tickets claimed by this user (same as management endpoint)
       const tickets = await db
         .prepare('SELECT * FROM tickets WHERE claimed_by = ?')
         .all(user.id) as any[];
       
-      // Calculate values (same logic as query_user.js)
+      // Calculate values (same as management endpoint logic)
+      // Use ONLY the count from discord_messages table (source of truth)
       const messagesSentNum = messageCount?.[0]?.count ? parseInt(messageCount[0].count as any) : 0;
       const minutes = currentWeekActivity?.[0]?.minutes ? parseInt(currentWeekActivity[0].minutes as any) : 0;
       const ticketsClaimed = tickets?.length || 0;
       const ticketsResolved = tickets?.filter((t: any) => t.status === 'resolved')?.length || 0;
       
-      // Use discord_messages count (source of truth, same as query_user.js)
+      // Use ONLY discord_messages count (source of truth, same as management endpoint)
       const finalMessagesSent = messagesSentNum;
+      
       const messagesQuota = 150;
       const quotaMet = finalMessagesSent >= messagesQuota;
       const quotaPercentage = Math.min(Math.round((finalMessagesSent / messagesQuota) * 100), 100);
 
-      // Return data in the same format
+      // Return data in the same format as management endpoint
       return {
+        // User table data (same as management endpoint)
         id: user.id,
         discord_id: user.discord_id,
         discord_username: user.discord_username,
@@ -418,6 +416,10 @@ router.get('/staff', async (req: Request, res: Response) => {
         rank: user.rank,
         rank_name: user.rank_name,
         status: user.status,
+        created_at: user.created_at,
+        updated_at: user.updated_at,
+        
+        // Current week activity (same as management endpoint)
         messages_sent: finalMessagesSent,
         messages_quota: messagesQuota,
         quota_met: quotaMet,
