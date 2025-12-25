@@ -13,13 +13,13 @@ const router = Router();
 import { requireBotAuth } from '../middleware/botAuth';
 
 // All management routes require full verification AND admin status
-// EXCEPT routes that explicitly use bot auth
-router.use((req, res, next) => {
-  // Skip admin auth for bot-accessible endpoints
-  if (req.path === '/users' && req.header('X-Bot-Token')) {
+// EXCEPT /users endpoint which also accepts bot token
+router.use((req: Request, res: Response, next: any) => {
+  // Allow bot token for GET /users endpoint (check before JWT auth)
+  if (req.path === '/users' && req.method === 'GET' && req.header('X-Bot-Token')) {
     return requireBotAuth(req, res, next);
   }
-  // Otherwise require admin auth
+  // Otherwise require admin auth (JWT token)
   authenticateToken(req, res, () => {
     requireVerified(req, res, () => {
       requireAdmin(req, res, next);
