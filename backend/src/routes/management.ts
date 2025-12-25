@@ -80,18 +80,14 @@ router.get('/users', async (req: Request, res: Response) => {
         .all(user.id) as any[];
       
       // Calculate values (same as query script logic)
+      // Use ONLY the count from discord_messages table (source of truth)
       const messagesSentNum = messageCount?.[0]?.count ? parseInt(messageCount[0].count as any) : 0;
       const minutes = currentWeekActivity?.[0]?.minutes ? parseInt(currentWeekActivity[0].minutes as any) : 0;
       const ticketsClaimed = tickets?.length || 0;
       const ticketsResolved = tickets?.filter((t: any) => t.status === 'resolved')?.length || 0;
       
-      // If we have activity_logs data, use it as fallback for messages_sent
-      const activityLogMessages = currentWeekActivity?.[0]?.messages_sent 
-        ? parseInt(currentWeekActivity[0].messages_sent as any) 
-        : 0;
-      
-      // Use discord_messages count if available, otherwise use activity_logs (same as query script)
-      const finalMessagesSent = messagesSentNum > 0 ? messagesSentNum : activityLogMessages;
+      // Use ONLY discord_messages count (source of truth, same as query script)
+      const finalMessagesSent = messagesSentNum;
       
       const messagesQuota = 150;
       const quotaMet = finalMessagesSent >= messagesQuota;
@@ -99,7 +95,6 @@ router.get('/users', async (req: Request, res: Response) => {
 
       console.log(`[Management API] User: ${user.roblox_username || user.discord_username} (ID: ${user.id}):`, {
         discord_messages_count: messagesSentNum,
-        activity_logs_count: activityLogMessages,
         final_count_used: finalMessagesSent,
         minutes: minutes,
         tickets_claimed: ticketsClaimed,
