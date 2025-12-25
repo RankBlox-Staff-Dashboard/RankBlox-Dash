@@ -90,7 +90,7 @@ export const botAPI = {
     api.post('/bot/notify-infraction', data),
 
   // Get all staff with quota information
-  getStaffQuota: () => api.get('/bot/staff/quota'),
+  getStaffQuota: () => api.get('/bot/staff'),
 };
 
 export default api;
