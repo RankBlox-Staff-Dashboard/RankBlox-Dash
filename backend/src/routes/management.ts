@@ -47,148 +47,68 @@ router.get('/users', async (req: Request, res: Response) => {
       .get() as { count: number };
     console.log(`[Management API] Total staff members in database: ${staffCount.count}`);
 
-    // Query users with their current week message counts from activity_logs
-    // Use explicit JOIN and ensure we're getting the actual MySQL data
-    // IMPORTANT: This must match the logic in /dashboard/stats for consistency
-    // LIMIT to first 10 staff members for performance
-    // Also get actual message count from discord_messages table for verification
-    // Use CAST to ensure messages_sent is always a number
-    const users = await db
+    // Get first 10 staff members (same as query script approach - query each user individually)
+    const staffUsers = await db
       .prepare(
-        `SELECT 
-          u.id, 
-          u.discord_id, 
-          u.discord_username, 
-          u.discord_avatar, 
-          u.roblox_id, 
-          u.roblox_username, 
-          u.\`rank\`, 
-          u.rank_name, 
-          u.status, 
-          u.created_at,
-          u.updated_at,
-          COALESCE(al.messages_sent, 0) as messages_sent,
-          COALESCE(al.minutes, 0) as minutes,
-          COALESCE(al.tickets_claimed, 0) as tickets_claimed,
-          COALESCE(al.tickets_resolved, 0) as tickets_resolved
-         FROM users u
-         LEFT JOIN activity_logs al ON al.user_id = u.id AND al.week_start = ?
-         WHERE u.\`rank\` IS NOT NULL
-         ORDER BY u.\`rank\` DESC, u.created_at ASC
+        `SELECT * FROM users 
+         WHERE \`rank\` IS NOT NULL
+         ORDER BY \`rank\` DESC, created_at ASC
          LIMIT 10`
       )
-      .all(weekStart) as any[];
+      .all() as any[];
     
-    console.log(`[Management API] Query returned ${users.length} users (should be 10 max)`);
-    
-    // Get actual message counts from discord_messages table for verification
-    // This ensures we're showing the real count from the messages table
+    console.log(`[Management API] Found ${staffUsers.length} staff members (limited to 10)`);
+
     // Use the same date format as the query script: YYYY-MM-DD 00:00:00
     const weekStartDateTime = `${weekStart} 00:00:00`;
-    
-    console.log(`[Management API] Querying discord_messages for week >= ${weekStartDateTime}`);
-    
-    // Get message counts for ONLY the users we're returning (the 10 staff members)
-    const userIds = users.map(u => u.id);
-    const placeholders = userIds.map(() => '?').join(',');
-    
-    const messageCounts = userIds.length > 0 ? await db
-      .prepare(
-        `SELECT 
-          user_id,
-          COUNT(*) as actual_message_count
-         FROM discord_messages
-         WHERE created_at >= ? AND user_id IN (${placeholders})
-         GROUP BY user_id`
-      )
-      .all(weekStartDateTime, ...userIds) as any[] : [];
-    
-    // Create a map of actual message counts
-    const actualMessageCountMap = new Map();
-    messageCounts.forEach((mc) => {
-      const count = parseInt(mc.actual_message_count as any) || 0;
-      actualMessageCountMap.set(mc.user_id, count);
-    });
-    
-    console.log(`[Management API] Found ${messageCounts.length} users with messages in discord_messages table (out of ${userIds.length} queried)`);
-    if (messageCounts.length > 0) {
-      console.log(`[Management API] Message counts map:`, Array.from(actualMessageCountMap.entries()).slice(0, 5));
-    }
 
-    console.log(`[Management API] Found ${users.length} staff members from database (limited to 10)`);
-
-    // Debug: Log all users to see actual MySQL data
-    if (users.length > 0) {
-      console.log(`[Management API] All ${users.length} staff members raw from MySQL:`, 
-        users.map(u => ({
-          id: u.id,
-          username: u.roblox_username || u.discord_username,
-          discord_username: u.discord_username,
-          messages_sent: u.messages_sent,
-          messages_sent_type: typeof u.messages_sent,
-          messages_sent_value: u.messages_sent,
-          status: u.status,
-          rank: u.rank,
-          rank_name: u.rank_name
-        }))
-      );
-    } else {
-      console.log(`[Management API] No staff members found in database`);
-    }
-
-    // Add quota information with proper type handling
-    // IMPORTANT: This logic must match /dashboard/stats for consistency
-    // Use actual message count from discord_messages if available, otherwise use activity_logs
-    const usersWithQuota = users.map((user) => {
-      // Initialize to 0 to ensure we always have a number
-      let messagesSentNum: number = 0;
+    // For each user, get their complete information (same as query script)
+    const usersWithQuota = await Promise.all(staffUsers.map(async (user) => {
+      // Get current week's activity log (same as query script)
+      const currentWeekActivity = await db
+        .prepare('SELECT * FROM activity_logs WHERE user_id = ? AND week_start = ?')
+        .all(user.id, weekStart) as any[];
       
-      // First, try to get actual count from discord_messages table (most accurate)
-      const discordCount = actualMessageCountMap.get(user.id);
-      if (discordCount !== undefined && discordCount !== null && !isNaN(discordCount)) {
-        messagesSentNum = Number(discordCount);
-      } else {
-        // If discord_messages count not available, try activity_logs
-        if (user.messages_sent !== null && user.messages_sent !== undefined) {
-          if (typeof user.messages_sent === 'string') {
-            const parsed = parseInt(user.messages_sent, 10);
-            if (!isNaN(parsed)) {
-              messagesSentNum = parsed;
-            }
-          } else if (typeof user.messages_sent === 'number') {
-            messagesSentNum = user.messages_sent;
-          } else if (typeof user.messages_sent === 'bigint') {
-            messagesSentNum = Number(user.messages_sent);
-          }
-        }
-      }
+      // Get message count from discord_messages for current week (same as query script)
+      const messageCount = await db
+        .prepare('SELECT COUNT(*) as count FROM discord_messages WHERE user_id = ? AND created_at >= ?')
+        .all(user.id, weekStartDateTime) as any[];
       
-      // Final safeguard: Ensure we always have a valid number (default to 0 if everything fails)
-      if (isNaN(messagesSentNum) || messagesSentNum < 0) {
-        messagesSentNum = 0;
-      }
-
+      // Get tickets claimed by this user (same as query script)
+      const tickets = await db
+        .prepare('SELECT * FROM tickets WHERE claimed_by = ?')
+        .all(user.id) as any[];
+      
+      // Calculate values (same as query script logic)
+      const messagesSentNum = messageCount?.[0]?.count ? parseInt(messageCount[0].count as any) : 0;
+      const minutes = currentWeekActivity?.[0]?.minutes ? parseInt(currentWeekActivity[0].minutes as any) : 0;
+      const ticketsClaimed = tickets?.length || 0;
+      const ticketsResolved = tickets?.filter((t: any) => t.status === 'resolved')?.length || 0;
+      
+      // If we have activity_logs data, use it as fallback for messages_sent
+      const activityLogMessages = currentWeekActivity?.[0]?.messages_sent 
+        ? parseInt(currentWeekActivity[0].messages_sent as any) 
+        : 0;
+      
+      // Use discord_messages count if available, otherwise use activity_logs (same as query script)
+      const finalMessagesSent = messagesSentNum > 0 ? messagesSentNum : activityLogMessages;
+      
       const messagesQuota = 150;
-      // Quota is met if messages_sent >= quota (same as dashboard/stats)
-      const quotaMet = messagesSentNum >= messagesQuota;
-      const quotaPercentage = Math.min(Math.round((messagesSentNum / messagesQuota) * 100), 100);
+      const quotaMet = finalMessagesSent >= messagesQuota;
+      const quotaPercentage = Math.min(Math.round((finalMessagesSent / messagesQuota) * 100), 100);
 
-      // Log for debugging - log all users with message count comparison
-      const actualCount = actualMessageCountMap.get(user.id);
-      const activityLogCount = user.messages_sent;
       console.log(`[Management API] User: ${user.roblox_username || user.discord_username} (ID: ${user.id}):`, {
-        discord_messages_count: actualCount !== undefined ? actualCount : 'not found',
-        activity_logs_count: activityLogCount !== undefined ? activityLogCount : 'not found',
-        final_count_used: messagesSentNum,
+        discord_messages_count: messagesSentNum,
+        activity_logs_count: activityLogMessages,
+        final_count_used: finalMessagesSent,
+        minutes: minutes,
+        tickets_claimed: ticketsClaimed,
+        tickets_resolved: ticketsResolved,
         quota_met: quotaMet,
-        quota_percentage: quotaPercentage,
-        status: user.status,
-        rank: user.rank
+        quota_percentage: quotaPercentage
       });
 
-      // Return data - status should reflect quota_met for Active/Inactive display
-      // The frontend uses quota_met to determine Active/Inactive, not just status field
-      // Include all the same data fields as the MySQL query script output
+      // Return data in the same format as query script output
       return {
         // User table data (same as query script)
         id: user.id,
@@ -199,21 +119,21 @@ router.get('/users', async (req: Request, res: Response) => {
         roblox_username: user.roblox_username,
         rank: user.rank,
         rank_name: user.rank_name,
-        status: user.status, // Keep original status from database
+        status: user.status,
         created_at: user.created_at,
         updated_at: user.updated_at,
         
         // Current week activity (same as query script)
-        messages_sent: messagesSentNum, // Actual count from discord_messages (most accurate) or activity_logs
+        messages_sent: finalMessagesSent,
         messages_quota: messagesQuota,
-        quota_met: quotaMet, // This determines Active/Inactive in the UI
+        quota_met: quotaMet,
         quota_percentage: quotaPercentage,
-        minutes: user.minutes || 0,
-        tickets_claimed: user.tickets_claimed || 0,
-        tickets_resolved: user.tickets_resolved || 0,
-        week_start: weekStart, // Current week start date
+        minutes: minutes,
+        tickets_claimed: ticketsClaimed,
+        tickets_resolved: ticketsResolved,
+        week_start: weekStart,
       };
-    });
+    }));
 
     console.log(`[Management API] Returning ${usersWithQuota.length} users with quota data`);
     
@@ -229,6 +149,9 @@ router.get('/users', async (req: Request, res: Response) => {
         id: sample.id,
         username: sample.roblox_username || sample.discord_username,
         messages_sent: sample.messages_sent,
+        minutes: sample.minutes,
+        tickets_claimed: sample.tickets_claimed,
+        tickets_resolved: sample.tickets_resolved,
         quota_met: sample.quota_met,
         quota_percentage: sample.quota_percentage
       });
