@@ -7,7 +7,21 @@ export const data = new SlashCommandBuilder()
   .setDescription('List all staff members who haven\'t completed their quota');
 
 export async function execute(interaction: ChatInputCommandInteraction) {
-  await interaction.deferReply({ ephemeral: true });
+  // Check if interaction is already replied/deferred
+  if (interaction.replied || interaction.deferred) {
+    return;
+  }
+
+  try {
+    await interaction.deferReply({ ephemeral: true });
+  } catch (error: any) {
+    // If defer fails, interaction might be expired
+    if (error.code === 10062) {
+      console.error('Interaction expired before defer:', error);
+      return;
+    }
+    throw error;
+  }
 
   try {
     // Get all staff with quota information
@@ -33,7 +47,14 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         .setColor(0xFFAA00)
         .setTimestamp();
       
-      return interaction.editReply({ embeds: [embed] });
+      try {
+        await interaction.editReply({ embeds: [embed] });
+      } catch (err: any) {
+        if (err.code !== 10062) {
+          console.error('Error editing reply (no staff):', err);
+        }
+      }
+      return;
     }
 
     // Filter for staff who haven't met quota, excluding immune ranks
@@ -53,7 +74,14 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         .setColor(0x00FF00)
         .setTimestamp();
       
-      return interaction.editReply({ embeds: [embed] });
+      try {
+        await interaction.editReply({ embeds: [embed] });
+      } catch (err: any) {
+        if (err.code !== 10062) {
+          console.error('Error editing reply (all active):', err);
+        }
+      }
+      return;
     }
 
     // Sort by quota percentage (lowest first) and then by rank
@@ -98,9 +126,20 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       });
     }
 
-    await interaction.editReply({ embeds: [embed] });
+    try {
+      await interaction.editReply({ embeds: [embed] });
+    } catch (err: any) {
+      if (err.code !== 10062) {
+        console.error('Error editing reply (inactive staff):', err);
+      }
+    }
   } catch (error: any) {
     console.error('Inactive-staff command error:', error);
+    
+    // Don't try to respond if interaction is expired
+    if (error.code === 10062) {
+      return;
+    }
     
     let errorMessage = 'An error occurred while fetching inactive staff. Please try again later.';
     
@@ -114,7 +153,15 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       .setColor(0xFF0000)
       .setTimestamp();
 
-    await interaction.editReply({ embeds: [errorEmbed] });
+    try {
+      await interaction.editReply({ embeds: [errorEmbed] });
+    } catch (err: any) {
+      // Ignore interaction expired errors
+      if (err.code !== 10062) {
+        console.error('Error sending error embed:', err);
+      }
+    }
   }
 }
+
 

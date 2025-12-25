@@ -363,43 +363,49 @@ router.get('/staff/quota', async (req: Request, res: Response) => {
     const weekStart = getCurrentWeekStart();
     const weekStartDateTime = `${weekStart} 00:00:00`;
 
-    // Get all staff members (no limit)
-    const staffUsers = await db
+    // Optimized query: Get all staff with their message counts in a single query
+    const staffWithQuota = await db
       .prepare(
-        `SELECT * FROM users 
-         WHERE \`rank\` IS NOT NULL
-         ORDER BY \`rank\` DESC, created_at ASC`
+        `SELECT 
+          u.id,
+          u.discord_id,
+          u.discord_username,
+          u.roblox_username,
+          u.\`rank\`,
+          u.rank_name,
+          u.status,
+          COALESCE(COUNT(dm.id), 0) as messages_sent
+        FROM users u
+        LEFT JOIN discord_messages dm ON u.id = dm.user_id AND dm.created_at >= ?
+        WHERE u.\`rank\` IS NOT NULL
+        GROUP BY u.id, u.discord_id, u.discord_username, u.roblox_username, u.\`rank\`, u.rank_name, u.status
+        ORDER BY u.\`rank\` DESC, u.created_at ASC`
       )
-      .all() as any[];
+      .all(weekStartDateTime) as any[];
 
-    // For each user, get their quota information
-    const staffWithQuota = await Promise.all(staffUsers.map(async (user) => {
-      // Get message count from discord_messages for current week
-      const messageCount = await db
-        .prepare('SELECT COUNT(*) as count FROM discord_messages WHERE user_id = ? AND created_at >= ?')
-        .all(user.id, weekStartDateTime) as any[];
-
-      const messagesSentNum = messageCount?.[0]?.count ? parseInt(messageCount[0].count as any) : 0;
-      const messagesQuota = 150;
+    // Process results and calculate quota metrics
+    const messagesQuota = 150;
+    const result = staffWithQuota.map((row) => {
+      const messagesSentNum = parseInt(row.messages_sent as any) || 0;
       const quotaMet = messagesSentNum >= messagesQuota;
       const quotaPercentage = Math.min(Math.round((messagesSentNum / messagesQuota) * 100), 100);
 
       return {
-        id: user.id,
-        discord_id: user.discord_id,
-        discord_username: user.discord_username,
-        roblox_username: user.roblox_username,
-        rank: user.rank,
-        rank_name: user.rank_name,
-        status: user.status,
+        id: row.id,
+        discord_id: row.discord_id,
+        discord_username: row.discord_username,
+        roblox_username: row.roblox_username,
+        rank: row.rank,
+        rank_name: row.rank_name,
+        status: row.status,
         messages_sent: messagesSentNum,
         messages_quota: messagesQuota,
         quota_met: quotaMet,
         quota_percentage: quotaPercentage,
       };
-    }));
+    });
 
-    res.json(staffWithQuota);
+    res.json(result);
   } catch (error) {
     console.error('Error fetching staff quota:', error);
     res.status(500).json({ error: 'Failed to fetch staff quota' });
