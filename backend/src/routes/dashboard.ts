@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { authenticateToken, requireVerified } from '../middleware/auth';
 import { requirePermission, requireAdmin } from '../middleware/permissions';
 import { db } from '../models/database';
+import { getCurrentWeekStart, getCurrentWeekStartDateTime, countDiscordMessages } from '../utils/messages';
 
 const router = Router();
 
@@ -10,18 +11,6 @@ const router = Router();
 // 2. Full verification (Discord + Roblox + active status + rank)
 router.use(authenticateToken);
 router.use(requireVerified);
-
-/**
- * Get current week start (Monday)
- */
-function getCurrentWeekStart(): string {
-  const now = new Date();
-  const day = now.getDay();
-  const diff = now.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
-  const monday = new Date(now.setDate(diff));
-  monday.setHours(0, 0, 0, 0);
-  return monday.toISOString().split('T')[0];
-}
 
 /**
  * Get user's activity stats
@@ -33,16 +22,10 @@ router.get('/stats', requirePermission('VIEW_DASHBOARD'), async (req: Request, r
 
   try {
     const weekStart = getCurrentWeekStart();
-    
-    // Use the same date format as the management endpoint: YYYY-MM-DD 00:00:00
-    const weekStartDateTime = `${weekStart} 00:00:00`;
+    const weekStartDateTime = getCurrentWeekStartDateTime();
 
-    // Count messages directly from discord_messages table (source of truth, same as management endpoint)
-    const messageCount = await db
-      .prepare('SELECT COUNT(*) as count FROM discord_messages WHERE user_id = ? AND created_at >= ?')
-      .get(req.user.id, weekStartDateTime) as { count: number };
-    
-    const messagesSent = messageCount?.count ? parseInt(messageCount.count as any) : 0;
+    // Count messages directly from discord_messages table (source of truth)
+    const messagesSent = await countDiscordMessages(req.user.id, weekStartDateTime);
 
     // Get or create activity log for current week (for tickets and minutes data)
     let activityLog = await db
@@ -89,14 +72,10 @@ router.get('/messages/count', requirePermission('VIEW_DASHBOARD'), async (req: R
 
   try {
     const weekStart = getCurrentWeekStart();
-    const weekStartDateTime = `${weekStart} 00:00:00`;
+    const weekStartDateTime = getCurrentWeekStartDateTime();
 
     // Count messages directly from discord_messages table (source of truth)
-    const messageCount = await db
-      .prepare('SELECT COUNT(*) as count FROM discord_messages WHERE user_id = ? AND created_at >= ?')
-      .get(req.user.id, weekStartDateTime) as { count: number } | undefined;
-
-    const count = messageCount?.count ? parseInt(messageCount.count as any) : 0;
+    const count = await countDiscordMessages(req.user.id, weekStartDateTime);
 
     res.json({
       user_id: req.user.id,

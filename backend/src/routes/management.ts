@@ -6,6 +6,7 @@ import { PermissionFlag } from '../utils/types';
 import { updateUserPermission } from '../services/permissions';
 import { isImmuneRank } from '../utils/immunity';
 import { performGroupSync, getSyncStatus } from '../services/groupSync';
+import { getCurrentWeekStart, getCurrentWeekStartDateTime, countDiscordMessages } from '../utils/messages';
 
 const router = Router();
 
@@ -26,18 +27,6 @@ router.use((req: Request, res: Response, next: any) => {
     });
   });
 });
-
-/**
- * Get current week start (Monday)
- */
-function getCurrentWeekStart(): string {
-  const now = new Date();
-  const day = now.getDay();
-  const diff = now.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
-  const monday = new Date(now.setDate(diff));
-  monday.setHours(0, 0, 0, 0);
-  return monday.toISOString().split('T')[0];
-}
 
 /**
  * List all staff with current week message counts from MySQL
@@ -75,8 +64,7 @@ router.get('/users', async (req: Request, res: Response) => {
     
     console.log(`[Management API] Found ${staffUsers.length} staff members${isBotRequest ? ' (all staff, bot request)' : ' (limited to 10, admin request)'}`);
 
-    // Use the same date format as the query script: YYYY-MM-DD 00:00:00
-    const weekStartDateTime = `${weekStart} 00:00:00`;
+    const weekStartDateTime = getCurrentWeekStartDateTime();
 
     // For each user, get their complete information (same as query script)
     const usersWithQuota = await Promise.all(staffUsers.map(async (user) => {
@@ -86,11 +74,8 @@ router.get('/users', async (req: Request, res: Response) => {
         .prepare('SELECT * FROM activity_logs WHERE user_id = ? AND week_start = ?')
         .get(user.id, weekStart) as any;
       
-      // Get message count from discord_messages for current week (same as query script)
-      // Use .get() for COUNT queries (returns single row)
-      const messageCount = await db
-        .prepare('SELECT COUNT(*) as count FROM discord_messages WHERE user_id = ? AND created_at >= ?')
-        .get(user.id, weekStartDateTime) as { count: number } | undefined;
+      // Count messages from discord_messages table (source of truth) using shared utility
+      const messagesSentNum = await countDiscordMessages(user.id, weekStartDateTime);
       
       // Get tickets claimed by this user (same as query script)
       const tickets = await db
@@ -98,13 +83,11 @@ router.get('/users', async (req: Request, res: Response) => {
         .all(user.id) as any[];
       
       // Calculate values (same as query script logic)
-      // Use ONLY the count from discord_messages table (source of truth)
-      const messagesSentNum = messageCount?.count ? parseInt(messageCount.count as any) : 0;
       const minutes = currentWeekActivity?.minutes ? parseInt(currentWeekActivity.minutes as any) : 0;
       const ticketsClaimed = tickets?.length || 0;
       const ticketsResolved = tickets?.filter((t: any) => t.status === 'resolved')?.length || 0;
       
-      // Use ONLY discord_messages count (source of truth, same as query script)
+      // Use discord_messages count (source of truth, from shared utility function)
       const finalMessagesSent = messagesSentNum;
       
       const messagesQuota = 150;

@@ -2,23 +2,12 @@ import { Router, Request, Response } from 'express';
 import { db } from '../models/database';
 import { requireBotAuth } from '../middleware/botAuth';
 import { isImmuneRank } from '../utils/immunity';
+import { getCurrentWeekStart, getCurrentWeekStartDateTime, countDiscordMessages } from '../utils/messages';
 
 const router = Router();
 
 // All bot routes require shared-secret auth
 router.use(requireBotAuth);
-
-/**
- * Get current week start (Monday)
- */
-function getCurrentWeekStart(): string {
-  const now = new Date();
-  const day = now.getDay();
-  const diff = now.getDate() - day + (day === 0 ? -6 : 1);
-  const monday = new Date(now.setDate(diff));
-  monday.setHours(0, 0, 0, 0);
-  return monday.toISOString().split('T')[0];
-}
 
 /**
  * Bot activity endpoint - receives activity updates from Discord bot
@@ -107,22 +96,15 @@ router.post('/message', async (req: Request, res: Response) => {
 
     // Update weekly activity log
     const weekStartStr = getCurrentWeekStart();
+    const weekStartDateTime = getCurrentWeekStartDateTime();
     
-    // Count messages for this week
-    const weekStart = new Date(weekStartStr);
-    const messageCount = await db
-      .prepare(
-        `SELECT COUNT(*) as count FROM discord_messages 
-         WHERE user_id = ? AND created_at >= ?`
-      )
-      .get(user.id, weekStart.toISOString()) as { count: number };
+    // Count messages for this week using shared utility
+    const actualCount = await countDiscordMessages(user.id, weekStartDateTime);
 
     // Update or create activity log with actual count
     const existing = await db
       .prepare('SELECT * FROM activity_logs WHERE user_id = ? AND week_start = ?')
       .get(user.id, weekStartStr) as any;
-
-    const actualCount = parseInt(messageCount.count as any) || 0;
 
     if (existing) {
       await db.prepare(
@@ -193,7 +175,7 @@ router.post('/messages/batch', async (req: Request, res: Response) => {
 
     // Update activity logs for all affected users
     const weekStartStr = getCurrentWeekStart();
-    const weekStart = new Date(weekStartStr);
+    const weekStartDateTime = getCurrentWeekStartDateTime();
 
     for (const discordId of Object.keys(userCounts)) {
       const user = await db
@@ -201,14 +183,8 @@ router.post('/messages/batch', async (req: Request, res: Response) => {
         .get(discordId) as { id: number } | undefined;
 
       if (user) {
-        const messageCount = await db
-          .prepare(
-            `SELECT COUNT(*) as count FROM discord_messages 
-             WHERE user_id = ? AND created_at >= ?`
-          )
-          .get(user.id, weekStart.toISOString()) as { count: number };
-
-        const actualCount = parseInt(messageCount.count as any) || 0;
+        // Count messages using shared utility
+        const actualCount = await countDiscordMessages(user.id, weekStartDateTime);
 
         const existing = await db
           .prepare('SELECT * FROM activity_logs WHERE user_id = ? AND week_start = ?')
@@ -362,7 +338,7 @@ router.get('/staff', async (req: Request, res: Response) => {
   try {
     // Get current week start for quota calculation (same as management endpoint)
     const weekStart = getCurrentWeekStart();
-    const weekStartDateTime = `${weekStart} 00:00:00`;
+    const weekStartDateTime = getCurrentWeekStartDateTime();
 
     // Get ALL staff members (no limit, unlike management endpoint which limits to 10)
     const staffUsers = await db
@@ -376,14 +352,13 @@ router.get('/staff', async (req: Request, res: Response) => {
     // For each user, get their complete information (same as management endpoint)
     const usersWithQuota = await Promise.all(staffUsers.map(async (user) => {
       // Get current week's activity log (same as management endpoint)
+      // Use .get() for single row queries
       const currentWeekActivity = await db
         .prepare('SELECT * FROM activity_logs WHERE user_id = ? AND week_start = ?')
-        .all(user.id, weekStart) as any[];
+        .get(user.id, weekStart) as any;
       
-      // Get message count from discord_messages for current week (same as management endpoint)
-      const messageCount = await db
-        .prepare('SELECT COUNT(*) as count FROM discord_messages WHERE user_id = ? AND created_at >= ?')
-        .all(user.id, weekStartDateTime) as any[];
+      // Count messages from discord_messages table (source of truth) using shared utility
+      const messagesSentNum = await countDiscordMessages(user.id, weekStartDateTime);
       
       // Get tickets claimed by this user (same as management endpoint)
       const tickets = await db
@@ -391,13 +366,11 @@ router.get('/staff', async (req: Request, res: Response) => {
         .all(user.id) as any[];
       
       // Calculate values (same as management endpoint logic)
-      // Use ONLY the count from discord_messages table (source of truth)
-      const messagesSentNum = messageCount?.[0]?.count ? parseInt(messageCount[0].count as any) : 0;
-      const minutes = currentWeekActivity?.[0]?.minutes ? parseInt(currentWeekActivity[0].minutes as any) : 0;
+      const minutes = currentWeekActivity?.minutes ? parseInt(currentWeekActivity.minutes as any) : 0;
       const ticketsClaimed = tickets?.length || 0;
       const ticketsResolved = tickets?.filter((t: any) => t.status === 'resolved')?.length || 0;
       
-      // Use ONLY discord_messages count (source of truth, same as management endpoint)
+      // Use discord_messages count (source of truth, from shared utility function)
       const finalMessagesSent = messagesSentNum;
       
       const messagesQuota = 150;
