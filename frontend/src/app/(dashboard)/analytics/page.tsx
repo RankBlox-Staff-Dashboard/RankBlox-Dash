@@ -168,7 +168,7 @@ export default function AnalyticsPage() {
           ) : staffMembers.length > 0 ? (
             <div className="space-y-3">
               {staffMembers.map((member: UserWithQuota, index: number) => {
-                const activityStatus = getActivityStatus(member.status);
+                const activityStatus = getActivityStatus(member.status, member.quota_met);
                 return (
                 <div 
                   key={member.id} 
@@ -255,17 +255,9 @@ export default function AnalyticsPage() {
                       "text-xs px-2 py-1 rounded-full font-medium",
                       activityStatus === 'Active'
                         ? "bg-emerald-500/20 text-emerald-400" 
-                        : "bg-yellow-500/20 text-yellow-400"
+                        : "bg-red-500/20 text-red-400"
                     )}>
                       {activityStatus}
-                    </span>
-                    {/* Quota indicator - separate from status */}
-                    <span className="flex items-center gap-1">
-                      {member.quota_met ? (
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                      ) : (
-                        <XCircle className="w-3.5 h-3.5 text-blue-400" />
-                      )}
                     </span>
                   </div>
                 </div>

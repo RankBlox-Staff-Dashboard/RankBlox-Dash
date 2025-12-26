@@ -5,7 +5,7 @@ import { MessageSquare, AlertTriangle, ClipboardList, Users, User as UserIcon } 
 import { useAuth } from '@/context/AuthContext';
 import { useStats } from '@/hooks/useStats';
 import { useRobloxAvatar, getDiscordAvatarUrl } from '@/hooks/useRobloxAvatar';
-import { getActivityStatus } from '@/utils/staffStats';
+import { getActivityStatus, calculateQuotaMet } from '@/utils/staffStats';
 import { Card } from './ui/Card';
 
 export function ProfileCard() {
@@ -28,6 +28,12 @@ export function ProfileCard() {
 
   // Display name - prefer Roblox username
   const displayName = user.roblox_username || user.discord_username;
+
+  // Calculate quota met status for activity status display
+  const messagesSent = stats?.messages_sent ?? 0;
+  const messagesQuota = stats?.messages_quota ?? 150;
+  const quotaMet = calculateQuotaMet(messagesSent, messagesQuota);
+  const activityStatus = getActivityStatus(user.status, quotaMet);
 
   return (
     <Card className="p-5 animate-fadeIn">
@@ -54,11 +60,11 @@ export function ProfileCard() {
             </span>
             <span className="text-white/40">•</span>
             <span className={`text-sm font-medium ${
-              getActivityStatus(user.status) === 'Active' 
+              activityStatus === 'Active' 
                 ? 'text-green-400' 
-                : 'text-yellow-400'
+                : 'text-red-400'
             }`}>
-              {getActivityStatus(user.status)}
+              {activityStatus}
             </span>
           </div>
         </div>
