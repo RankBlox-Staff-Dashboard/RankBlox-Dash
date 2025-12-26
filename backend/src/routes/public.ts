@@ -77,20 +77,21 @@ router.post('/activity-data', async (req: Request, res: Response) => {
     }
 
     // Hardcoded API token for EasyPOS activity API
-    const activityApiToken = 'f4ce0b59a2b93faa733f9774e3a57f376d4108edca9252b2050661d8b36b50c5f16bd0ba45a9f22c8493a7a8a9d86f90';
+    const token = 'f4ce0b59a2b93faa733f9774e3a57f376d4108edca9252b2050661d8b36b50c5f16bd0ba45a9f22c8493a7a8a9d86f90';
 
     try {
-      const activityResponse = await axios.post('https://papi.easypos.lol/activity/data', {
-        token: activityApiToken,
+      // Use exact format as specified by user
+      const axiosReq = await axios.post('https://papi.easypos.lol/activity/data', {
+        token: token,
         userId: userId
       }, {
         headers: {
           'Content-Type': 'application/json'
-        },
-        timeout: 10000 // 10 second timeout
+        }
       });
-
-      const response = activityResponse.data;
+      
+      const response = axiosReq.data;
+      console.log('[Activity API Proxy] Response received:', response);
       
       // Extract minutes from response
       // Response structure: { success: true, data: { playtime: { total: 218, week: 218, month: 218, ... }, ... } }
@@ -111,8 +112,9 @@ router.post('/activity-data', async (req: Request, res: Response) => {
         minutes = response;
       }
 
+      console.log('[Activity API Proxy] Extracted minutes:', minutes);
+
       // Return the full response data (frontend can extract what it needs)
-      // Or return just the minutes if you prefer
       res.status(200).json({
         success: true,
         minutes: minutes,
@@ -120,6 +122,7 @@ router.post('/activity-data', async (req: Request, res: Response) => {
       });
     } catch (apiError: any) {
       console.error('[Activity API Proxy] Error fetching from EasyPOS API:', apiError.message || apiError);
+      console.error('[Activity API Proxy] Error details:', apiError.response?.data || apiError.response?.status);
       
       // Return error response
       return res.status(502).json({ 

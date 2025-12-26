@@ -18,7 +18,7 @@ import { NavigationTabs } from '@/components/NavigationTabs';
 import { Card } from '@/components/ui/Card';
 import { RankBadge } from '@/components/RankBadge';
 import { TabsGrid, type TabsGridItem } from '@/components/ui/TabsGrid';
-import { dashboardAPI, type NonStaffMember, type StaffAnalytics } from '@/services/api';
+import { dashboardAPI, managementAPI, type NonStaffMember, type StaffAnalytics } from '@/services/api';
 import { getActivityStatus } from '@/utils/staffStats';
 import { cn } from '@/lib/cn';
 
@@ -33,18 +33,20 @@ export default function AnalyticsPage() {
   const [nonStaffLoading, setNonStaffLoading] = useState(false);
   const [nonStaffError, setNonStaffError] = useState<string | null>(null);
 
-  // Fetch staff analytics with minutes from the correct endpoint
+  // Fetch staff analytics from management API
   const fetchStaffAnalytics = async () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await dashboardAPI.getStaffAnalytics();
+      console.log('[Analytics] Fetching staff from management API...');
+      const response = await managementAPI.getUsers();
       
       if (!response || !response.data) {
         throw new Error('Invalid response from server');
       }
       
       const members = Array.isArray(response.data) ? response.data : [];
+      console.log('[Analytics] Received', members.length, 'staff members from management API');
       setStaffMembers(members);
     } catch (error: any) {
       console.error('Failed to fetch staff analytics:', error);
