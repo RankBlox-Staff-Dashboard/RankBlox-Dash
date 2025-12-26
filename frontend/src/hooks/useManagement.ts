@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { User } from '@/types';
-import { managementAPI } from '@/services/api';
+import { managementAPI, type StaffAnalytics } from '@/services/api';
 
 export interface TrackedChannel {
   id: number;
@@ -9,7 +8,7 @@ export interface TrackedChannel {
 }
 
 export function useManagement() {
-  const [users, setUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<StaffAnalytics[]>([]);
   const [channels, setChannels] = useState<TrackedChannel[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
