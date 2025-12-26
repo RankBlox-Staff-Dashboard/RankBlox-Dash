@@ -80,6 +80,37 @@ router.get('/stats', requirePermission('VIEW_DASHBOARD'), async (req: Request, r
 });
 
 /**
+ * Get user's Discord messages count for current week
+ */
+router.get('/messages/count', requirePermission('VIEW_DASHBOARD'), async (req: Request, res: Response) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  try {
+    const weekStart = getCurrentWeekStart();
+    const weekStartDateTime = `${weekStart} 00:00:00`;
+
+    // Count messages directly from discord_messages table (source of truth)
+    const messageCount = await db
+      .prepare('SELECT COUNT(*) as count FROM discord_messages WHERE user_id = ? AND created_at >= ?')
+      .get(req.user.id, weekStartDateTime) as { count: number } | undefined;
+
+    const count = messageCount?.count ? parseInt(messageCount.count as any) : 0;
+
+    res.json({
+      user_id: req.user.id,
+      messages_count: count,
+      week_start: weekStart,
+      week_start_datetime: weekStartDateTime,
+    });
+  } catch (error) {
+    console.error('Error fetching messages count:', error);
+    res.status(500).json({ error: 'Failed to fetch messages count' });
+  }
+});
+
+/**
  * Get user's infractions
  */
 router.get('/infractions', requirePermission('VIEW_INFRACTIONS'), async (req: Request, res: Response) => {
