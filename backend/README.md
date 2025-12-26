@@ -18,6 +18,8 @@ DATABASE_PATH=./data/staff.db
 FRONTEND_URL=http://localhost:5173
 ```
 
+Note: The EasyPOS activity API token is hardcoded in the backend code.
+
 ## API Endpoints
 
 ### Auth
@@ -58,6 +60,7 @@ FRONTEND_URL=http://localhost:5173
 - `POST /api/bot/tickets` - Create ticket (from bot)
 - `GET /api/bot/user/:discord_id` - Get user by Discord ID
 - `GET /api/bot/tracked-channels` - Get tracked channels (for bot)
+- `POST /api/bot/roblox-minutes` - Fetch and update user minutes from EasyPOS API (requires `ACTIVITY_API_TOKEN`)
 
 ## Development
 

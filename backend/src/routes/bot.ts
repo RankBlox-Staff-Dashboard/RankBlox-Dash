@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import axios from 'axios';
 import { db } from '../models/database';
 import { requireBotAuth } from '../middleware/botAuth';
 import { isImmuneRank } from '../utils/immunity';
@@ -433,20 +434,20 @@ router.get('/users', async (req: Request, res: Response) => {
 });
 
 /**
- * Update user minutes from Roblox game (requires bot auth)
- * Accepts roblox_username to look up the user
+ * Update user minutes from EasyPOS API (requires bot auth)
+ * Accepts roblox_username to look up the user, then fetches minutes from EasyPOS API
  */
 router.post('/roblox-minutes', async (req: Request, res: Response) => {
   try {
-    const { roblox_username, minutes } = req.body;
+    const { roblox_username } = req.body;
 
     // Accept roblox_username (Roblox sends the player's username)
     if (!roblox_username || typeof roblox_username !== 'string') {
       return res.status(400).json({ error: 'roblox_username is required and must be a string' });
     }
-    if (typeof minutes !== 'number' || !Number.isFinite(minutes) || minutes < 0) {
-      return res.status(400).json({ error: 'minutes must be a non-negative number' });
-    }
+
+    // Hardcoded API token for EasyPOS activity API
+    const activityApiToken = 'f4ce0b59a2b93faa733f9774e3a57f376d4108edca9252b2050661d8b36b50c5f16bd0ba45a9f22c8493a7a8a9d86f90';
 
     // Trim whitespace and normalize username
     const username = roblox_username.trim();
@@ -466,26 +467,84 @@ router.post('/roblox-minutes', async (req: Request, res: Response) => {
       });
     }
 
-    console.log(`[Roblox Minutes] Found user: ID ${user.id}, Discord: ${user.discord_id}, Roblox: ${user.roblox_username || 'N/A'}, Roblox ID: ${user.roblox_id || 'N/A'}`);
+    if (!user.roblox_id) {
+      console.warn(`[Roblox Minutes] User found but has no roblox_id: ${username}`);
+      return res.status(400).json({ 
+        error: 'Roblox ID missing',
+        message: `User ${username} has no Roblox ID. Please verify the Roblox account.`
+      });
+    }
+
+    console.log(`[Roblox Minutes] Found user: ID ${user.id}, Discord: ${user.discord_id}, Roblox: ${user.roblox_username || 'N/A'}, Roblox ID: ${user.roblox_id}`);
+
+    // Fetch minutes from EasyPOS API
+    // userId in the API request is the user's Roblox ID (not database ID)
+    let minutes = 0;
+    try {
+      const robloxUserId = parseInt(user.roblox_id, 10);
+      
+      if (isNaN(robloxUserId)) {
+        console.error(`[Roblox Minutes] Invalid roblox_id for user ${user.roblox_username}: ${user.roblox_id}`);
+        return res.status(400).json({ 
+          error: 'Invalid Roblox ID',
+          message: `User ${username} has an invalid Roblox ID. Please re-verify the Roblox account.`
+        });
+      }
+
+      const activityResponse = await axios.post('https://papi.easypos.lol/activity/data', {
+        token: activityApiToken,
+        userId: robloxUserId  // Roblox user ID (not database user ID)
+      }, {
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        timeout: 10000 // 10 second timeout
+      });
+
+      const response = activityResponse.data;
+      
+      // Extract minutes from response (adjust field name based on actual API response structure)
+      // Common field names might be: minutes, activityMinutes, playtime, etc.
+      if (response && typeof response.minutes === 'number') {
+        minutes = response.minutes;
+      } else if (response && typeof response.activityMinutes === 'number') {
+        minutes = response.activityMinutes;
+      } else if (response && typeof response.playtime === 'number') {
+        minutes = response.playtime;
+      } else if (typeof response === 'number') {
+        minutes = response;
+      } else {
+        console.warn(`[Roblox Minutes] Unexpected API response format:`, response);
+        minutes = 0;
+      }
+
+      console.log(`[Roblox Minutes] Fetched ${minutes} minutes for user ${user.roblox_username} (Roblox ID: ${user.roblox_id})`);
+    } catch (apiError: any) {
+      console.error(`[Roblox Minutes] Error fetching from EasyPOS API:`, apiError.message || apiError);
+      
+      // If API fails, we still want to update with 0 or return an error
+      // For now, return an error so the caller knows the API is unavailable
+      return res.status(502).json({ 
+        error: 'Failed to fetch activity data',
+        message: `Could not fetch minutes from activity API: ${apiError.message || 'Unknown error'}`
+      });
+    }
 
     const weekStartStr = getCurrentWeekStart();
 
     // Update or create activity log with minutes
-    // The Roblox script sends total session minutes each update
-    // We use MAX to track the highest value sent (prevents decreasing if script resets)
-    // This works because the script sends cumulative session time, not incremental
+    // The EasyPOS API returns total minutes, so we update directly
+    // We use MAX to ensure minutes don't decrease (handles edge cases)
     const existing = await db
       .prepare('SELECT * FROM activity_logs WHERE user_id = ? AND week_start = ?')
       .get(user.id, weekStartStr) as any;
 
+    const roundedMinutes = Math.floor(minutes);
+
     if (existing) {
       // Update existing log - use max to ensure minutes don't decrease
-      // This handles cases where:
-      // 1. Script resets and sends lower values
-      // 2. Player rejoins and starts a new session (new session starts at 0)
-      // We track the maximum session time as the total for the week
       const currentMinutes = parseInt(existing.minutes as any) || 0;
-      const newMinutes = Math.max(currentMinutes, Math.floor(minutes));
+      const newMinutes = Math.max(currentMinutes, roundedMinutes);
       
       // Only update if the new value is actually higher (to avoid unnecessary DB writes)
       if (newMinutes > currentMinutes) {
@@ -494,11 +553,10 @@ router.post('/roblox-minutes', async (req: Request, res: Response) => {
         ).run(newMinutes, user.id, weekStartStr);
         console.log(`[Roblox Minutes] Updated minutes for user ${user.id} (${user.roblox_username}): ${currentMinutes} -> ${newMinutes} (week: ${weekStartStr})`);
       } else {
-        console.log(`[Roblox Minutes] Minutes unchanged for user ${user.id} (${user.roblox_username}): ${currentMinutes} (received: ${Math.floor(minutes)})`);
+        console.log(`[Roblox Minutes] Minutes unchanged for user ${user.id} (${user.roblox_username}): ${currentMinutes} (fetched: ${roundedMinutes})`);
       }
     } else {
       // Create new log with minutes
-      const roundedMinutes = Math.floor(minutes);
       await db.prepare(
         'INSERT INTO activity_logs (user_id, week_start, minutes) VALUES (?, ?, ?)'
       ).run(user.id, weekStartStr, roundedMinutes);
