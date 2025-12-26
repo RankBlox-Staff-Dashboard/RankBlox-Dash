@@ -18,8 +18,7 @@ import { NavigationTabs } from '@/components/NavigationTabs';
 import { Card } from '@/components/ui/Card';
 import { RankBadge } from '@/components/RankBadge';
 import { TabsGrid, type TabsGridItem } from '@/components/ui/TabsGrid';
-import { dashboardAPI, type NonStaffMember } from '@/services/api';
-import { useStaffStats, type UserWithQuota } from '@/hooks/useStaffStats';
+import { dashboardAPI, type NonStaffMember, type StaffAnalytics } from '@/services/api';
 import { getActivityStatus } from '@/utils/staffStats';
 import { cn } from '@/lib/cn';
 
@@ -27,10 +26,50 @@ type AnalyticsTab = 'staff' | 'non-staff';
 
 export default function AnalyticsPage() {
   const [activeTab, setActiveTab] = useState<AnalyticsTab>('staff');
-  const { staffMembers, loading, error, refresh: refreshStaffStats } = useStaffStats();
+  const [staffMembers, setStaffMembers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [nonStaffMembers, setNonStaffMembers] = useState<NonStaffMember[]>([]);
   const [nonStaffLoading, setNonStaffLoading] = useState(false);
   const [nonStaffError, setNonStaffError] = useState<string | null>(null);
+
+  // Fetch staff analytics with minutes from the correct endpoint
+  const fetchStaffAnalytics = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await dashboardAPI.getStaffAnalytics();
+      
+      if (!response || !response.data) {
+        throw new Error('Invalid response from server');
+      }
+      
+      const members = Array.isArray(response.data) ? response.data : [];
+      setStaffMembers(members);
+    } catch (error: any) {
+      console.error('Failed to fetch staff analytics:', error);
+      
+      if (error?.response?.status === 401 || error?.response?.status === 403) {
+        setError('You do not have permission to view this data');
+      } else if (!navigator.onLine) {
+        setError('No internet connection');
+      } else {
+        setError('Failed to load staff analytics. Please try again.');
+      }
+      
+      setStaffMembers([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const refreshStaffStats = fetchStaffAnalytics;
+
+  useEffect(() => {
+    if (activeTab === 'staff') {
+      fetchStaffAnalytics();
+    }
+  }, [activeTab]);
 
   const fetchNonStaffMembers = async () => {
     try {
@@ -77,7 +116,7 @@ export default function AnalyticsPage() {
 
   // Calculate statistics from the data
   const totalMembers = staffMembers.length;
-  const activeMembers = staffMembers.filter((m: UserWithQuota) => m.quota_met === true).length;
+  const activeMembers = staffMembers.filter((m: StaffAnalytics) => m.quota_met === true).length;
   const inactiveMembers = totalMembers - activeMembers;
 
   return (
@@ -167,7 +206,7 @@ export default function AnalyticsPage() {
             </div>
           ) : staffMembers.length > 0 ? (
             <div className="space-y-3">
-              {staffMembers.map((member: UserWithQuota, index: number) => {
+              {staffMembers.map((member: StaffAnalytics, index: number) => {
                 const activityStatus = getActivityStatus(member.status, member.quota_met);
                 return (
                 <div 
