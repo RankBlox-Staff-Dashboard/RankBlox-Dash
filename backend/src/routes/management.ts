@@ -81,14 +81,16 @@ router.get('/users', async (req: Request, res: Response) => {
     // For each user, get their complete information (same as query script)
     const usersWithQuota = await Promise.all(staffUsers.map(async (user) => {
       // Get current week's activity log (same as query script)
+      // Use .get() for single row queries
       const currentWeekActivity = await db
         .prepare('SELECT * FROM activity_logs WHERE user_id = ? AND week_start = ?')
-        .all(user.id, weekStart) as any[];
+        .get(user.id, weekStart) as any;
       
       // Get message count from discord_messages for current week (same as query script)
+      // Use .get() for COUNT queries (returns single row)
       const messageCount = await db
         .prepare('SELECT COUNT(*) as count FROM discord_messages WHERE user_id = ? AND created_at >= ?')
-        .all(user.id, weekStartDateTime) as any[];
+        .get(user.id, weekStartDateTime) as { count: number } | undefined;
       
       // Get tickets claimed by this user (same as query script)
       const tickets = await db
@@ -97,8 +99,8 @@ router.get('/users', async (req: Request, res: Response) => {
       
       // Calculate values (same as query script logic)
       // Use ONLY the count from discord_messages table (source of truth)
-      const messagesSentNum = messageCount?.[0]?.count ? parseInt(messageCount[0].count as any) : 0;
-      const minutes = currentWeekActivity?.[0]?.minutes ? parseInt(currentWeekActivity[0].minutes as any) : 0;
+      const messagesSentNum = messageCount?.count ? parseInt(messageCount.count as any) : 0;
+      const minutes = currentWeekActivity?.minutes ? parseInt(currentWeekActivity.minutes as any) : 0;
       const ticketsClaimed = tickets?.length || 0;
       const ticketsResolved = tickets?.filter((t: any) => t.status === 'resolved')?.length || 0;
       
