@@ -450,32 +450,52 @@ router.post('/roblox-minutes', async (req: Request, res: Response) => {
     const weekStartStr = getCurrentWeekStart();
 
     // Update or create activity log with minutes
+    // The Roblox script sends total session minutes each update
+    // We use MAX to track the highest value sent (prevents decreasing if script resets)
+    // This works because the script sends cumulative session time, not incremental
     const existing = await db
       .prepare('SELECT * FROM activity_logs WHERE user_id = ? AND week_start = ?')
       .get(user.id, weekStartStr) as any;
 
     if (existing) {
       // Update existing log - use max to ensure minutes don't decrease
-      // The Roblox script sends total session minutes, so we use max to handle
-      // cases where the script might reset or send duplicate data
+      // This handles cases where:
+      // 1. Script resets and sends lower values
+      // 2. Player rejoins and starts a new session (new session starts at 0)
+      // We track the maximum session time as the total for the week
       const currentMinutes = parseInt(existing.minutes as any) || 0;
-      const newMinutes = Math.max(currentMinutes, minutes);
-      await db.prepare(
-        'UPDATE activity_logs SET minutes = ? WHERE user_id = ? AND week_start = ?'
-      ).run(newMinutes, user.id, weekStartStr);
-      console.log(`[Roblox Minutes] Updated minutes for user ${user.id}: ${currentMinutes} -> ${newMinutes} (week: ${weekStartStr})`);
+      const newMinutes = Math.max(currentMinutes, Math.floor(minutes));
+      
+      // Only update if the new value is actually higher (to avoid unnecessary DB writes)
+      if (newMinutes > currentMinutes) {
+        await db.prepare(
+          'UPDATE activity_logs SET minutes = ? WHERE user_id = ? AND week_start = ?'
+        ).run(newMinutes, user.id, weekStartStr);
+        console.log(`[Roblox Minutes] Updated minutes for user ${user.id} (${user.roblox_username}): ${currentMinutes} -> ${newMinutes} (week: ${weekStartStr})`);
+      } else {
+        console.log(`[Roblox Minutes] Minutes unchanged for user ${user.id} (${user.roblox_username}): ${currentMinutes} (received: ${Math.floor(minutes)})`);
+      }
     } else {
       // Create new log with minutes
+      const roundedMinutes = Math.floor(minutes);
       await db.prepare(
         'INSERT INTO activity_logs (user_id, week_start, minutes) VALUES (?, ?, ?)'
-      ).run(user.id, weekStartStr, minutes);
-      console.log(`[Roblox Minutes] Created new activity log for user ${user.id}: ${minutes} minutes (week: ${weekStartStr})`);
+      ).run(user.id, weekStartStr, roundedMinutes);
+      console.log(`[Roblox Minutes] Created new activity log for user ${user.id} (${user.roblox_username}): ${roundedMinutes} minutes (week: ${weekStartStr})`);
     }
+
+    // Get the final minutes value from the database to return
+    const finalActivityLog = await db
+      .prepare('SELECT minutes FROM activity_logs WHERE user_id = ? AND week_start = ?')
+      .get(user.id, weekStartStr) as { minutes: number } | undefined;
+    
+    const finalMinutes = finalActivityLog ? parseInt(finalActivityLog.minutes as any) || 0 : Math.floor(minutes);
 
     res.json({ 
       message: 'Minutes updated successfully', 
-      minutes: minutes,
+      minutes: finalMinutes,
       user_id: user.id,
+      roblox_username: user.roblox_username,
       week_start: weekStartStr
     });
   } catch (error) {
