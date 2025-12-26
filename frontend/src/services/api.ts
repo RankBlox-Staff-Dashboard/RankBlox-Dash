@@ -128,8 +128,19 @@ export const activityAPI = {
       const response = req.data;
       console.log('[Activity API] Response received:', response);
       
-      // Extract minutes from response (handle different response formats)
-      if (response && typeof response.minutes === 'number') {
+      // Extract minutes from response
+      // Response structure: { success: true, data: { playtime: { total: 218, week: 218, month: 218, ... }, ... } }
+      if (response && response.data && response.data.playtime) {
+        // Use week playtime, fallback to total if week not available
+        const minutes = response.data.playtime.week || response.data.playtime.total || 0;
+        console.log('[Activity API] Extracted minutes from playtime.week:', minutes);
+        return minutes;
+      } else if (response && response.playtime) {
+        // Handle if playtime is at root level
+        const minutes = response.playtime.week || response.playtime.total || 0;
+        console.log('[Activity API] Extracted minutes from playtime:', minutes);
+        return minutes;
+      } else if (response && typeof response.minutes === 'number') {
         return response.minutes;
       } else if (response && typeof response.activityMinutes === 'number') {
         return response.activityMinutes;
@@ -139,6 +150,7 @@ export const activityAPI = {
         return response;
       } else {
         console.warn('[Activity API] Unexpected response format:', response);
+        console.warn('[Activity API] Response keys:', response ? Object.keys(response) : 'null');
         return 0;
       }
     } catch (error: any) {

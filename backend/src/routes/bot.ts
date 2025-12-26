@@ -509,9 +509,17 @@ router.post('/roblox-minutes', async (req: Request, res: Response) => {
 
       const response = activityResponse.data;
       
-      // Extract minutes from response (adjust field name based on actual API response structure)
-      // Common field names might be: minutes, activityMinutes, playtime, etc.
-      if (response && typeof response.minutes === 'number') {
+      // Extract minutes from response
+      // Response structure: { success: true, data: { playtime: { total: 218, week: 218, month: 218, ... }, ... } }
+      if (response && response.data && response.data.playtime) {
+        // Use week playtime, fallback to total if week not available
+        minutes = response.data.playtime.week || response.data.playtime.total || 0;
+        console.log(`[Roblox Minutes] Extracted minutes from playtime.week: ${minutes}`);
+      } else if (response && response.playtime) {
+        // Handle if playtime is at root level
+        minutes = response.playtime.week || response.playtime.total || 0;
+        console.log(`[Roblox Minutes] Extracted minutes from playtime: ${minutes}`);
+      } else if (response && typeof response.minutes === 'number') {
         minutes = response.minutes;
       } else if (response && typeof response.activityMinutes === 'number') {
         minutes = response.activityMinutes;
@@ -521,6 +529,7 @@ router.post('/roblox-minutes', async (req: Request, res: Response) => {
         minutes = response;
       } else {
         console.warn(`[Roblox Minutes] Unexpected API response format:`, response);
+        console.warn(`[Roblox Minutes] Response keys:`, response ? Object.keys(response) : 'null');
         minutes = 0;
       }
 
