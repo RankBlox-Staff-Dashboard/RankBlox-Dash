@@ -4,7 +4,7 @@ import { useMemo, useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useManagement } from '@/hooks/useManagement';
 import { usePermissions } from '@/hooks/usePermissions';
-import { managementAPI, SyncStatus, SyncResult } from '@/services/api';
+import { managementAPI, SyncStatus, SyncResult, type StaffAnalytics } from '@/services/api';
 import { Card } from '@/components/ui/Card';
 import { RobloxAvatar } from '@/components/RobloxAvatar';
 import { 
@@ -177,7 +177,7 @@ export default function ManagementPage() {
     );
   }
 
-  const updateStatus = async (u: User, status: User['status']) => {
+  const updateStatus = async (u: StaffAnalytics, status: 'active' | 'inactive' | 'pending_verification') => {
     setBusy(`status:${u.id}`);
     try {
       await managementAPI.updateUserStatus(u.id, status);
