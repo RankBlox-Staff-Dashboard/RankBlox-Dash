@@ -43,19 +43,49 @@ app.use(cors({
 
 ## API Endpoint Being Called
 
-**Endpoint:** `GET https://papi.easypos.lol/activity/data`
+**Endpoint:** `POST https://papi.easypos.lol/activity/data`
 
-**Request Format (GET with query parameters):**
-```
-GET https://papi.easypos.lol/activity/data?token=...&userId=123
+**Request Format (POST with JSON body):**
+```json
+{
+  "token": "f4ce0b59a2b93faa733f9774e3a57f376d4108edca9252b2050661d8b36b50c5f16bd0ba45a9f22c8493a7a8a9d86f90",
+  "userId": 2682565491
+}
 ```
 
 **Curl Example:**
 ```bash
-curl -G https://papi.easypos.lol/activity/data \
+curl -X POST https://papi.easypos.lol/activity/data \
   -H "Content-Type: application/json" \
-  -d token="f4ce0b59a2b93faa733f9774e3a57f376d4108edca9252b2050661d8b36b50c5f16bd0ba45a9f22c8493a7a8a9d86f90" \
-  -d userId=123
+  -d '{"token":"f4ce0b59a2b93faa733f9774e3a57f376d4108edca9252b2050661d8b36b50c5f16bd0ba45a9f22c8493a7a8a9d86f90","userId":2682565491}'
+```
+
+**Response Example:**
+```json
+{
+  "success": true,
+  "data": {
+    "playtime": {
+      "formatted": {
+        "total": "6 minutes",
+        "month": "6 minutes",
+        "week": "6 minutes"
+      },
+      "total": 379,
+      "month": 379,
+      "week": 379,
+      "position": 1
+    },
+    "messages": {
+      "total": 0,
+      "month": 0,
+      "week": 0,
+      "position": 1
+    },
+    "userId": "2682565491",
+    "inGame": false
+  }
+}
 ```
 
 **Headers:**

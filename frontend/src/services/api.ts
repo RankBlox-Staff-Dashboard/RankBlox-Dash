@@ -122,13 +122,12 @@ export const activityAPI = {
     try {
       console.log('[Activity API] Fetching activity data for userId:', robloxUserId);
       
-      // Call EasyPOS API directly using GET with query parameters
+      // Call EasyPOS API directly using POST with JSON body
       // NOTE: Requires https://staff.ahscampus.com to be added to EasyPOS API CORS allowlist
-      const req = await axios.get('https://papi.easypos.lol/activity/data', {
-        params: {
-          token: 'f4ce0b59a2b93faa733f9774e3a57f376d4108edca9252b2050661d8b36b50c5f16bd0ba45a9f22c8493a7a8a9d86f90',
-          userId: robloxUserId
-        },
+      const req = await axios.post('https://papi.easypos.lol/activity/data', {
+        token: 'f4ce0b59a2b93faa733f9774e3a57f376d4108edca9252b2050661d8b36b50c5f16bd0ba45a9f22c8493a7a8a9d86f90',
+        userId: robloxUserId
+      }, {
         headers: {
           'Content-Type': 'application/json'
         }
