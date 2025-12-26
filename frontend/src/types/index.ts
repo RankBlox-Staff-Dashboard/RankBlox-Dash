@@ -27,6 +27,7 @@ export interface Stats {
   messages_quota: number;
   tickets_claimed: number;
   tickets_resolved: number;
+  minutes: number;
   infractions: number;
   week_start: string;
 }

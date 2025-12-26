@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { MessageSquare, AlertTriangle, ClipboardList, Users, User as UserIcon } from 'lucide-react';
+import { MessageSquare, AlertTriangle, ClipboardList, Users, User as UserIcon, Clock } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useStats } from '@/hooks/useStats';
 import { useRobloxAvatar, getDiscordAvatarUrl } from '@/hooks/useRobloxAvatar';
@@ -85,6 +85,16 @@ export function ProfileCard() {
         </div>
 
         <div className="flex items-center gap-3 p-3 rounded-2xl bg-white/5 transition-all hover:bg-white/10 hover:scale-[1.02] animate-slideUp" style={{ animationDelay: '0.15s' }}>
+          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-cyan-500/20 ring-1 ring-cyan-400/30">
+            <Clock className="w-5 h-5 text-cyan-300" />
+          </div>
+          <div>
+            <div className="text-xs text-white/50 font-medium">Minutes</div>
+            <div className="text-base font-bold text-white">{stats?.minutes ?? 0}m</div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 p-3 rounded-2xl bg-white/5 transition-all hover:bg-white/10 hover:scale-[1.02] animate-slideUp" style={{ animationDelay: '0.2s' }}>
           <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-yellow-500/20 ring-1 ring-yellow-400/30">
             <AlertTriangle className="w-5 h-5 text-yellow-300" />
           </div>
@@ -94,23 +104,13 @@ export function ProfileCard() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3 p-3 rounded-2xl bg-white/5 transition-all hover:bg-white/10 hover:scale-[1.02] animate-slideUp" style={{ animationDelay: '0.2s' }}>
+        <div className="flex items-center gap-3 p-3 rounded-2xl bg-white/5 transition-all hover:bg-white/10 hover:scale-[1.02] animate-slideUp" style={{ animationDelay: '0.25s' }}>
           <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-emerald-500/20 ring-1 ring-emerald-400/30">
             <ClipboardList className="w-5 h-5 text-emerald-300" />
           </div>
           <div>
             <div className="text-xs text-white/50 font-medium">Claimed</div>
             <div className="text-base font-bold text-white">{stats?.tickets_claimed ?? 0}</div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3 p-3 rounded-2xl bg-white/5 transition-all hover:bg-white/10 hover:scale-[1.02] animate-slideUp" style={{ animationDelay: '0.25s' }}>
-          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-purple-500/20 ring-1 ring-purple-400/30">
-            <Users className="w-5 h-5 text-purple-300" />
-          </div>
-          <div>
-            <div className="text-xs text-white/50 font-medium">Closed</div>
-            <div className="text-base font-bold text-white">{stats?.tickets_resolved ?? 0}</div>
           </div>
         </div>
       </div>

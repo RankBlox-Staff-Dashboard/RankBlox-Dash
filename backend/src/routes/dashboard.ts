@@ -53,6 +53,7 @@ router.get('/stats', requirePermission('VIEW_DASHBOARD'), async (req: Request, r
       messages_quota: 150,
       tickets_claimed: activityLog.tickets_claimed || 0,
       tickets_resolved: activityLog.tickets_resolved || 0,
+      minutes: parseInt(activityLog.minutes as any) || 0,
       infractions: parseInt(infractionCount.count as any) || 0,
       week_start: weekStart,
     });
