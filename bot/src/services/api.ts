@@ -91,6 +91,9 @@ export const botAPI = {
 
   // Get all staff with quota information (uses management endpoint which is already deployed)
   getStaffQuota: () => api.get('/management/users'),
+
+  // Get all users from the portal (not just staff)
+  getAllUsers: () => api.get('/bot/users'),
 };
 
 export default api;

@@ -412,6 +412,27 @@ router.get('/staff', async (req: Request, res: Response) => {
 });
 
 /**
+ * Get all users from the portal (for bot commands that need to check membership)
+ * Returns all users in the portal (not just staff)
+ */
+router.get('/users', async (req: Request, res: Response) => {
+  try {
+    // Get all users (not just staff) - just Discord IDs and usernames
+    const allUsers = await db
+      .prepare(
+        `SELECT discord_id, discord_username FROM users 
+         ORDER BY created_at ASC`
+      )
+      .all() as Array<{ discord_id: string; discord_username: string }>;
+
+    res.json(allUsers);
+  } catch (error) {
+    console.error('Error fetching all users:', error);
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+/**
  * Update user minutes from Roblox game (requires bot auth)
  * Accepts roblox_username to look up the user
  */
