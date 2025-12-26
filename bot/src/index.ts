@@ -43,10 +43,17 @@ const client = new Client({
 // HTTP server for health checks and API endpoints
 const PORT = process.env.PORT || 3001;
 const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
-  // Health check endpoints
+  // Health check endpoints - Render uses this to check if service is alive
   if (req.url === '/health' || req.url === '/') {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ status: 'ok', service: 'staffapp-bot' }));
+    const isReady = client.isReady();
+    const status = isReady ? 'ok' : 'starting';
+    res.writeHead(isReady ? 200 : 503, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ 
+      status,
+      service: 'staffapp-bot',
+      bot_ready: isReady,
+      timestamp: new Date().toISOString()
+    }));
     return;
   }
 
@@ -151,8 +158,20 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
   res.end('Not Found');
 });
 
-server.listen(PORT, () => {
+// Store server instance for graceful shutdown
+const serverInstance = server.listen(PORT, '0.0.0.0', () => {
   console.log(`Bot HTTP server listening on port ${PORT}`);
+  console.log(`Health check available at http://0.0.0.0:${PORT}/health`);
+});
+
+// Handle server errors
+server.on('error', (error: NodeJS.ErrnoException) => {
+  if (error.code === 'EADDRINUSE') {
+    console.error(`Port ${PORT} is already in use`);
+    process.exit(1);
+  } else {
+    console.error('Server error:', error);
+  }
 });
 
 // Load commands
@@ -275,5 +294,50 @@ if (!token) {
   process.exit(1);
 }
 
-client.login(token);
+// Graceful shutdown handler for Render
+async function gracefulShutdown(signal: string) {
+  console.log(`\n${signal} received. Starting graceful shutdown...`);
+  
+  // Stop accepting new requests
+  serverInstance.close(() => {
+    console.log('HTTP server closed');
+  });
+  
+  // Destroy Discord client
+  if (client.isReady()) {
+    try {
+      client.destroy();
+      console.log('Discord client destroyed');
+    } catch (error) {
+      console.error('Error destroying Discord client:', error);
+    }
+  }
+  
+  // Give it a moment to finish cleanup, then exit
+  setTimeout(() => {
+    console.log('Graceful shutdown complete');
+    process.exit(0);
+  }, 5000);
+}
+
+// Handle termination signals (Render sends SIGTERM)
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+  gracefulShutdown('UNCAUGHT_EXCEPTION');
+});
+
+// Log startup
+console.log('Starting Discord bot...');
+console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+console.log(`Port: ${PORT}`);
+
+// Login to Discord
+client.login(token).catch((error) => {
+  console.error('Failed to login to Discord:', error);
+  process.exit(1);
+});
 
