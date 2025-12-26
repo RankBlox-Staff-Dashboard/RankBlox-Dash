@@ -182,12 +182,14 @@ router.get('/analytics/staff', requireAdmin, requirePermission('VIEW_ANALYTICS')
       )
       .all() as any[];
 
-    // Get current week's messages_sent for all staff
-    const currentWeekMessages = await db
+    // Get current week's messages_sent, tickets_claimed, and tickets_resolved for all staff
+    const currentWeekActivity = await db
       .prepare(
         `SELECT 
           user_id,
-          messages_sent
+          messages_sent,
+          tickets_claimed,
+          tickets_resolved
         FROM activity_logs
         WHERE week_start = ?`
       )
@@ -200,14 +202,21 @@ router.get('/analytics/staff', requireAdmin, requirePermission('VIEW_ANALYTICS')
     });
 
     const messagesMap = new Map();
-    currentWeekMessages.forEach((log) => {
+    const ticketsClaimedMap = new Map();
+    const ticketsResolvedMap = new Map();
+    
+    currentWeekActivity.forEach((log) => {
       messagesMap.set(log.user_id, parseInt(log.messages_sent as any) || 0);
+      ticketsClaimedMap.set(log.user_id, parseInt(log.tickets_claimed as any) || 0);
+      ticketsResolvedMap.set(log.user_id, parseInt(log.tickets_resolved as any) || 0);
     });
 
     // Format the response by combining user data with activity data
     const staffAnalytics = staff.map((member) => {
       const totalMinutes = minutesMap.get(member.id) || 0;
       const messagesSent = messagesMap.get(member.id) || 0;
+      const ticketsClaimed = ticketsClaimedMap.get(member.id) || 0;
+      const ticketsResolved = ticketsResolvedMap.get(member.id) || 0;
       const messagesQuota = 150;
       const quotaMet = messagesSent >= messagesQuota;
       const quotaPercentage = Math.min(Math.round((messagesSent / messagesQuota) * 100), 100);
@@ -228,6 +237,8 @@ router.get('/analytics/staff', requireAdmin, requirePermission('VIEW_ANALYTICS')
         messages_quota: messagesQuota,
         quota_met: quotaMet,
         quota_percentage: quotaPercentage,
+        tickets_claimed: ticketsClaimed,
+        tickets_resolved: ticketsResolved,
       };
     });
 

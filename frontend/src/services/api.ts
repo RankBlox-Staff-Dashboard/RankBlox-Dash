@@ -102,6 +102,8 @@ export interface StaffAnalytics {
   messages_quota: number;
   quota_met: boolean;
   quota_percentage: number;
+  tickets_claimed: number;
+  tickets_resolved: number;
 }
 
 // Non-Staff Member type
