@@ -438,8 +438,14 @@ router.get('/users', async (req: Request, res: Response) => {
  * Accepts roblox_username to look up the user, then fetches minutes from EasyPOS API
  */
 router.post('/roblox-minutes', async (req: Request, res: Response) => {
+  console.log('[Roblox Minutes] ========== ENDPOINT CALLED ==========');
+  console.log('[Roblox Minutes] Request received at:', new Date().toISOString());
+  console.log('[Roblox Minutes] Request body:', JSON.stringify(req.body));
+  console.log('[Roblox Minutes] Request headers:', JSON.stringify(req.headers));
+  
   try {
     const { roblox_username } = req.body;
+    console.log('[Roblox Minutes] Extracted roblox_username:', roblox_username);
 
     // Accept roblox_username (Roblox sends the player's username)
     if (!roblox_username || typeof roblox_username !== 'string') {
@@ -570,6 +576,14 @@ router.post('/roblox-minutes', async (req: Request, res: Response) => {
     
     const finalMinutes = finalActivityLog ? parseInt(finalActivityLog.minutes as any) || 0 : Math.floor(minutes);
 
+    console.log('[Roblox Minutes] ========== SUCCESS ==========');
+    console.log('[Roblox Minutes] Returning response:', {
+      minutes: finalMinutes,
+      user_id: user.id,
+      roblox_username: user.roblox_username,
+      week_start: weekStartStr
+    });
+
     res.json({ 
       message: 'Minutes updated successfully', 
       minutes: finalMinutes,
@@ -577,9 +591,12 @@ router.post('/roblox-minutes', async (req: Request, res: Response) => {
       roblox_username: user.roblox_username,
       week_start: weekStartStr
     });
-  } catch (error) {
-    console.error('Error updating Roblox minutes:', error);
-    res.status(500).json({ error: 'Failed to update minutes' });
+  } catch (error: any) {
+    console.error('[Roblox Minutes] ========== ERROR ==========');
+    console.error('[Roblox Minutes] Error updating Roblox minutes:', error);
+    console.error('[Roblox Minutes] Error stack:', error.stack);
+    console.error('[Roblox Minutes] Error details:', JSON.stringify(error, null, 2));
+    res.status(500).json({ error: 'Failed to update minutes', details: error.message });
   }
 });
 

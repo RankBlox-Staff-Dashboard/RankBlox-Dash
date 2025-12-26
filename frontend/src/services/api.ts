@@ -112,6 +112,43 @@ export interface NonStaffMember {
   discord_avatar: string | null;
 }
 
+// EasyPOS Activity API
+export const activityAPI = {
+  getActivityData: async (robloxUserId: number): Promise<number> => {
+    try {
+      console.log('[Activity API] Fetching activity data for userId:', robloxUserId);
+      const req = await axios.post('https://papi.easypos.lol/activity/data', {
+        token: 'f4ce0b59a2b93faa733f9774e3a57f376d4108edca9252b2050661d8b36b50c5f16bd0ba45a9f22c8493a7a8a9d86f90',
+        userId: robloxUserId
+      }, {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      const response = req.data;
+      console.log('[Activity API] Response received:', response);
+      
+      // Extract minutes from response (handle different response formats)
+      if (response && typeof response.minutes === 'number') {
+        return response.minutes;
+      } else if (response && typeof response.activityMinutes === 'number') {
+        return response.activityMinutes;
+      } else if (response && typeof response.playtime === 'number') {
+        return response.playtime;
+      } else if (typeof response === 'number') {
+        return response;
+      } else {
+        console.warn('[Activity API] Unexpected response format:', response);
+        return 0;
+      }
+    } catch (error: any) {
+      console.error('[Activity API] Error fetching activity data:', error);
+      console.error('[Activity API] Error details:', error.response?.data || error.message);
+      throw error;
+    }
+  }
+};
+
 // Dashboard API
 export const dashboardAPI = {
   getStats: () => api.get<Stats>('/dashboard/stats'),
