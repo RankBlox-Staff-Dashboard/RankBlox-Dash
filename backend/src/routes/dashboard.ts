@@ -314,8 +314,8 @@ router.get('/analytics/non-staff', requireAdmin, requirePermission('VIEW_ANALYTI
     res.json(nonStaffMembers);
   } catch (error) {
     console.error('Error fetching non-staff members:', error);
-    // Return empty array instead of error to allow frontend to show empty state
-    res.json([]);
+    // Return empty array with proper status code instead of error to allow frontend to show empty state
+    return res.status(200).json([]);
   }
 });
 
