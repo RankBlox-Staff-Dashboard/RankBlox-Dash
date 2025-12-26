@@ -22,17 +22,14 @@ export function calculateQuotaPercentage(
 }
 
 /**
- * Get user activity status based on quota_met
- * A user is Active if they've met their quota, Inactive otherwise
- * This ensures consistency with the quota display logic
+ * Get user activity status based on database status
+ * The status badge reflects the actual database employment status (active, inactive, etc.)
+ * Quota met/unmet is handled separately and should not affect the status badge
  */
 export function getActivityStatus(userStatus: string, quotaMet?: boolean): 'Active' | 'Inactive' {
-  // If quota_met is provided, use it to determine Active/Inactive
-  // This ensures the status matches the actual quota achievement
-  if (quotaMet !== undefined) {
-    return quotaMet ? 'Active' : 'Inactive';
-  }
-  // Fallback to status field for backwards compatibility
+  // Always use the database status to determine Active/Inactive
+  // quotaMet parameter is kept for backwards compatibility but is ignored
+  // Quota status is displayed separately via progress bars and icons
   return userStatus === 'active' ? 'Active' : 'Inactive';
 }
 

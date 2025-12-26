@@ -167,7 +167,9 @@ export default function AnalyticsPage() {
             </div>
           ) : staffMembers.length > 0 ? (
             <div className="space-y-3">
-              {staffMembers.map((member: UserWithQuota, index: number) => (
+              {staffMembers.map((member: UserWithQuota, index: number) => {
+                const activityStatus = getActivityStatus(member.status);
+                return (
                 <div 
                   key={member.id} 
                   className={cn(
@@ -251,15 +253,24 @@ export default function AnalyticsPage() {
                   <div className="flex items-center gap-2 pt-2 border-t border-white/10 animate-fadeIn" style={{ animationDelay: `${0.05 * index + 0.25}s` }}>
                     <span className={cn(
                       "text-xs px-2 py-1 rounded-full font-medium",
-                      member.quota_met 
+                      activityStatus === 'Active'
                         ? "bg-emerald-500/20 text-emerald-400" 
-                        : "bg-red-500/20 text-red-400"
+                        : "bg-yellow-500/20 text-yellow-400"
                     )}>
-                      {getActivityStatus(member.status, member.quota_met)}
+                      {activityStatus}
+                    </span>
+                    {/* Quota indicator - separate from status */}
+                    <span className="flex items-center gap-1">
+                      {member.quota_met ? (
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                      ) : (
+                        <XCircle className="w-3.5 h-3.5 text-blue-400" />
+                      )}
                     </span>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div className="text-center py-8 text-white/50">
