@@ -411,5 +411,58 @@ router.get('/staff', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * Update user minutes from Roblox game (requires bot auth)
+ */
+router.post('/roblox-minutes', async (req: Request, res: Response) => {
+  try {
+    const { roblox_id, minutes } = req.body;
+
+    if (!roblox_id || typeof roblox_id !== 'string') {
+      return res.status(400).json({ error: 'roblox_id is required and must be a string' });
+    }
+    if (typeof minutes !== 'number' || !Number.isFinite(minutes) || minutes < 0) {
+      return res.status(400).json({ error: 'minutes must be a non-negative number' });
+    }
+
+    // Find user by Roblox ID
+    const user = await db
+      .prepare('SELECT id FROM users WHERE roblox_id = ?')
+      .get(roblox_id) as { id: number } | undefined;
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const weekStartStr = getCurrentWeekStart();
+
+    // Update or create activity log with minutes
+    const existing = await db
+      .prepare('SELECT * FROM activity_logs WHERE user_id = ? AND week_start = ?')
+      .get(user.id, weekStartStr) as any;
+
+    if (existing) {
+      // Update existing log - use max to ensure minutes don't decrease
+      // The Roblox script sends total session minutes, so we use max to handle
+      // cases where the script might reset or send duplicate data
+      const currentMinutes = parseInt(existing.minutes as any) || 0;
+      const newMinutes = Math.max(currentMinutes, minutes);
+      await db.prepare(
+        'UPDATE activity_logs SET minutes = ? WHERE user_id = ? AND week_start = ?'
+      ).run(newMinutes, user.id, weekStartStr);
+    } else {
+      // Create new log with minutes
+      await db.prepare(
+        'INSERT INTO activity_logs (user_id, week_start, minutes) VALUES (?, ?, ?)'
+      ).run(user.id, weekStartStr, minutes);
+    }
+
+    res.json({ message: 'Minutes updated successfully', minutes: minutes });
+  } catch (error) {
+    console.error('Error updating Roblox minutes:', error);
+    res.status(500).json({ error: 'Failed to update minutes' });
+  }
+});
+
 export default router;
 
