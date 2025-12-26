@@ -4,7 +4,7 @@
 
 -- Configuration
 local API_URL = "https://staff.ahscampus.com/api/bot/roblox-minutes"
-local BOT_API_TOKEN = "your_bot_api_token_here" -- Replace with your BOT_API_TOKEN from backend/.env
+local BOT_API_TOKEN = "9f3c2e8b7a4d6f1a0c5e92d8b4a7e3f1"
 local UPDATE_INTERVAL = 60 -- Update API every 60 seconds (1 minute)
 local DEBUG = true -- Set to false to reduce log output
 
@@ -19,8 +19,8 @@ local function debugLog(message)
 end
 
 -- Function to send minutes to API
-local function sendMinutesToAPI(robloxId, minutes)
-	debugLog("Preparing to send minutes to API for user " .. tostring(robloxId) .. ": " .. tostring(math.floor(minutes)) .. " minutes")
+local function sendMinutesToAPI(robloxUsername, minutes)
+	debugLog("Preparing to send minutes to API for user " .. tostring(robloxUsername) .. ": " .. tostring(math.floor(minutes)) .. " minutes")
 	
 	local success, result = pcall(function()
 		local httpService = game:GetService("HttpService")
@@ -31,7 +31,7 @@ local function sendMinutesToAPI(robloxId, minutes)
 		}
 		
 		local requestBody = {
-			roblox_id = tostring(robloxId),
+			roblox_username = tostring(robloxUsername),
 			minutes = math.floor(minutes)
 		}
 		
@@ -57,10 +57,10 @@ local function sendMinutesToAPI(robloxId, minutes)
 		end
 		
 		if response.Success then
-			print("[Staff Tracker] ✓ Successfully sent " .. tostring(math.floor(minutes)) .. " minutes for user " .. tostring(robloxId))
+			print("[Staff Tracker] ✓ Successfully sent " .. tostring(math.floor(minutes)) .. " minutes for user " .. tostring(robloxUsername))
 			return true
 		else
-			warn("[Staff Tracker] ✗ Failed to send minutes for user " .. tostring(robloxId) .. ": " .. tostring(response.StatusCode) .. " - " .. tostring(response.StatusMessage))
+			warn("[Staff Tracker] ✗ Failed to send minutes for user " .. tostring(robloxUsername) .. ": " .. tostring(response.StatusCode) .. " - " .. tostring(response.StatusMessage))
 			if response.Body then
 				warn("[Staff Tracker] Response body: " .. tostring(response.Body))
 			end
@@ -101,9 +101,9 @@ local function updatePlayerMinutes(player)
 	-- Update last update time
 	playerData[userId].lastUpdate = currentTime
 	
-	-- Send to API (backend will use max to ensure minutes don't decrease)
+	-- Send to API using player's username (backend will use max to ensure minutes don't decrease)
 	-- This sends the total minutes played in this session
-	sendMinutesToAPI(userId, timeInGame)
+	sendMinutesToAPI(player.Name, timeInGame)
 end
 
 -- Function to handle player joining

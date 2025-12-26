@@ -413,45 +413,39 @@ router.get('/staff', async (req: Request, res: Response) => {
 
 /**
  * Update user minutes from Roblox game (requires bot auth)
+ * Accepts roblox_username to look up the user
  */
 router.post('/roblox-minutes', async (req: Request, res: Response) => {
   try {
-    const { roblox_id, minutes } = req.body;
+    const { roblox_username, minutes } = req.body;
 
-    // Accept roblox_id as string or number (Roblox sends it as string)
-    if (!roblox_id) {
-      return res.status(400).json({ error: 'roblox_id is required' });
+    // Accept roblox_username (Roblox sends the player's username)
+    if (!roblox_username || typeof roblox_username !== 'string') {
+      return res.status(400).json({ error: 'roblox_username is required and must be a string' });
     }
     if (typeof minutes !== 'number' || !Number.isFinite(minutes) || minutes < 0) {
       return res.status(400).json({ error: 'minutes must be a non-negative number' });
     }
 
-    // Convert roblox_id to string for consistent lookup (database stores as VARCHAR)
-    const robloxIdStr = String(roblox_id);
+    // Trim whitespace and normalize username
+    const username = roblox_username.trim();
     
-    console.log(`[Roblox Minutes] Looking up user with roblox_id: ${robloxIdStr} (type: ${typeof roblox_id})`);
+    console.log(`[Roblox Minutes] Looking up user with roblox_username: ${username}`);
 
-    // Find user by Roblox ID (try both string and number formats)
-    let user = await db
-      .prepare('SELECT id, discord_id, roblox_username FROM users WHERE roblox_id = ?')
-      .get(robloxIdStr) as { id: number; discord_id: string; roblox_username: string | null } | undefined;
-
-    // If not found as string, try as number (in case database has it stored differently)
-    if (!user && !isNaN(Number(robloxIdStr))) {
-      user = await db
-        .prepare('SELECT id, discord_id, roblox_username FROM users WHERE roblox_id = ?')
-        .get(Number(robloxIdStr)) as { id: number; discord_id: string; roblox_username: string | null } | undefined;
-    }
+    // Find user by Roblox username (case-insensitive lookup)
+    const user = await db
+      .prepare('SELECT id, discord_id, roblox_username, roblox_id FROM users WHERE LOWER(roblox_username) = LOWER(?)')
+      .get(username) as { id: number; discord_id: string; roblox_username: string | null; roblox_id: string | null } | undefined;
 
     if (!user) {
-      console.warn(`[Roblox Minutes] User not found for roblox_id: ${robloxIdStr}`);
+      console.warn(`[Roblox Minutes] User not found for roblox_username: ${username}`);
       return res.status(404).json({ 
         error: 'User not found',
-        message: `No user found with Roblox ID: ${robloxIdStr}. Make sure the user has verified their Roblox account.`
+        message: `No user found with Roblox username: ${username}. Make sure the user has verified their Roblox account.`
       });
     }
 
-    console.log(`[Roblox Minutes] Found user: ID ${user.id}, Discord: ${user.discord_id}, Roblox: ${user.roblox_username || 'N/A'}`);
+    console.log(`[Roblox Minutes] Found user: ID ${user.id}, Discord: ${user.discord_id}, Roblox: ${user.roblox_username || 'N/A'}, Roblox ID: ${user.roblox_id || 'N/A'}`);
 
     const weekStartStr = getCurrentWeekStart();
 
