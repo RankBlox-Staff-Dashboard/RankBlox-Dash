@@ -114,47 +114,36 @@ export interface NonStaffMember {
   discord_avatar: string | null;
 }
 
-// EasyPOS Activity API
+// EasyPOS Activity API (proxied through backend to avoid CORS)
 export const activityAPI = {
   getActivityData: async (robloxUserId: number): Promise<number> => {
     try {
       console.log('[Activity API] Fetching activity data for userId:', robloxUserId);
-      const req = await axios.post('https://papi.easypos.lol/activity/data', {
-        token: 'f4ce0b59a2b93faa733f9774e3a57f376d4108edca9252b2050661d8b36b50c5f16bd0ba45a9f22c8493a7a8a9d86f90',
+      
+      // Call backend proxy endpoint instead of EasyPOS directly (avoids CORS issues)
+      const req = await api.post('/public/activity-data', {
         userId: robloxUserId
-      }, {
-        headers: {
-          'Content-Type': 'application/json'
-        }
       });
+      
       const response = req.data;
       console.log('[Activity API] Response received:', response);
       
-      // Extract minutes from response
-      // Response structure: { success: true, data: { playtime: { total: 218, week: 218, month: 218, ... }, ... } }
-      if (response && response.data && response.data.playtime) {
-        // Use week playtime, fallback to total if week not available
-        const minutes = response.data.playtime.week || response.data.playtime.total || 0;
-        console.log('[Activity API] Extracted minutes from playtime.week:', minutes);
-        return minutes;
-      } else if (response && response.playtime) {
-        // Handle if playtime is at root level
-        const minutes = response.playtime.week || response.playtime.total || 0;
-        console.log('[Activity API] Extracted minutes from playtime:', minutes);
-        return minutes;
-      } else if (response && typeof response.minutes === 'number') {
+      // Backend proxy returns: { success: true, minutes: number, data: {...} }
+      if (response && typeof response.minutes === 'number') {
+        console.log('[Activity API] Extracted minutes from backend proxy:', response.minutes);
         return response.minutes;
-      } else if (response && typeof response.activityMinutes === 'number') {
-        return response.activityMinutes;
-      } else if (response && typeof response.playtime === 'number') {
-        return response.playtime;
-      } else if (typeof response === 'number') {
-        return response;
-      } else {
-        console.warn('[Activity API] Unexpected response format:', response);
-        console.warn('[Activity API] Response keys:', response ? Object.keys(response) : 'null');
-        return 0;
+      } else if (response && response.data) {
+        // Fallback: extract from data if minutes not at root level
+        const data = response.data;
+        if (data && data.data && data.data.playtime) {
+          const minutes = data.data.playtime.week || data.data.playtime.total || 0;
+          console.log('[Activity API] Extracted minutes from nested data:', minutes);
+          return minutes;
+        }
       }
+      
+      console.warn('[Activity API] Unexpected response format:', response);
+      return 0;
     } catch (error: any) {
       console.error('[Activity API] Error fetching activity data:', error);
       console.error('[Activity API] Error details:', error.response?.data || error.message);

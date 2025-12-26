@@ -26,7 +26,7 @@ type AnalyticsTab = 'staff' | 'non-staff';
 
 export default function AnalyticsPage() {
   const [activeTab, setActiveTab] = useState<AnalyticsTab>('staff');
-  const [staffMembers, setStaffMembers] = useState<any[]>([]);
+  const [staffMembers, setStaffMembers] = useState<StaffAnalytics[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [nonStaffMembers, setNonStaffMembers] = useState<NonStaffMember[]>([]);
@@ -206,7 +206,7 @@ export default function AnalyticsPage() {
             </div>
           ) : staffMembers.length > 0 ? (
             <div className="space-y-3">
-              {staffMembers.map((member: StaffAnalytics, index: number) => {
+              {staffMembers.map((member, index: number) => {
                 const activityStatus = getActivityStatus(member.status, member.quota_met);
                 return (
                 <div 
