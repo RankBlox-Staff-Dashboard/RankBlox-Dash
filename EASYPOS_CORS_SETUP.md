@@ -22,7 +22,7 @@ On the **EasyPOS API server** (`papi.easypos.lol`), configure CORS to allow requ
 ### Required CORS Headers:
 ```
 Access-Control-Allow-Origin: https://staff.ahscampus.com
-Access-Control-Allow-Methods: GET, OPTIONS
+Access-Control-Allow-Methods: POST, OPTIONS
 Access-Control-Allow-Headers: Content-Type
 Access-Control-Allow-Credentials: true (if needed)
 ```
@@ -35,7 +35,7 @@ app.use(cors({
     'http://localhost:3000',
     'http://localhost:5173'
   ],
-  methods: ['GET', 'OPTIONS'],
+  methods: ['POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type'],
   credentials: true
 }));
