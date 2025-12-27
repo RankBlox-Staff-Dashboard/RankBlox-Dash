@@ -167,14 +167,14 @@ async function checkWeeklyQuotas() {
       let infractionsIssued = 0;
 
       for (const log of activityLogs) {
-        // Check if infraction already issued for this week (SQLite syntax)
+        // Check if infraction already issued for this week (MySQL syntax)
         const existing = await tx
           .prepare(
             `SELECT id FROM infractions 
              WHERE user_id = ? 
              AND reason LIKE ? 
              AND voided = 0 
-             AND created_at > datetime(?, '-7 days')`
+             AND created_at > DATE_SUB(?, INTERVAL 7 DAY)`
           )
           .get(
             log.user_id,
@@ -214,9 +214,14 @@ const server = app.listen(PORT, () => {
   console.log(`Frontend URL(s): ${FRONTEND_URLS.join(', ')}`);
 });
 
+// Import group sync stop function
+import { stopAutoSync } from './services/groupSync';
+
 // Graceful shutdown
 process.on('SIGTERM', () => {
   console.log('SIGTERM received, closing server gracefully...');
+  // Stop group sync interval
+  stopAutoSync();
   server.close(() => {
     console.log('Server closed');
     db.close();
@@ -226,6 +231,8 @@ process.on('SIGTERM', () => {
 
 process.on('SIGINT', () => {
   console.log('SIGINT received, closing server gracefully...');
+  // Stop group sync interval
+  stopAutoSync();
   server.close(() => {
     console.log('Server closed');
     db.close();

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { 
   BarChart3,
   CheckCircle2,
@@ -40,12 +40,16 @@ export default function AnalyticsPage() {
   const [nonStaffError, setNonStaffError] = useState<string | null>(null);
   const { permissions } = usePermissions();
   const [actionLoading, setActionLoading] = useState<number | null>(null);
+  const [actionFeedback, setActionFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [showTerminateModal, setShowTerminateModal] = useState(false);
+  const [terminateMember, setTerminateMember] = useState<StaffAnalytics | null>(null);
+  const [terminateReason, setTerminateReason] = useState('');
 
   // Check if user has permission to manage users
   const canManageUsers = permissions.includes('MANAGE_USERS');
 
   // Fetch staff analytics from management API
-  const fetchStaffAnalytics = async () => {
+  const fetchStaffAnalytics = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -74,7 +78,7 @@ export default function AnalyticsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   const refreshStaffStats = fetchStaffAnalytics;
 
@@ -82,9 +86,9 @@ export default function AnalyticsPage() {
     if (activeTab === 'staff') {
       fetchStaffAnalytics();
     }
-  }, [activeTab]);
+  }, [activeTab, fetchStaffAnalytics]);
 
-  const fetchNonStaffMembers = async () => {
+  const fetchNonStaffMembers = useCallback(async () => {
     try {
       setNonStaffLoading(true);
       setNonStaffError(null);
@@ -114,23 +118,34 @@ export default function AnalyticsPage() {
     } finally {
       setNonStaffLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (activeTab === 'non-staff') {
       fetchNonStaffMembers();
     }
-  }, [activeTab]);
+  }, [activeTab, fetchNonStaffMembers]);
 
   const handlePromote = async (member: StaffAnalytics) => {
     if (actionLoading === member.id) return;
     setActionLoading(member.id);
+    setActionFeedback(null);
     try {
-      await managementAPI.promoteUser(member.id);
+      const response = await managementAPI.promoteUser(member.id);
+      setActionFeedback({
+        type: 'success',
+        message: `${member.roblox_username || member.discord_username} promoted from rank ${response.data.old_rank} to ${response.data.new_rank}`
+      });
       await fetchStaffAnalytics();
+      // Auto-dismiss after 5 seconds
+      setTimeout(() => setActionFeedback(null), 5000);
     } catch (error: any) {
       console.error('Error promoting user:', error);
-      alert(error.response?.data?.error || 'Failed to promote user');
+      setActionFeedback({
+        type: 'error',
+        message: error.response?.data?.error || 'Failed to promote user'
+      });
+      setTimeout(() => setActionFeedback(null), 5000);
     } finally {
       setActionLoading(null);
     }
@@ -139,33 +154,68 @@ export default function AnalyticsPage() {
   const handleDemote = async (member: StaffAnalytics) => {
     if (actionLoading === member.id) return;
     setActionLoading(member.id);
+    setActionFeedback(null);
     try {
-      await managementAPI.demoteUser(member.id);
+      const response = await managementAPI.demoteUser(member.id);
+      setActionFeedback({
+        type: 'success',
+        message: `${member.roblox_username || member.discord_username} demoted from rank ${response.data.old_rank} to ${response.data.new_rank}`
+      });
       await fetchStaffAnalytics();
+      // Auto-dismiss after 5 seconds
+      setTimeout(() => setActionFeedback(null), 5000);
     } catch (error: any) {
       console.error('Error demoting user:', error);
-      alert(error.response?.data?.error || 'Failed to demote user');
+      setActionFeedback({
+        type: 'error',
+        message: error.response?.data?.error || 'Failed to demote user'
+      });
+      setTimeout(() => setActionFeedback(null), 5000);
     } finally {
       setActionLoading(null);
     }
   };
 
-  const handleTerminate = async (member: StaffAnalytics) => {
-    if (actionLoading === member.id) return;
+  const handleTerminateClick = (member: StaffAnalytics) => {
+    setTerminateMember(member);
+    setTerminateReason('');
+    setShowTerminateModal(true);
+  };
+
+  const handleTerminateConfirm = async () => {
+    if (!terminateMember || actionLoading === terminateMember.id) return;
     
-    const reason = prompt('Enter termination reason (optional):');
-    if (reason === null) return; // User cancelled
+    setActionLoading(terminateMember.id);
+    setActionFeedback(null);
+    setShowTerminateModal(false);
     
-    setActionLoading(member.id);
     try {
-      await managementAPI.terminateUser(member.id, reason || undefined);
+      await managementAPI.terminateUser(terminateMember.id, terminateReason || undefined);
+      setActionFeedback({
+        type: 'success',
+        message: `${terminateMember.roblox_username || terminateMember.discord_username} has been terminated`
+      });
       await fetchStaffAnalytics();
+      // Auto-dismiss after 5 seconds
+      setTimeout(() => setActionFeedback(null), 5000);
     } catch (error: any) {
       console.error('Error terminating user:', error);
-      alert(error.response?.data?.error || 'Failed to terminate user');
+      setActionFeedback({
+        type: 'error',
+        message: error.response?.data?.error || 'Failed to terminate user'
+      });
+      setTimeout(() => setActionFeedback(null), 5000);
     } finally {
       setActionLoading(null);
+      setTerminateMember(null);
+      setTerminateReason('');
     }
+  };
+
+  const handleTerminateCancel = () => {
+    setShowTerminateModal(false);
+    setTerminateMember(null);
+    setTerminateReason('');
   };
 
   const analyticsTabs: TabsGridItem[] = [
@@ -182,6 +232,100 @@ export default function AnalyticsPage() {
     <div className="space-y-4">
       <ProfileCard />
       <NavigationTabs />
+
+      {/* Action Feedback Toast */}
+      {actionFeedback && (
+        <Card className={cn(
+          "p-4 animate-fadeInUp",
+          actionFeedback.type === 'success' 
+            ? "bg-emerald-500/20 border-emerald-500/50" 
+            : "bg-red-500/20 border-red-500/50"
+        )}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {actionFeedback.type === 'success' ? (
+                <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+              ) : (
+                <AlertCircle className="w-5 h-5 text-red-400" />
+              )}
+              <p className={cn(
+                "text-sm font-medium",
+                actionFeedback.type === 'success' ? "text-emerald-400" : "text-red-400"
+              )}>
+                {actionFeedback.message}
+              </p>
+            </div>
+            <button
+              onClick={() => setActionFeedback(null)}
+              className="text-white/50 hover:text-white transition-colors"
+              aria-label="Dismiss"
+            >
+              <XCircle className="w-4 h-4" />
+            </button>
+          </div>
+        </Card>
+      )}
+
+      {/* Termination Modal */}
+      {showTerminateModal && terminateMember && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="p-6 max-w-md w-full animate-scaleIn">
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-lg font-semibold text-white mb-2">Terminate User</h3>
+                <p className="text-sm text-white/70">
+                  Are you sure you want to terminate <span className="font-medium text-white">{terminateMember.roblox_username || terminateMember.discord_username}</span>?
+                </p>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-white/70 mb-2">
+                  Termination Reason (optional)
+                </label>
+                <textarea
+                  value={terminateReason}
+                  onChange={(e) => setTerminateReason(e.target.value)}
+                  placeholder="Enter reason for termination..."
+                  className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                  rows={3}
+                />
+              </div>
+
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  onClick={handleTerminateConfirm}
+                  disabled={actionLoading === terminateMember.id}
+                  className={cn(
+                    "flex-1 px-4 py-2 rounded-lg font-medium transition-colors",
+                    "bg-red-500 hover:bg-red-600 text-white",
+                    "disabled:opacity-50 disabled:cursor-not-allowed"
+                  )}
+                >
+                  {actionLoading === terminateMember.id ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Terminating...
+                    </span>
+                  ) : (
+                    'Terminate'
+                  )}
+                </button>
+                <button
+                  onClick={handleTerminateCancel}
+                  disabled={actionLoading === terminateMember.id}
+                  className={cn(
+                    "flex-1 px-4 py-2 rounded-lg font-medium transition-colors",
+                    "bg-white/5 hover:bg-white/10 text-white",
+                    "disabled:opacity-50 disabled:cursor-not-allowed"
+                  )}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
 
       <Card className="p-4 animate-fadeInUp" style={{ animationDelay: '0.1s' }}>
         <TabsGrid
@@ -393,7 +537,7 @@ export default function AnalyticsPage() {
                           )}
                         </button>
                         <button
-                          onClick={() => handleTerminate(member)}
+                          onClick={() => handleTerminateClick(member)}
                           disabled={actionLoading === member.id}
                           className={cn(
                             "px-2 py-1 text-xs rounded-lg transition-colors flex items-center gap-1",

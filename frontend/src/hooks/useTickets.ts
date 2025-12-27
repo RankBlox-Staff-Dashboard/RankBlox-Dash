@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import type { Ticket } from '@/types';
 import { ticketsAPI } from '@/services/api';
 
@@ -7,23 +7,30 @@ export function useTickets(status?: Ticket['status']) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const refresh = async () => {
+  const refresh = useCallback(async (signal?: AbortSignal) => {
     try {
       setLoading(true);
       setError(null);
       const res = await ticketsAPI.list(status);
-      setTickets(res.data);
+      if (!signal?.aborted) {
+        setTickets(res.data);
+      }
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to fetch tickets');
+      if (!signal?.aborted) {
+        setError(err.response?.data?.error || 'Failed to fetch tickets');
+      }
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) {
+        setLoading(false);
+      }
     }
-  };
+  }, [status]);
 
   useEffect(() => {
-    refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status]);
+    const controller = new AbortController();
+    refresh(controller.signal);
+    return () => controller.abort();
+  }, [refresh]);
 
   return { tickets, loading, error, refresh };
 }

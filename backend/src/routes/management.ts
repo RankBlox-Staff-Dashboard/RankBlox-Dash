@@ -13,6 +13,18 @@ const router = Router();
 // Import bot auth for bot-accessible endpoints
 import { requireBotAuth } from '../middleware/botAuth';
 
+/**
+ * Parse and validate an ID parameter from the request
+ * Returns null if invalid, otherwise returns the parsed number
+ */
+function parseIdParam(id: string): number | null {
+  const parsed = parseInt(id, 10);
+  if (isNaN(parsed) || parsed <= 0 || !Number.isInteger(parsed)) {
+    return null;
+  }
+  return parsed;
+}
+
 // All management routes require full verification AND admin status
 // EXCEPT /users endpoint which also accepts bot token
 router.use((req: Request, res: Response, next: any) => {
@@ -83,7 +95,9 @@ router.get('/users', async (req: Request, res: Response) => {
         .all(user.id) as any[];
       
       // Calculate values (same as query script logic)
-      const minutes = currentWeekActivity?.minutes ? parseInt(currentWeekActivity.minutes as any) : 0;
+      const minutes = currentWeekActivity?.minutes != null 
+        ? parseInt(String(currentWeekActivity.minutes)) || 0 
+        : 0;
       const ticketsClaimed = tickets?.length || 0;
       const ticketsResolved = tickets?.filter((t: any) => t.status === 'resolved')?.length || 0;
       
@@ -92,7 +106,9 @@ router.get('/users', async (req: Request, res: Response) => {
       
       const messagesQuota = 150;
       const quotaMet = finalMessagesSent >= messagesQuota;
-      const quotaPercentage = Math.min(Math.round((finalMessagesSent / messagesQuota) * 100), 100);
+      const quotaPercentage = messagesQuota > 0 
+        ? Math.min(Math.round((finalMessagesSent / messagesQuota) * 100), 100)
+        : 0;
 
       console.log(`[Management API] User: ${user.roblox_username || user.discord_username} (ID: ${user.id}):`, {
         discord_messages_count: messagesSentNum,
@@ -165,7 +181,10 @@ router.get('/users', async (req: Request, res: Response) => {
  */
 router.put('/users/:id/permissions', async (req: Request, res: Response) => {
   try {
-    const userId = parseInt(req.params.id);
+    const userId = parseIdParam(req.params.id);
+    if (!userId) {
+      return res.status(400).json({ error: 'Invalid user ID' });
+    }
     const { permission, granted } = req.body;
 
     if (!permission || typeof granted !== 'boolean') {
@@ -211,7 +230,10 @@ router.put('/users/:id/permissions', async (req: Request, res: Response) => {
  */
 router.put('/users/:id/status', async (req: Request, res: Response) => {
   try {
-    const userId = parseInt(req.params.id);
+    const userId = parseIdParam(req.params.id);
+    if (!userId) {
+      return res.status(400).json({ error: 'Invalid user ID' });
+    }
     const { status } = req.body;
 
     if (!status || !['active', 'inactive', 'pending_verification'].includes(status)) {
@@ -250,7 +272,10 @@ router.post('/users/:id/promote', async (req: Request, res: Response) => {
   }
 
   try {
-    const userId = parseInt(req.params.id);
+    const userId = parseIdParam(req.params.id);
+    if (!userId) {
+      return res.status(400).json({ error: 'Invalid user ID' });
+    }
 
     // Get user details
     const user = await db.prepare(
@@ -295,6 +320,10 @@ router.post('/users/:id/promote', async (req: Request, res: Response) => {
       const botApiUrl = process.env.BOT_API_URL || 'http://localhost:3001';
       const botApiToken = process.env.BOT_API_TOKEN;
 
+      // Add timeout for bot API call
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
       const notifyResponse = await fetch(`${botApiUrl}/notify-promotion`, {
         method: 'POST',
         headers: {
@@ -309,7 +338,10 @@ router.post('/users/:id/promote', async (req: Request, res: Response) => {
           new_rank_name: newRankName,
           promoted_by: issuerName,
         }),
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       if (notifyResponse.ok) {
         const notifyResult = await notifyResponse.json() as { dm_sent?: boolean; error?: string };
@@ -320,7 +352,11 @@ router.post('/users/:id/promote', async (req: Request, res: Response) => {
       }
     } catch (notifyError: any) {
       console.error('Error sending promotion notification:', notifyError);
-      dmError = notifyError.message || 'Notification service unavailable';
+      if (notifyError.name === 'AbortError' || notifyError.name === 'TimeoutError') {
+        dmError = 'Notification service timeout';
+      } else {
+        dmError = notifyError.message || 'Notification service unavailable';
+      }
     }
 
     console.log(`[Promotion] User ${user.discord_username} (${userId}) promoted from rank ${oldRank} to ${newRank}. DM ${dmSent ? 'sent' : 'not sent'}${dmError ? ` (${dmError})` : ''}`);
@@ -347,7 +383,10 @@ router.post('/users/:id/demote', async (req: Request, res: Response) => {
   }
 
   try {
-    const userId = parseInt(req.params.id);
+    const userId = parseIdParam(req.params.id);
+    if (!userId) {
+      return res.status(400).json({ error: 'Invalid user ID' });
+    }
 
     // Get user details
     const user = await db.prepare(
@@ -392,6 +431,10 @@ router.post('/users/:id/demote', async (req: Request, res: Response) => {
       const botApiUrl = process.env.BOT_API_URL || 'http://localhost:3001';
       const botApiToken = process.env.BOT_API_TOKEN;
 
+      // Add timeout for bot API call
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
       const notifyResponse = await fetch(`${botApiUrl}/notify-demotion`, {
         method: 'POST',
         headers: {
@@ -406,7 +449,10 @@ router.post('/users/:id/demote', async (req: Request, res: Response) => {
           new_rank_name: newRankName,
           demoted_by: issuerName,
         }),
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       if (notifyResponse.ok) {
         const notifyResult = await notifyResponse.json() as { dm_sent?: boolean; error?: string };
@@ -417,7 +463,11 @@ router.post('/users/:id/demote', async (req: Request, res: Response) => {
       }
     } catch (notifyError: any) {
       console.error('Error sending demotion notification:', notifyError);
-      dmError = notifyError.message || 'Notification service unavailable';
+      if (notifyError.name === 'AbortError' || notifyError.name === 'TimeoutError') {
+        dmError = 'Notification service timeout';
+      } else {
+        dmError = notifyError.message || 'Notification service unavailable';
+      }
     }
 
     console.log(`[Demotion] User ${user.discord_username} (${userId}) demoted from rank ${oldRank} to ${newRank}. DM ${dmSent ? 'sent' : 'not sent'}${dmError ? ` (${dmError})` : ''}`);
@@ -444,7 +494,10 @@ router.post('/users/:id/terminate', async (req: Request, res: Response) => {
   }
 
   try {
-    const userId = parseInt(req.params.id);
+    const userId = parseIdParam(req.params.id);
+    if (!userId) {
+      return res.status(400).json({ error: 'Invalid user ID' });
+    }
     const { reason } = req.body;
 
     // Get user details
@@ -479,6 +532,10 @@ router.post('/users/:id/terminate', async (req: Request, res: Response) => {
       const botApiUrl = process.env.BOT_API_URL || 'http://localhost:3001';
       const botApiToken = process.env.BOT_API_TOKEN;
 
+      // Add timeout for bot API call
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
       const notifyResponse = await fetch(`${botApiUrl}/notify-termination`, {
         method: 'POST',
         headers: {
@@ -491,7 +548,10 @@ router.post('/users/:id/terminate', async (req: Request, res: Response) => {
           reason: reason || undefined,
           guild_id: process.env.GUILD_ID, // Optional, bot will use env var if not provided
         }),
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       if (notifyResponse.ok) {
         const notifyResult = await notifyResponse.json() as { dm_sent?: boolean; kicked?: boolean; error?: string };
@@ -503,7 +563,11 @@ router.post('/users/:id/terminate', async (req: Request, res: Response) => {
       }
     } catch (notifyError: any) {
       console.error('Error sending termination notification:', notifyError);
-      dmError = notifyError.message || 'Notification service unavailable';
+      if (notifyError.name === 'AbortError' || notifyError.name === 'TimeoutError') {
+        dmError = 'Notification service timeout';
+      } else {
+        dmError = notifyError.message || 'Notification service unavailable';
+      }
     }
 
     console.log(`[Termination] User ${user.discord_username} (${userId}) terminated. DM ${dmSent ? 'sent' : 'not sent'}, Kicked: ${kicked}${dmError ? ` (${dmError})` : ''}`);
@@ -547,6 +611,11 @@ router.post('/tracked-channels', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'discord_channel_id and channel_name are required' });
     }
 
+    // Validate channel name length
+    if (typeof channel_name !== 'string' || channel_name.length < 1 || channel_name.length > 255) {
+      return res.status(400).json({ error: 'Invalid channel name length (must be 1-255 characters)' });
+    }
+
     try {
       await db.prepare(
         'INSERT INTO tracked_channels (discord_channel_id, channel_name) VALUES (?, ?)'
@@ -571,7 +640,10 @@ router.post('/tracked-channels', async (req: Request, res: Response) => {
  */
 router.delete('/tracked-channels/:id', async (req: Request, res: Response) => {
   try {
-    const channelId = parseInt(req.params.id);
+    const channelId = parseIdParam(req.params.id);
+    if (!channelId) {
+      return res.status(400).json({ error: 'Invalid channel ID' });
+    }
 
     const result = await db.prepare('DELETE FROM tracked_channels WHERE id = ?').run(channelId);
 
@@ -630,7 +702,10 @@ router.put('/loa/:id/review', async (req: Request, res: Response) => {
   }
 
   try {
-    const loaId = parseInt(req.params.id);
+    const loaId = parseIdParam(req.params.id);
+    if (!loaId) {
+      return res.status(400).json({ error: 'Invalid LOA ID' });
+    }
     const { status, review_notes } = req.body;
 
     if (!status || !['approved', 'denied'].includes(status)) {
@@ -670,6 +745,10 @@ router.put('/loa/:id/review', async (req: Request, res: Response) => {
       const botApiUrl = process.env.BOT_API_URL || 'http://localhost:3001';
       const botApiToken = process.env.BOT_API_TOKEN;
 
+      // Add timeout for bot API call
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
       const notifyResponse = await fetch(`${botApiUrl}/notify-loa`, {
         method: 'POST',
         headers: {
@@ -684,7 +763,10 @@ router.put('/loa/:id/review', async (req: Request, res: Response) => {
           review_notes: review_notes || null,
           reviewed_by: reviewerName,
         }),
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       if (notifyResponse.ok) {
         const notifyResult = await notifyResponse.json() as { dm_sent?: boolean; error?: string };
@@ -695,7 +777,11 @@ router.put('/loa/:id/review', async (req: Request, res: Response) => {
       }
     } catch (notifyError: any) {
       console.error('Error sending LOA notification:', notifyError);
-      dmError = notifyError.message || 'Notification service unavailable';
+      if (notifyError.name === 'AbortError' || notifyError.name === 'TimeoutError') {
+        dmError = 'Notification service timeout';
+      } else {
+        dmError = notifyError.message || 'Notification service unavailable';
+      }
     }
 
     console.log(`[LOA Review] LOA request #${loaId} ${status} for user ${loa.discord_username}. DM ${dmSent ? 'sent' : 'not sent'}${dmError ? ` (${dmError})` : ''}`);
@@ -788,6 +874,10 @@ router.post('/infractions', requirePermission('ISSUE_INFRACTIONS'), async (req: 
       const botApiUrl = process.env.BOT_API_URL || 'http://localhost:3001';
       const botApiToken = process.env.BOT_API_TOKEN;
 
+      // Add timeout for bot API call
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
       const notifyResponse = await fetch(`${botApiUrl}/notify-infraction`, {
         method: 'POST',
         headers: {
@@ -801,7 +891,10 @@ router.post('/infractions', requirePermission('ISSUE_INFRACTIONS'), async (req: 
           issued_by: issuerName,
           issued_at: issuedAt,
         }),
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       if (notifyResponse.ok) {
         const notifyResult = await notifyResponse.json() as { dm_sent?: boolean; error?: string };
@@ -812,7 +905,11 @@ router.post('/infractions', requirePermission('ISSUE_INFRACTIONS'), async (req: 
       }
     } catch (notifyError: any) {
       console.error('Error sending infraction notification:', notifyError);
-      dmError = notifyError.message || 'Notification service unavailable';
+      if (notifyError.name === 'AbortError' || notifyError.name === 'TimeoutError') {
+        dmError = 'Notification service timeout';
+      } else {
+        dmError = notifyError.message || 'Notification service unavailable';
+      }
     }
 
     // Log the notification result
@@ -835,7 +932,10 @@ router.post('/infractions', requirePermission('ISSUE_INFRACTIONS'), async (req: 
  */
 router.put('/infractions/:id/void', requirePermission('VOID_INFRACTIONS'), async (req: Request, res: Response) => {
   try {
-    const infractionId = parseInt(req.params.id);
+    const infractionId = parseIdParam(req.params.id);
+    if (!infractionId) {
+      return res.status(400).json({ error: 'Invalid infraction ID' });
+    }
 
     // Check if infraction exists
     const infraction = await db.prepare('SELECT * FROM infractions WHERE id = ?').get(infractionId) as any;
@@ -862,7 +962,10 @@ router.put('/infractions/:id/void', requirePermission('VOID_INFRACTIONS'), async
  */
 router.get('/users/:id/infractions', async (req: Request, res: Response) => {
   try {
-    const userId = parseInt(req.params.id);
+    const userId = parseIdParam(req.params.id);
+    if (!userId) {
+      return res.status(400).json({ error: 'Invalid user ID' });
+    }
 
     const infractions = await db
       .prepare(

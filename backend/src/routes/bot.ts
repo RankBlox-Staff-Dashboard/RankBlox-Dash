@@ -367,7 +367,9 @@ router.get('/staff', async (req: Request, res: Response) => {
         .all(user.id) as any[];
       
       // Calculate values (same as management endpoint logic)
-      const minutes = currentWeekActivity?.minutes ? parseInt(currentWeekActivity.minutes as any) : 0;
+      const minutes = currentWeekActivity?.minutes != null 
+        ? parseInt(String(currentWeekActivity.minutes)) || 0 
+        : 0;
       const ticketsClaimed = tickets?.length || 0;
       const ticketsResolved = tickets?.filter((t: any) => t.status === 'resolved')?.length || 0;
       
@@ -376,7 +378,9 @@ router.get('/staff', async (req: Request, res: Response) => {
       
       const messagesQuota = 150;
       const quotaMet = finalMessagesSent >= messagesQuota;
-      const quotaPercentage = Math.min(Math.round((finalMessagesSent / messagesQuota) * 100), 100);
+      const quotaPercentage = messagesQuota > 0 
+        ? Math.min(Math.round((finalMessagesSent / messagesQuota) * 100), 100)
+        : 0;
 
       // Return data in the same format as management endpoint
       return {
@@ -558,7 +562,7 @@ router.post('/roblox-minutes', async (req: Request, res: Response) => {
 
     if (existing) {
       // Update existing log - use max to ensure minutes don't decrease
-      const currentMinutes = parseInt(existing.minutes as any) || 0;
+      const currentMinutes = existing.minutes != null ? parseInt(String(existing.minutes)) || 0 : 0;
       const newMinutes = Math.max(currentMinutes, roundedMinutes);
       
       // Only update if the new value is actually higher (to avoid unnecessary DB writes)
@@ -581,9 +585,11 @@ router.post('/roblox-minutes', async (req: Request, res: Response) => {
     // Get the final minutes value from the database to return
     const finalActivityLog = await db
       .prepare('SELECT minutes FROM activity_logs WHERE user_id = ? AND week_start = ?')
-      .get(user.id, weekStartStr) as { minutes: number } | undefined;
+      .get(user.id, weekStartStr) as { minutes: number | null } | undefined;
     
-    const finalMinutes = finalActivityLog ? parseInt(finalActivityLog.minutes as any) || 0 : Math.floor(minutes);
+    const finalMinutes = finalActivityLog?.minutes != null 
+      ? parseInt(String(finalActivityLog.minutes)) || 0 
+      : Math.floor(minutes);
 
     console.log('[Roblox Minutes] ========== SUCCESS ==========');
     console.log('[Roblox Minutes] Returning response:', {

@@ -78,12 +78,7 @@ router.post('/:id/claim', requirePermission('CLAIM_TICKETS'), async (req: Reques
     }
 
     // Increment user's tickets_claimed count for current week
-    const weekStart = new Date();
-    const day = weekStart.getDay();
-    const diff = weekStart.getDate() - day + (day === 0 ? -6 : 1);
-    const monday = new Date(weekStart.setDate(diff));
-    monday.setHours(0, 0, 0, 0);
-    const weekStartStr = monday.toISOString().split('T')[0];
+    const weekStartStr = getCurrentWeekStart();
 
     // Check if activity log exists
     let activityLog = await db
@@ -134,12 +129,7 @@ router.post('/:id/resolve', requirePermission('CLAIM_TICKETS'), async (req: Requ
     }
 
     // Increment user's tickets_resolved count for current week
-    const weekStart = new Date();
-    const day = weekStart.getDay();
-    const diff = weekStart.getDate() - day + (day === 0 ? -6 : 1);
-    const monday = new Date(weekStart.setDate(diff));
-    monday.setHours(0, 0, 0, 0);
-    const weekStartStr = monday.toISOString().split('T')[0];
+    const weekStartStr = getCurrentWeekStart();
 
     // Check if activity log exists
     let activityLog = await db

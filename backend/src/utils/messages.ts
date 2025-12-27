@@ -36,8 +36,8 @@ export async function countDiscordMessages(
   
   const messageCount = await db
     .prepare('SELECT COUNT(*) as count FROM discord_messages WHERE user_id = ? AND created_at >= ?')
-    .get(userId, startDateTime) as { count: number } | undefined;
+    .get(userId, startDateTime) as { count: number | string | null } | undefined;
 
-  return messageCount?.count ? parseInt(messageCount.count as any) : 0;
+  return messageCount?.count != null ? parseInt(String(messageCount.count)) || 0 : 0;
 }
 

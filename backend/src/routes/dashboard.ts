@@ -6,6 +6,18 @@ import { getCurrentWeekStart, getCurrentWeekStartDateTime, countDiscordMessages 
 
 const router = Router();
 
+/**
+ * Parse and validate an ID parameter from the request
+ * Returns null if invalid, otherwise returns the parsed number
+ */
+function parseIdParam(id: string): number | null {
+  const parsed = parseInt(id, 10);
+  if (isNaN(parsed) || parsed <= 0 || !Number.isInteger(parsed)) {
+    return null;
+  }
+  return parsed;
+}
+
 // All dashboard routes require:
 // 1. Valid authentication (JWT + session)
 // 2. Full verification (Discord + Roblox + active status + rank)
@@ -53,8 +65,8 @@ router.get('/stats', requirePermission('VIEW_DASHBOARD'), async (req: Request, r
       messages_quota: 150,
       tickets_claimed: activityLog.tickets_claimed || 0,
       tickets_resolved: activityLog.tickets_resolved || 0,
-      minutes: parseInt(activityLog.minutes as any) || 0,
-      infractions: parseInt(infractionCount.count as any) || 0,
+      minutes: activityLog.minutes != null ? parseInt(String(activityLog.minutes)) || 0 : 0,
+      infractions: infractionCount.count != null ? parseInt(String(infractionCount.count)) || 0 : 0,
       week_start: weekStart,
     });
   } catch (error) {
@@ -136,7 +148,7 @@ router.get('/analytics', requireAdmin, requirePermission('VIEW_ANALYTICS'), asyn
     res.json({
       total_active_users: totalActiveUsers,
       active_workspaces: activeWorkspaces,
-      total_staff: parseInt(totalStaff.count as any) || 0,
+      total_staff: totalStaff.count != null ? parseInt(String(totalStaff.count)) || 0 : 0,
     });
   } catch (error) {
     console.error('Error fetching analytics:', error);
@@ -198,7 +210,7 @@ router.get('/analytics/staff', requireAdmin, requirePermission('VIEW_ANALYTICS')
     // Create maps for efficient lookup
     const minutesMap = new Map();
     totalMinutes.forEach((log) => {
-      minutesMap.set(log.user_id, parseInt(log.total_minutes as any) || 0);
+      minutesMap.set(log.user_id, log.total_minutes != null ? parseInt(String(log.total_minutes)) || 0 : 0);
     });
 
     const messagesMap = new Map();
@@ -206,9 +218,9 @@ router.get('/analytics/staff', requireAdmin, requirePermission('VIEW_ANALYTICS')
     const ticketsResolvedMap = new Map();
     
     currentWeekActivity.forEach((log) => {
-      messagesMap.set(log.user_id, parseInt(log.messages_sent as any) || 0);
-      ticketsClaimedMap.set(log.user_id, parseInt(log.tickets_claimed as any) || 0);
-      ticketsResolvedMap.set(log.user_id, parseInt(log.tickets_resolved as any) || 0);
+      messagesMap.set(log.user_id, log.messages_sent != null ? parseInt(String(log.messages_sent)) || 0 : 0);
+      ticketsClaimedMap.set(log.user_id, log.tickets_claimed != null ? parseInt(String(log.tickets_claimed)) || 0 : 0);
+      ticketsResolvedMap.set(log.user_id, log.tickets_resolved != null ? parseInt(String(log.tickets_resolved)) || 0 : 0);
     });
 
     // Format the response by combining user data with activity data
@@ -219,7 +231,9 @@ router.get('/analytics/staff', requireAdmin, requirePermission('VIEW_ANALYTICS')
       const ticketsResolved = ticketsResolvedMap.get(member.id) || 0;
       const messagesQuota = 150;
       const quotaMet = messagesSent >= messagesQuota;
-      const quotaPercentage = Math.min(Math.round((messagesSent / messagesQuota) * 100), 100);
+      const quotaPercentage = messagesQuota > 0 
+        ? Math.min(Math.round((messagesSent / messagesQuota) * 100), 100)
+        : 0;
 
       return {
         id: member.id,
@@ -408,12 +422,24 @@ router.post('/loa', async (req: Request, res: Response) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
+    // Validate date format
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+      return res.status(400).json({ error: 'Invalid date format' });
+    }
+
     if (startDate < today) {
       return res.status(400).json({ error: 'Start date cannot be in the past' });
     }
 
     if (endDate < startDate) {
       return res.status(400).json({ error: 'End date must be after start date' });
+    }
+
+    // Validate maximum range (365 days)
+    const maxRangeDays = 365;
+    const maxRangeMs = maxRangeDays * 24 * 60 * 60 * 1000;
+    if ((endDate.getTime() - startDate.getTime()) > maxRangeMs) {
+      return res.status(400).json({ error: `LOA range cannot exceed ${maxRangeDays} days` });
     }
 
     // Check for existing pending or active LOA
@@ -456,7 +482,10 @@ router.delete('/loa/:id', async (req: Request, res: Response) => {
   }
 
   try {
-    const loaId = parseInt(req.params.id);
+    const loaId = parseIdParam(req.params.id);
+    if (!loaId) {
+      return res.status(400).json({ error: 'Invalid LOA ID' });
+    }
 
     // Check if LOA exists and belongs to user
     const loa = await db
