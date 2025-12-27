@@ -126,7 +126,7 @@ export default function AnalyticsPage() {
     }
   }, [activeTab, fetchNonStaffMembers]);
 
-  const handlePromote = async (member: StaffAnalytics) => {
+  const handlePromote = useCallback(async (member: StaffAnalytics) => {
     if (actionLoading === member.id) return;
     setActionLoading(member.id);
     setActionFeedback(null);
@@ -141,17 +141,20 @@ export default function AnalyticsPage() {
       setTimeout(() => setActionFeedback(null), 5000);
     } catch (error: any) {
       console.error('Error promoting user:', error);
+      const errorMessage = error.response?.status === 404 
+        ? 'Promotion endpoint not found. Please ensure the backend is deployed with the latest code.'
+        : error.response?.data?.error || 'Failed to promote user';
       setActionFeedback({
         type: 'error',
-        message: error.response?.data?.error || 'Failed to promote user'
+        message: errorMessage
       });
       setTimeout(() => setActionFeedback(null), 5000);
     } finally {
       setActionLoading(null);
     }
-  };
+  }, [actionLoading, fetchStaffAnalytics]);
 
-  const handleDemote = async (member: StaffAnalytics) => {
+  const handleDemote = useCallback(async (member: StaffAnalytics) => {
     if (actionLoading === member.id) return;
     setActionLoading(member.id);
     setActionFeedback(null);
@@ -166,15 +169,18 @@ export default function AnalyticsPage() {
       setTimeout(() => setActionFeedback(null), 5000);
     } catch (error: any) {
       console.error('Error demoting user:', error);
+      const errorMessage = error.response?.status === 404 
+        ? 'Demotion endpoint not found. Please ensure the backend is deployed with the latest code.'
+        : error.response?.data?.error || 'Failed to demote user';
       setActionFeedback({
         type: 'error',
-        message: error.response?.data?.error || 'Failed to demote user'
+        message: errorMessage
       });
       setTimeout(() => setActionFeedback(null), 5000);
     } finally {
       setActionLoading(null);
     }
-  };
+  }, [actionLoading, fetchStaffAnalytics]);
 
   const handleTerminateClick = (member: StaffAnalytics) => {
     setTerminateMember(member);
@@ -200,9 +206,12 @@ export default function AnalyticsPage() {
       setTimeout(() => setActionFeedback(null), 5000);
     } catch (error: any) {
       console.error('Error terminating user:', error);
+      const errorMessage = error.response?.status === 404 
+        ? 'Termination endpoint not found. Please ensure the backend is deployed with the latest code.'
+        : error.response?.data?.error || 'Failed to terminate user';
       setActionFeedback({
         type: 'error',
-        message: error.response?.data?.error || 'Failed to terminate user'
+        message: errorMessage
       });
       setTimeout(() => setActionFeedback(null), 5000);
     } finally {

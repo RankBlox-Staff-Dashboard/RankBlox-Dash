@@ -144,6 +144,12 @@ export const activityAPI = {
         return 0;
       }
     } catch (error: any) {
+      // If endpoint doesn't exist (404), return 0 instead of throwing
+      // This allows the app to continue working even if the endpoint isn't deployed
+      if (error.response?.status === 404) {
+        console.warn('[Activity API] Endpoint not found (404), returning 0 minutes');
+        return 0;
+      }
       console.error('[Activity API] Error fetching activity data:', error);
       console.error('[Activity API] Error details:', error.response?.data || error.message);
       throw error;
