@@ -7,7 +7,7 @@ export function useTickets(status?: Ticket['status']) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const refresh = useCallback(async (signal?: AbortSignal) => {
+  const refreshInternal = useCallback(async (signal?: AbortSignal) => {
     try {
       setLoading(true);
       setError(null);
@@ -26,11 +26,16 @@ export function useTickets(status?: Ticket['status']) {
     }
   }, [status]);
 
+  // Public refresh function that can be used as onClick handler
+  const refresh = useCallback(() => {
+    refreshInternal();
+  }, [refreshInternal]);
+
   useEffect(() => {
     const controller = new AbortController();
-    refresh(controller.signal);
+    refreshInternal(controller.signal);
     return () => controller.abort();
-  }, [refresh]);
+  }, [refreshInternal]);
 
   return { tickets, loading, error, refresh };
 }
