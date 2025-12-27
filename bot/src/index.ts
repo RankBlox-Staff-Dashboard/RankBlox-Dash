@@ -52,7 +52,8 @@ const client = new Client({
 });
 
 // HTTP server for health checks and API endpoints
-const PORT = process.env.PORT || 3001;
+// Parse the environment variable to a number, defaulting to 3001
+const PORT = parseInt(process.env.PORT || '3001', 10);
 const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
   // Health check endpoints - Render uses this to check if service is alive
   if (req.url === '/health' || req.url === '/') {
