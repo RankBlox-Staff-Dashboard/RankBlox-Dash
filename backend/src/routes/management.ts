@@ -242,6 +242,285 @@ router.put('/users/:id/status', async (req: Request, res: Response) => {
 });
 
 /**
+ * Promote a user (increment rank by 1)
+ */
+router.post('/users/:id/promote', async (req: Request, res: Response) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  try {
+    const userId = parseInt(req.params.id);
+
+    // Get user details
+    const user = await db.prepare(
+      'SELECT id, discord_id, discord_username, roblox_username, `rank`, rank_name FROM users WHERE id = ?'
+    ).get(userId) as { id: number; discord_id: string; discord_username: string; roblox_username: string | null; rank: number | null; rank_name: string | null } | undefined;
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Cannot promote if user has no rank
+    if (user.rank === null) {
+      return res.status(400).json({ error: 'User does not have a rank to promote' });
+    }
+
+    // Immune ranks (254-255) cannot be promoted
+    if (isImmuneRank(user.rank)) {
+      return res.status(403).json({ error: 'Cannot promote immune rank users' });
+    }
+
+    const oldRank = user.rank;
+    const oldRankName = user.rank_name;
+    const newRank = oldRank + 1;
+    // Set rank_name to null so it gets synced from Roblox
+    const newRankName = null;
+
+    // Update rank
+    await db.prepare('UPDATE users SET `rank` = ?, rank_name = ?, updated_at = NOW() WHERE id = ?').run(
+      newRank,
+      newRankName,
+      userId
+    );
+
+    // Get issuer's name
+    const issuerName = req.user.roblox_username || req.user.discord_username || 'Management';
+
+    // Send DM notification via bot
+    let dmSent = false;
+    let dmError: string | null = null;
+
+    try {
+      const botApiUrl = process.env.BOT_API_URL || 'http://localhost:3001';
+      const botApiToken = process.env.BOT_API_TOKEN;
+
+      const notifyResponse = await fetch(`${botApiUrl}/notify-promotion`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Bot-Token': botApiToken || '',
+        },
+        body: JSON.stringify({
+          discord_id: user.discord_id,
+          old_rank: oldRank,
+          new_rank: newRank,
+          old_rank_name: oldRankName,
+          new_rank_name: newRankName,
+          promoted_by: issuerName,
+        }),
+      });
+
+      if (notifyResponse.ok) {
+        const notifyResult = await notifyResponse.json() as { dm_sent?: boolean; error?: string };
+        dmSent = notifyResult.dm_sent === true;
+        dmError = notifyResult.error || null;
+      } else {
+        dmError = 'Failed to reach notification service';
+      }
+    } catch (notifyError: any) {
+      console.error('Error sending promotion notification:', notifyError);
+      dmError = notifyError.message || 'Notification service unavailable';
+    }
+
+    console.log(`[Promotion] User ${user.discord_username} (${userId}) promoted from rank ${oldRank} to ${newRank}. DM ${dmSent ? 'sent' : 'not sent'}${dmError ? ` (${dmError})` : ''}`);
+
+    res.json({ 
+      message: 'User promoted successfully',
+      old_rank: oldRank,
+      new_rank: newRank,
+      dm_sent: dmSent,
+      dm_error: dmError,
+    });
+  } catch (error) {
+    console.error('Error promoting user:', error);
+    res.status(500).json({ error: 'Failed to promote user' });
+  }
+});
+
+/**
+ * Demote a user (decrement rank by 1)
+ */
+router.post('/users/:id/demote', async (req: Request, res: Response) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  try {
+    const userId = parseInt(req.params.id);
+
+    // Get user details
+    const user = await db.prepare(
+      'SELECT id, discord_id, discord_username, roblox_username, `rank`, rank_name FROM users WHERE id = ?'
+    ).get(userId) as { id: number; discord_id: string; discord_username: string; roblox_username: string | null; rank: number | null; rank_name: string | null } | undefined;
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Cannot demote if user has no rank
+    if (user.rank === null) {
+      return res.status(400).json({ error: 'User does not have a rank to demote' });
+    }
+
+    // Immune ranks (254-255) cannot be demoted
+    if (isImmuneRank(user.rank)) {
+      return res.status(403).json({ error: 'Cannot demote immune rank users' });
+    }
+
+    const oldRank = user.rank;
+    const oldRankName = user.rank_name;
+    const newRank = Math.max(0, oldRank - 1); // Ensure rank doesn't go below 0
+    // Set rank_name to null so it gets synced from Roblox
+    const newRankName = null;
+
+    // Update rank
+    await db.prepare('UPDATE users SET `rank` = ?, rank_name = ?, updated_at = NOW() WHERE id = ?').run(
+      newRank,
+      newRankName,
+      userId
+    );
+
+    // Get issuer's name
+    const issuerName = req.user.roblox_username || req.user.discord_username || 'Management';
+
+    // Send DM notification via bot
+    let dmSent = false;
+    let dmError: string | null = null;
+
+    try {
+      const botApiUrl = process.env.BOT_API_URL || 'http://localhost:3001';
+      const botApiToken = process.env.BOT_API_TOKEN;
+
+      const notifyResponse = await fetch(`${botApiUrl}/notify-demotion`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Bot-Token': botApiToken || '',
+        },
+        body: JSON.stringify({
+          discord_id: user.discord_id,
+          old_rank: oldRank,
+          new_rank: newRank,
+          old_rank_name: oldRankName,
+          new_rank_name: newRankName,
+          demoted_by: issuerName,
+        }),
+      });
+
+      if (notifyResponse.ok) {
+        const notifyResult = await notifyResponse.json() as { dm_sent?: boolean; error?: string };
+        dmSent = notifyResult.dm_sent === true;
+        dmError = notifyResult.error || null;
+      } else {
+        dmError = 'Failed to reach notification service';
+      }
+    } catch (notifyError: any) {
+      console.error('Error sending demotion notification:', notifyError);
+      dmError = notifyError.message || 'Notification service unavailable';
+    }
+
+    console.log(`[Demotion] User ${user.discord_username} (${userId}) demoted from rank ${oldRank} to ${newRank}. DM ${dmSent ? 'sent' : 'not sent'}${dmError ? ` (${dmError})` : ''}`);
+
+    res.json({ 
+      message: 'User demoted successfully',
+      old_rank: oldRank,
+      new_rank: newRank,
+      dm_sent: dmSent,
+      dm_error: dmError,
+    });
+  } catch (error) {
+    console.error('Error demoting user:', error);
+    res.status(500).json({ error: 'Failed to demote user' });
+  }
+});
+
+/**
+ * Terminate a user (set status to inactive and kick from Discord)
+ */
+router.post('/users/:id/terminate', async (req: Request, res: Response) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  try {
+    const userId = parseInt(req.params.id);
+    const { reason } = req.body;
+
+    // Get user details
+    const user = await db.prepare(
+      'SELECT id, discord_id, discord_username, roblox_username, `rank` FROM users WHERE id = ?'
+    ).get(userId) as { id: number; discord_id: string; discord_username: string; roblox_username: string | null; rank: number | null } | undefined;
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Immune ranks (254-255) cannot be terminated
+    if (isImmuneRank(user.rank)) {
+      return res.status(403).json({ error: 'Cannot terminate immune rank users' });
+    }
+
+    // Update status to inactive
+    await db.prepare('UPDATE users SET status = ?, updated_at = NOW() WHERE id = ?').run(
+      'inactive',
+      userId
+    );
+
+    // Get issuer's name
+    const issuerName = req.user.roblox_username || req.user.discord_username || 'Management';
+
+    // Send DM notification and kick via bot
+    let dmSent = false;
+    let kicked = false;
+    let dmError: string | null = null;
+
+    try {
+      const botApiUrl = process.env.BOT_API_URL || 'http://localhost:3001';
+      const botApiToken = process.env.BOT_API_TOKEN;
+
+      const notifyResponse = await fetch(`${botApiUrl}/notify-termination`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Bot-Token': botApiToken || '',
+        },
+        body: JSON.stringify({
+          discord_id: user.discord_id,
+          terminated_by: issuerName,
+          reason: reason || undefined,
+          guild_id: process.env.GUILD_ID, // Optional, bot will use env var if not provided
+        }),
+      });
+
+      if (notifyResponse.ok) {
+        const notifyResult = await notifyResponse.json() as { dm_sent?: boolean; kicked?: boolean; error?: string };
+        dmSent = notifyResult.dm_sent === true;
+        kicked = notifyResult.kicked === true;
+        dmError = notifyResult.error || null;
+      } else {
+        dmError = 'Failed to reach notification service';
+      }
+    } catch (notifyError: any) {
+      console.error('Error sending termination notification:', notifyError);
+      dmError = notifyError.message || 'Notification service unavailable';
+    }
+
+    console.log(`[Termination] User ${user.discord_username} (${userId}) terminated. DM ${dmSent ? 'sent' : 'not sent'}, Kicked: ${kicked}${dmError ? ` (${dmError})` : ''}`);
+
+    res.json({ 
+      message: 'User terminated successfully',
+      dm_sent: dmSent,
+      kicked: kicked,
+      dm_error: dmError,
+    });
+  } catch (error) {
+    console.error('Error terminating user:', error);
+    res.status(500).json({ error: 'Failed to terminate user' });
+  }
+});
+
+/**
  * Get tracked channels
  */
 router.get('/tracked-channels', async (req: Request, res: Response) => {
@@ -358,8 +637,13 @@ router.put('/loa/:id/review', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid status. Must be approved or denied.' });
     }
 
-    // Check if LOA exists
-    const loa = await db.prepare('SELECT * FROM loa_requests WHERE id = ?').get(loaId) as any;
+    // Check if LOA exists and get user details
+    const loa = await db.prepare(
+      `SELECT l.*, u.discord_id, u.discord_username, u.roblox_username 
+       FROM loa_requests l
+       JOIN users u ON l.user_id = u.id
+       WHERE l.id = ?`
+    ).get(loaId) as any;
 
     if (!loa) {
       return res.status(404).json({ error: 'LOA request not found' });
@@ -375,7 +659,52 @@ router.put('/loa/:id/review', async (req: Request, res: Response) => {
        WHERE id = ?`
     ).run(status, req.user.id, review_notes || null, loaId);
 
-    res.json({ message: `LOA request ${status} successfully` });
+    // Get reviewer's name
+    const reviewerName = req.user.roblox_username || req.user.discord_username || 'Management';
+
+    // Send DM notification via bot
+    let dmSent = false;
+    let dmError: string | null = null;
+
+    try {
+      const botApiUrl = process.env.BOT_API_URL || 'http://localhost:3001';
+      const botApiToken = process.env.BOT_API_TOKEN;
+
+      const notifyResponse = await fetch(`${botApiUrl}/notify-loa`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Bot-Token': botApiToken || '',
+        },
+        body: JSON.stringify({
+          discord_id: loa.discord_id,
+          status: status,
+          start_date: loa.start_date,
+          end_date: loa.end_date,
+          review_notes: review_notes || null,
+          reviewed_by: reviewerName,
+        }),
+      });
+
+      if (notifyResponse.ok) {
+        const notifyResult = await notifyResponse.json() as { dm_sent?: boolean; error?: string };
+        dmSent = notifyResult.dm_sent === true;
+        dmError = notifyResult.error || null;
+      } else {
+        dmError = 'Failed to reach notification service';
+      }
+    } catch (notifyError: any) {
+      console.error('Error sending LOA notification:', notifyError);
+      dmError = notifyError.message || 'Notification service unavailable';
+    }
+
+    console.log(`[LOA Review] LOA request #${loaId} ${status} for user ${loa.discord_username}. DM ${dmSent ? 'sent' : 'not sent'}${dmError ? ` (${dmError})` : ''}`);
+
+    res.json({ 
+      message: `LOA request ${status} successfully`,
+      dm_sent: dmSent,
+      dm_error: dmError,
+    });
   } catch (error) {
     console.error('Error reviewing LOA request:', error);
     res.status(500).json({ error: 'Failed to review LOA request' });

@@ -3,7 +3,18 @@ import { config } from 'dotenv';
 import { readdirSync } from 'fs';
 import { join } from 'path';
 import { createServer, IncomingMessage, ServerResponse } from 'http';
-import { sendInfractionDM, InfractionData } from './services/notifications';
+import { 
+  sendInfractionDM, 
+  InfractionData,
+  sendPromotionDM,
+  PromotionData,
+  sendDemotionDM,
+  DemotionData,
+  sendTerminationDMAndKick,
+  TerminationData,
+  sendLOANotificationDM,
+  LOANotificationData
+} from './services/notifications';
 
 config();
 
@@ -93,6 +104,156 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
       }));
     } catch (error: any) {
       console.error('Error processing infraction notification:', error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Internal server error' }));
+    }
+    return;
+  }
+
+  // Promotion notification endpoint
+  if (req.url === '/notify-promotion' && req.method === 'POST') {
+    if (!verifyBotToken(req)) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+
+    try {
+      const body = await parseBody(req) as PromotionData;
+
+      if (!body.discord_id || !body.promoted_by) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Missing required fields: discord_id, promoted_by' }));
+        return;
+      }
+
+      const result = await sendPromotionDM(client, body);
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: result.success,
+        dm_sent: result.success,
+        error: result.error || null,
+      }));
+    } catch (error: any) {
+      console.error('Error processing promotion notification:', error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Internal server error' }));
+    }
+    return;
+  }
+
+  // Demotion notification endpoint
+  if (req.url === '/notify-demotion' && req.method === 'POST') {
+    if (!verifyBotToken(req)) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+
+    try {
+      const body = await parseBody(req) as DemotionData;
+
+      if (!body.discord_id || !body.demoted_by) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Missing required fields: discord_id, demoted_by' }));
+        return;
+      }
+
+      const result = await sendDemotionDM(client, body);
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: result.success,
+        dm_sent: result.success,
+        error: result.error || null,
+      }));
+    } catch (error: any) {
+      console.error('Error processing demotion notification:', error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Internal server error' }));
+    }
+    return;
+  }
+
+  // Termination notification endpoint (includes kick)
+  if (req.url === '/notify-termination' && req.method === 'POST') {
+    if (!verifyBotToken(req)) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+
+    try {
+      const body = await parseBody(req) as TerminationData & { guild_id?: string };
+
+      if (!body.discord_id || !body.terminated_by) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Missing required fields: discord_id, terminated_by' }));
+        return;
+      }
+
+      const guildId = body.guild_id || process.env.GUILD_ID;
+      if (!guildId) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'GUILD_ID not configured and not provided in request' }));
+        return;
+      }
+
+      const result = await sendTerminationDMAndKick(client, {
+        discord_id: body.discord_id,
+        terminated_by: body.terminated_by,
+        reason: body.reason,
+      }, guildId);
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: result.success,
+        dm_sent: result.success || false,
+        kicked: result.kicked,
+        error: result.error || null,
+      }));
+    } catch (error: any) {
+      console.error('Error processing termination notification:', error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Internal server error' }));
+    }
+    return;
+  }
+
+  // LOA notification endpoint
+  if (req.url === '/notify-loa' && req.method === 'POST') {
+    if (!verifyBotToken(req)) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+
+    try {
+      const body = await parseBody(req) as LOANotificationData;
+
+      if (!body.discord_id || !body.status || !body.reviewed_by) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Missing required fields: discord_id, status, reviewed_by' }));
+        return;
+      }
+
+      if (!['approved', 'denied'].includes(body.status)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid status. Must be approved or denied.' }));
+        return;
+      }
+
+      const result = await sendLOANotificationDM(client, body);
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: result.success,
+        dm_sent: result.success,
+        error: result.error || null,
+      }));
+    } catch (error: any) {
+      console.error('Error processing LOA notification:', error);
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Internal server error' }));
     }

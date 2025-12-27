@@ -11,7 +11,11 @@ import {
   AlertCircle,
   Clock,
   Ticket,
-  UserCheck
+  UserCheck,
+  ArrowUp,
+  ArrowDown,
+  Ban,
+  Loader2
 } from 'lucide-react';
 import { ProfileCard } from '@/components/ProfileCard';
 import { NavigationTabs } from '@/components/NavigationTabs';
@@ -21,6 +25,8 @@ import { TabsGrid, type TabsGridItem } from '@/components/ui/TabsGrid';
 import { dashboardAPI, managementAPI, type NonStaffMember, type StaffAnalytics } from '@/services/api';
 import { getActivityStatus } from '@/utils/staffStats';
 import { cn } from '@/lib/cn';
+import { usePermissions } from '@/hooks/usePermissions';
+import { isImmuneRank } from '@/lib/immunity';
 
 type AnalyticsTab = 'staff' | 'non-staff';
 
@@ -32,6 +38,11 @@ export default function AnalyticsPage() {
   const [nonStaffMembers, setNonStaffMembers] = useState<NonStaffMember[]>([]);
   const [nonStaffLoading, setNonStaffLoading] = useState(false);
   const [nonStaffError, setNonStaffError] = useState<string | null>(null);
+  const { permissions } = usePermissions();
+  const [actionLoading, setActionLoading] = useState<number | null>(null);
+
+  // Check if user has permission to manage users
+  const canManageUsers = permissions.includes('MANAGE_USERS');
 
   // Fetch staff analytics from management API
   const fetchStaffAnalytics = async () => {
@@ -110,6 +121,52 @@ export default function AnalyticsPage() {
       fetchNonStaffMembers();
     }
   }, [activeTab]);
+
+  const handlePromote = async (member: StaffAnalytics) => {
+    if (actionLoading === member.id) return;
+    setActionLoading(member.id);
+    try {
+      await managementAPI.promoteUser(member.id);
+      await fetchStaffAnalytics();
+    } catch (error: any) {
+      console.error('Error promoting user:', error);
+      alert(error.response?.data?.error || 'Failed to promote user');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleDemote = async (member: StaffAnalytics) => {
+    if (actionLoading === member.id) return;
+    setActionLoading(member.id);
+    try {
+      await managementAPI.demoteUser(member.id);
+      await fetchStaffAnalytics();
+    } catch (error: any) {
+      console.error('Error demoting user:', error);
+      alert(error.response?.data?.error || 'Failed to demote user');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleTerminate = async (member: StaffAnalytics) => {
+    if (actionLoading === member.id) return;
+    
+    const reason = prompt('Enter termination reason (optional):');
+    if (reason === null) return; // User cancelled
+    
+    setActionLoading(member.id);
+    try {
+      await managementAPI.terminateUser(member.id, reason || undefined);
+      await fetchStaffAnalytics();
+    } catch (error: any) {
+      console.error('Error terminating user:', error);
+      alert(error.response?.data?.error || 'Failed to terminate user');
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
   const analyticsTabs: TabsGridItem[] = [
     { key: 'staff', label: 'Staff Analytics', icon: BarChart3 },
@@ -291,7 +348,7 @@ export default function AnalyticsPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 pt-2 border-t border-white/10 animate-fadeIn" style={{ animationDelay: `${0.05 * index + 0.25}s` }}>
+                  <div className="flex items-center justify-between pt-2 border-t border-white/10 animate-fadeIn" style={{ animationDelay: `${0.05 * index + 0.25}s` }}>
                     <span className={cn(
                       "text-xs px-2 py-1 rounded-full font-medium",
                       activityStatus === 'Active'
@@ -300,6 +357,59 @@ export default function AnalyticsPage() {
                     )}>
                       {activityStatus}
                     </span>
+                    
+                    {canManageUsers && member.rank !== null && !isImmuneRank(member.rank) && (
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => handlePromote(member)}
+                          disabled={actionLoading === member.id}
+                          className={cn(
+                            "px-2 py-1 text-xs rounded-lg transition-colors flex items-center gap-1",
+                            "bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400",
+                            "disabled:opacity-50 disabled:cursor-not-allowed"
+                          )}
+                          title="Promote"
+                        >
+                          {actionLoading === member.id ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <ArrowUp className="w-3 h-3" />
+                          )}
+                        </button>
+                        <button
+                          onClick={() => handleDemote(member)}
+                          disabled={actionLoading === member.id}
+                          className={cn(
+                            "px-2 py-1 text-xs rounded-lg transition-colors flex items-center gap-1",
+                            "bg-orange-500/20 hover:bg-orange-500/30 text-orange-400",
+                            "disabled:opacity-50 disabled:cursor-not-allowed"
+                          )}
+                          title="Demote"
+                        >
+                          {actionLoading === member.id ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <ArrowDown className="w-3 h-3" />
+                          )}
+                        </button>
+                        <button
+                          onClick={() => handleTerminate(member)}
+                          disabled={actionLoading === member.id}
+                          className={cn(
+                            "px-2 py-1 text-xs rounded-lg transition-colors flex items-center gap-1",
+                            "bg-red-500/20 hover:bg-red-500/30 text-red-400",
+                            "disabled:opacity-50 disabled:cursor-not-allowed"
+                          )}
+                          title="Terminate"
+                        >
+                          {actionLoading === member.id ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <Ban className="w-3 h-3" />
+                          )}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
                 );

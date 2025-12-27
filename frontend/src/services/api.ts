@@ -210,6 +210,12 @@ export const managementAPI = {
     api.put(`/management/users/${userId}/permissions`, { permission, granted }),
   updateUserStatus: (userId: number, status: 'active' | 'inactive' | 'pending_verification') =>
     api.put(`/management/users/${userId}/status`, { status }),
+  promoteUser: (userId: number) =>
+    api.post<{ message: string; old_rank: number; new_rank: number; dm_sent: boolean; dm_error?: string }>(`/management/users/${userId}/promote`),
+  demoteUser: (userId: number) =>
+    api.post<{ message: string; old_rank: number; new_rank: number; dm_sent: boolean; dm_error?: string }>(`/management/users/${userId}/demote`),
+  terminateUser: (userId: number, reason?: string) =>
+    api.post<{ message: string; dm_sent: boolean; kicked: boolean; dm_error?: string }>(`/management/users/${userId}/terminate`, { reason }),
   getTrackedChannels: () => api.get('/management/tracked-channels'),
   addTrackedChannel: (discord_channel_id: string, channel_name: string) =>
     api.post('/management/tracked-channels', { discord_channel_id, channel_name }),
@@ -217,7 +223,7 @@ export const managementAPI = {
   // LOA management
   getLOARequests: (status?: string) => api.get<LOARequest[]>('/management/loa', { params: { status } }),
   reviewLOA: (loaId: number, status: 'approved' | 'denied', review_notes?: string) =>
-    api.put(`/management/loa/${loaId}/review`, { status, review_notes }),
+    api.put<{ message: string; dm_sent: boolean; dm_error?: string }>(`/management/loa/${loaId}/review`, { status, review_notes }),
   // Infractions management
   getAllInfractions: () => api.get<Infraction[]>('/management/infractions'),
   issueInfraction: (user_id: number, reason: string, type: 'warning' | 'strike') =>
