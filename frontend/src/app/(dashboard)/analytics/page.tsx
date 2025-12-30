@@ -237,14 +237,15 @@ export default function AnalyticsPage() {
       setGeneratingPDF(true);
       setActionFeedback(null);
       
-      // Fetch detailed user data
+      // Fetch detailed user data - uses same comprehensive query system
+      // Runs all 7 queries per user (activity logs, infractions, tickets, messages, etc.)
       const response = await managementAPI.getDetailedUsers();
       
       if (!response || !response.data) {
         throw new Error('Invalid response from server');
       }
       
-      // Generate PDF
+      // Generate PDF with all the detailed data
       await generateStaffReportPDF(response.data);
       
       setActionFeedback({

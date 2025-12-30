@@ -178,8 +178,53 @@ export async function generateStaffReportPDF(data: DetailedUsersResponse): Promi
     // Discord messages
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
-    doc.text(`Discord Messages (this week): ${user.discord_messages_count}`, margin + 5, yPosition);
-    yPosition += lineHeight * 2;
+    doc.text(`Discord Messages (this week): ${user.discord_messages_count || 0}`, margin + 5, yPosition);
+    yPosition += lineHeight;
+
+    // Recent messages detail
+    if (user.recent_messages && user.recent_messages.length > 0) {
+      checkPageBreak(20);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.text(`Recent Messages (last ${user.recent_messages.length}):`, margin + 5, yPosition);
+      yPosition += lineHeight;
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      user.recent_messages.slice(0, 3).forEach((msg: any, idx: number) => {
+        checkPageBreak(10);
+        const msgDate = msg.created_at ? new Date(msg.created_at).toLocaleString() : 'N/A';
+        doc.text(
+          `${idx + 1}. Channel: ${msg.discord_channel_id || 'N/A'}, Created: ${msgDate}`,
+          margin + 10,
+          yPosition
+        );
+        yPosition += lineHeight * 0.8;
+      });
+      if (user.recent_messages.length > 3) {
+        doc.text(`... and ${user.recent_messages.length - 3} more messages`, margin + 10, yPosition);
+        yPosition += lineHeight;
+      }
+      yPosition += lineHeight;
+    }
+
+    // Additional statistics summary
+    checkPageBreak(15);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.text('Data Summary:', margin + 5, yPosition);
+    yPosition += lineHeight;
+    
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.text(
+      `Activity Logs: ${user.activity_logs?.length || 0} | ` +
+      `Infractions: ${user.infractions?.length || 0} | ` +
+      `Tickets: ${user.tickets?.length || 0}`,
+      margin + 10,
+      yPosition
+    );
+    yPosition += lineHeight * 1.5;
 
     // Add separator line
     doc.setDrawColor(200, 200, 200);
