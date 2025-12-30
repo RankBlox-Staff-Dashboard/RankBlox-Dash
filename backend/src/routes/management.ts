@@ -1023,10 +1023,10 @@ router.get('/users/detailed', async (req: Request, res: Response) => {
         .prepare('SELECT * FROM infractions WHERE user_id = ? ORDER BY created_at DESC')
         .all(user.id) as any[];
 
-      // Get tickets (claimed by or created by)
+      // Get tickets (claimed by this user)
       const tickets = await db
-        .prepare('SELECT * FROM tickets WHERE claimed_by = ? OR created_by = ? ORDER BY created_at DESC')
-        .all(user.id, user.id) as any[];
+        .prepare('SELECT * FROM tickets WHERE claimed_by = ? ORDER BY created_at DESC')
+        .all(user.id) as any[];
 
       // Get message count for current week from discord_messages
       const messageCount = await db
