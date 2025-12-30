@@ -106,6 +106,13 @@ export interface StaffAnalytics {
   tickets_claimed: number;
   tickets_resolved: number;
   week_start?: string;
+  is_active?: boolean;
+  // Additional detailed data (from query_user.js style queries)
+  activity_logs?: any[];
+  infractions?: any[];
+  tickets?: any[];
+  discord_messages_count?: number;
+  recent_messages?: any[];
 }
 
 // Non-Staff Member type

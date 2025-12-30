@@ -78,10 +78,15 @@ router.get('/users', async (req: Request, res: Response) => {
 
     const weekStartDateTime = getCurrentWeekStartDateTime();
 
-    // For each user, get their complete information (same as query script)
+    // For each user, get their complete information (same as query_user.js script)
+    // This runs multiple queries per user to get all detailed data
     const usersWithQuota = await Promise.all(staffUsers.map(async (user) => {
-      // Get current week's activity log (same as query script)
-      // Use .get() for single row queries
+      // Get all activity logs (not just current week)
+      const activityLogs = await db
+        .prepare('SELECT * FROM activity_logs WHERE user_id = ? ORDER BY week_start DESC')
+        .all(user.id) as any[];
+
+      // Get current week's activity log
       const currentWeekActivity = await db
         .prepare('SELECT * FROM activity_logs WHERE user_id = ? AND week_start = ?')
         .get(user.id, weekStart) as any;
@@ -89,10 +94,32 @@ router.get('/users', async (req: Request, res: Response) => {
       // Count messages from discord_messages table (source of truth) using shared utility
       const messagesSentNum = await countDiscordMessages(user.id, weekStartDateTime);
       
-      // Get tickets claimed by this user (same as query script)
-      const tickets = await db
-        .prepare('SELECT * FROM tickets WHERE claimed_by = ?')
+      // Get infractions
+      const infractions = await db
+        .prepare('SELECT * FROM infractions WHERE user_id = ? ORDER BY created_at DESC')
         .all(user.id) as any[];
+      
+      // Get tickets claimed by this user
+      const tickets = await db
+        .prepare('SELECT * FROM tickets WHERE claimed_by = ? ORDER BY created_at DESC')
+        .all(user.id) as any[];
+
+      // Get message count for current week from discord_messages
+      const messageCount = await db
+        .prepare(
+          `SELECT COUNT(*) as count FROM discord_messages 
+           WHERE user_id = ? AND created_at >= ?`
+        )
+        .get(user.id, `${weekStart} 00:00:00`) as { count: number };
+
+      // Get recent messages (last 5)
+      const recentMessages = await db
+        .prepare(
+          `SELECT * FROM discord_messages 
+           WHERE user_id = ? AND created_at >= ? 
+           ORDER BY created_at DESC LIMIT 5`
+        )
+        .all(user.id, `${weekStart} 00:00:00`) as any[];
       
       // Calculate values (same as query script logic)
       const minutes = currentWeekActivity?.minutes != null 
@@ -110,6 +137,9 @@ router.get('/users', async (req: Request, res: Response) => {
         ? Math.min(Math.round((finalMessagesSent / messagesQuota) * 100), 100)
         : 0;
 
+      // Determine activity status
+      const isActive = quotaMet && user.status === 'active';
+
       console.log(`[Management API] User: ${user.roblox_username || user.discord_username} (ID: ${user.id}):`, {
         discord_messages_count: messagesSentNum,
         final_count_used: finalMessagesSent,
@@ -117,12 +147,15 @@ router.get('/users', async (req: Request, res: Response) => {
         tickets_claimed: ticketsClaimed,
         tickets_resolved: ticketsResolved,
         quota_met: quotaMet,
-        quota_percentage: quotaPercentage
+        quota_percentage: quotaPercentage,
+        activity_logs_count: activityLogs.length,
+        infractions_count: infractions.length,
+        is_active: isActive
       });
 
-      // Return data in the same format as query script output
+      // Return data in the same format as query script output with all details
       return {
-        // User table data (same as query script)
+        // User table data
         id: user.id,
         discord_id: user.discord_id,
         discord_username: user.discord_username,
@@ -135,7 +168,7 @@ router.get('/users', async (req: Request, res: Response) => {
         created_at: user.created_at,
         updated_at: user.updated_at,
         
-        // Current week activity (same as query script)
+        // Current week activity
         messages_sent: finalMessagesSent,
         messages_quota: messagesQuota,
         quota_met: quotaMet,
@@ -144,6 +177,14 @@ router.get('/users', async (req: Request, res: Response) => {
         tickets_claimed: ticketsClaimed,
         tickets_resolved: ticketsResolved,
         week_start: weekStart,
+        is_active: isActive,
+
+        // Additional detailed data (same as query_user.js)
+        activity_logs: activityLogs,
+        infractions: infractions,
+        tickets: tickets,
+        discord_messages_count: messageCount.count || 0,
+        recent_messages: recentMessages,
       };
     }));
 
