@@ -11,9 +11,10 @@ function requireEnv(name: string): string {
   return v;
 }
 
-// Database configuration from environment variables (no production secrets/defaults in code)
+// Database configuration from environment variables
+// For activity data, use ahsDB.zenohost.co.uk as the database host
 const dbConfig = {
-  host: process.env.DB_HOST || 'localhost',
+  host: process.env.DB_HOST || 'ahsDB.zenohost.co.uk',
   user: requireEnv('DB_USER'),
   password: requireEnv('DB_PASSWORD'),
   database: requireEnv('DB_NAME'),
