@@ -21,33 +21,39 @@ const dbConfig = {
 } as const;
 
 // Create MySQL connection pool with authentication
+// IMPORTANT: This connects directly to MySQL database, NOT to the backend API
 const pool = mysql.createPool(dbConfig);
 
-// Log database configuration (without password) - shows MySQL connection details
-console.log('[Database] MySQL Connection Configuration:', {
-  host: dbConfig.host,
-  user: dbConfig.user,
-  database: dbConfig.database,
-  connectionLimit: dbConfig.connectionLimit,
-  type: 'MySQL'
-});
+// Log database configuration - shows we're connecting to MySQL database, not backend
+console.log('[Database] ========================================');
+console.log('[Database] MySQL Database Connection (NOT Backend API)');
+console.log('[Database] ========================================');
+console.log('[Database] Host:', dbConfig.host);
+console.log('[Database] User:', dbConfig.user);
+console.log('[Database] Database:', dbConfig.database);
+console.log('[Database] Type: MySQL (Direct Database Connection)');
+console.log('[Database] ========================================');
 
-// Test connection on startup to verify authentication
+// Test connection on startup to verify MySQL authentication
 pool.getConnection()
   .then((connection) => {
-    console.log('[Database] MySQL authentication successful');
-    console.log(`[Database] Connected to MySQL server: ${dbConfig.host}`);
-    console.log(`[Database] Using database: ${dbConfig.database}`);
+    console.log('[Database] ✅ MySQL database authentication successful');
+    console.log(`[Database] ✅ Connected to MySQL server: ${dbConfig.host}`);
+    console.log(`[Database] ✅ Authenticated as MySQL user: ${dbConfig.user}`);
+    console.log(`[Database] ✅ Using MySQL database: ${dbConfig.database}`);
+    console.log('[Database] ✅ This is a DIRECT MySQL connection, NOT a backend API call');
     connection.release();
   })
   .catch((error) => {
-    console.error('[Database] MySQL connection/authentication error:', error.message);
+    console.error('[Database] ❌ MySQL database connection/authentication error:', error.message);
+    console.error('[Database] ❌ This is trying to connect to MySQL database, NOT backend API');
     if (error.code === 'ER_ACCESS_DENIED_ERROR') {
-      console.error('[Database] Authentication failed - check DB_USER and DB_PASSWORD');
+      console.error('[Database] ❌ MySQL authentication failed - check DB_USER and DB_PASSWORD');
     } else if (error.code === 'ER_BAD_DB_ERROR') {
-      console.error('[Database] Database does not exist - check DB_NAME');
+      console.error('[Database] ❌ MySQL database does not exist - check DB_NAME');
     } else if (error.code === 'ECONNREFUSED') {
-      console.error('[Database] Connection refused - check DB_HOST and ensure MySQL server is running');
+      console.error('[Database] ❌ MySQL connection refused - check DB_HOST and ensure MySQL server is running');
+      console.error(`[Database] ❌ Trying to connect to: ${dbConfig.host}`);
     }
   });
 
@@ -125,17 +131,19 @@ const db = new DatabaseWrapper();
 // Initialize database schema
 export async function initializeDatabase() {
   try {
-    // Test MySQL connection and authentication
+    // Test MySQL connection and authentication (direct database connection, not backend API)
     const connection = await pool.getConnection();
-    console.log(`[Database] MySQL connection authenticated successfully`);
-    console.log(`[Database] Connected to MySQL server: ${dbConfig.host}`);
-    console.log(`[Database] Authenticated as user: ${dbConfig.user}`);
-    console.log(`[Database] Using MySQL database: ${dbConfig.database}`);
+    console.log(`[Database] ✅ MySQL database connection authenticated successfully`);
+    console.log(`[Database] ✅ Connected directly to MySQL server: ${dbConfig.host}`);
+    console.log(`[Database] ✅ Authenticated as MySQL user: ${dbConfig.user}`);
+    console.log(`[Database] ✅ Using MySQL database: ${dbConfig.database}`);
+    console.log(`[Database] ✅ This is a DIRECT MySQL connection, NOT connecting to backend API`);
     
-    // Verify we can query the database
+    // Verify we can query the MySQL database
     const [result] = await connection.query('SELECT 1 as test') as any[];
     if (result && result[0]?.test === 1) {
-      console.log('[Database] MySQL query test successful - database is accessible');
+      console.log('[Database] ✅ MySQL query test successful - database is accessible');
+      console.log('[Database] ✅ All activity/analytics queries will use this MySQL database connection');
     }
     
     connection.release();
