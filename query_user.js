@@ -6,7 +6,7 @@ const path = require('path');
 dotenv.config({ path: path.join(__dirname, 'backend', '.env') });
 
 async function queryUser() {
-  const username = 'Preston_iscool1123';
+  const username = '  ';
   
   // Database configuration
   const dbConfig = {

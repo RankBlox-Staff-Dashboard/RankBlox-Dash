@@ -986,6 +986,130 @@ router.get('/users/:id/infractions', async (req: Request, res: Response) => {
 });
 
 /**
+ * Get detailed user information for all staff (for PDF reports)
+ * Returns complete data similar to query_user.js script
+ */
+router.get('/users/detailed', async (req: Request, res: Response) => {
+  try {
+    const weekStart = getCurrentWeekStart();
+    const weekStartDateTime = getCurrentWeekStartDateTime();
+
+    // Get all staff members
+    const staffUsers = await db
+      .prepare(
+        `SELECT * FROM users 
+         WHERE \`rank\` IS NOT NULL
+         ORDER BY \`rank\` DESC, created_at ASC`
+      )
+      .all() as any[];
+
+    // For each user, get complete information (same as query_user.js)
+    const detailedUsers = await Promise.all(staffUsers.map(async (user) => {
+      // Get all activity logs
+      const activityLogs = await db
+        .prepare('SELECT * FROM activity_logs WHERE user_id = ? ORDER BY week_start DESC')
+        .all(user.id) as any[];
+
+      // Get current week's activity
+      const currentWeekActivity = await db
+        .prepare('SELECT * FROM activity_logs WHERE user_id = ? AND week_start = ?')
+        .get(user.id, weekStart) as any;
+
+      // Count messages from discord_messages table
+      const messagesSent = await countDiscordMessages(user.id, weekStartDateTime);
+
+      // Get infractions
+      const infractions = await db
+        .prepare('SELECT * FROM infractions WHERE user_id = ? ORDER BY created_at DESC')
+        .all(user.id) as any[];
+
+      // Get tickets (claimed by or created by)
+      const tickets = await db
+        .prepare('SELECT * FROM tickets WHERE claimed_by = ? OR created_by = ? ORDER BY created_at DESC')
+        .all(user.id, user.id) as any[];
+
+      // Get message count for current week from discord_messages
+      const messageCount = await db
+        .prepare(
+          `SELECT COUNT(*) as count FROM discord_messages 
+           WHERE user_id = ? AND created_at >= ?`
+        )
+        .get(user.id, `${weekStart} 00:00:00`) as { count: number };
+
+      // Get recent messages (last 5)
+      const recentMessages = await db
+        .prepare(
+          `SELECT * FROM discord_messages 
+           WHERE user_id = ? AND created_at >= ? 
+           ORDER BY created_at DESC LIMIT 5`
+        )
+        .all(user.id, `${weekStart} 00:00:00`) as any[];
+
+      // Calculate quota
+      const messagesQuota = 150;
+      const quotaMet = messagesSent >= messagesQuota;
+      const quotaPercentage = messagesQuota > 0 
+        ? Math.min(Math.round((messagesSent / messagesQuota) * 100), 100)
+        : 0;
+
+      // Determine activity status
+      const isActive = quotaMet && user.status === 'active';
+
+      return {
+        // User table data
+        id: user.id,
+        discord_id: user.discord_id,
+        discord_username: user.discord_username,
+        discord_avatar: user.discord_avatar,
+        roblox_id: user.roblox_id,
+        roblox_username: user.roblox_username,
+        rank: user.rank,
+        rank_name: user.rank_name,
+        status: user.status,
+        created_at: user.created_at,
+        updated_at: user.updated_at,
+
+        // Current week activity
+        messages_sent: messagesSent,
+        messages_quota: messagesQuota,
+        quota_met: quotaMet,
+        quota_percentage: quotaPercentage,
+        minutes: currentWeekActivity?.minutes != null 
+          ? parseInt(String(currentWeekActivity.minutes)) || 0 
+          : 0,
+        tickets_claimed: tickets.filter((t: any) => t.claimed_by === user.id).length,
+        tickets_resolved: tickets.filter((t: any) => t.status === 'resolved' && t.claimed_by === user.id).length,
+        week_start: weekStart,
+        is_active: isActive,
+
+        // Activity logs (all weeks)
+        activity_logs: activityLogs,
+
+        // Infractions
+        infractions: infractions,
+
+        // Tickets
+        tickets: tickets,
+
+        // Discord messages
+        discord_messages_count: messageCount.count || 0,
+        recent_messages: recentMessages,
+      };
+    }));
+
+    res.json({
+      generated_at: new Date().toISOString(),
+      week_start: weekStart,
+      total_staff: detailedUsers.length,
+      users: detailedUsers,
+    });
+  } catch (error) {
+    console.error('Error fetching detailed user information:', error);
+    res.status(500).json({ error: 'Failed to fetch detailed user information' });
+  }
+});
+
+/**
  * Get group rank sync status
  */
 router.get('/group-sync/status', async (req: Request, res: Response) => {

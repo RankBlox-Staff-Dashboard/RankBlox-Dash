@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { 
   BarChart3,
   CheckCircle2,
@@ -15,7 +15,8 @@ import {
   ArrowUp,
   ArrowDown,
   Ban,
-  Loader2
+  Loader2,
+  FileDown
 } from 'lucide-react';
 import { ProfileCard } from '@/components/ProfileCard';
 import { NavigationTabs } from '@/components/NavigationTabs';
@@ -27,6 +28,7 @@ import { getActivityStatus } from '@/utils/staffStats';
 import { cn } from '@/lib/cn';
 import { usePermissions } from '@/hooks/usePermissions';
 import { isImmuneRank } from '@/lib/immunity';
+import { generateStaffReportPDF } from '@/utils/pdfGenerator';
 
 type AnalyticsTab = 'staff' | 'non-staff';
 
@@ -44,6 +46,7 @@ export default function AnalyticsPage() {
   const [showTerminateModal, setShowTerminateModal] = useState(false);
   const [terminateMember, setTerminateMember] = useState<StaffAnalytics | null>(null);
   const [terminateReason, setTerminateReason] = useState('');
+  const [generatingPDF, setGeneratingPDF] = useState(false);
 
   // Check if user has permission to manage users
   const canManageUsers = permissions.includes('MANAGE_USERS');
@@ -227,6 +230,43 @@ export default function AnalyticsPage() {
     setTerminateReason('');
   };
 
+  const handleGeneratePDF = useCallback(async () => {
+    if (generatingPDF) return;
+    
+    try {
+      setGeneratingPDF(true);
+      setActionFeedback(null);
+      
+      // Fetch detailed user data
+      const response = await managementAPI.getDetailedUsers();
+      
+      if (!response || !response.data) {
+        throw new Error('Invalid response from server');
+      }
+      
+      // Generate PDF
+      await generateStaffReportPDF(response.data);
+      
+      setActionFeedback({
+        type: 'success',
+        message: 'PDF report generated successfully!'
+      });
+      setTimeout(() => setActionFeedback(null), 5000);
+    } catch (error: any) {
+      console.error('Error generating PDF:', error);
+      const errorMessage = error.response?.status === 401 || error.response?.status === 403
+        ? 'You do not have permission to generate reports'
+        : error.response?.data?.error || 'Failed to generate PDF report';
+      setActionFeedback({
+        type: 'error',
+        message: errorMessage
+      });
+      setTimeout(() => setActionFeedback(null), 5000);
+    } finally {
+      setGeneratingPDF(false);
+    }
+  }, [generatingPDF]);
+
   const analyticsTabs: TabsGridItem[] = [
     { key: 'staff', label: 'Staff Analytics', icon: BarChart3 },
     { key: 'non-staff', label: 'Non-Staff Members', icon: UserX },
@@ -381,14 +421,38 @@ export default function AnalyticsPage() {
                 <p className="text-xs text-white/50">Top 10 staff members by rank</p>
               </div>
             </div>
-            <button
-              onClick={refreshStaffStats}
-              disabled={loading}
-              className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors disabled:opacity-50"
-              aria-label="Refresh staff data"
-            >
-              <RefreshCw className={cn("w-4 h-4 text-white/70", loading && "animate-spin")} />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleGeneratePDF}
+                disabled={generatingPDF || loading}
+                className={cn(
+                  "px-3 py-2 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 transition-colors",
+                  "disabled:opacity-50 disabled:cursor-not-allowed",
+                  "flex items-center gap-2 text-sm font-medium text-blue-400"
+                )}
+                aria-label="Generate PDF report"
+              >
+                {generatingPDF ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Generating...</span>
+                  </>
+                ) : (
+                  <>
+                    <FileDown className="w-4 h-4" />
+                    <span>Generate PDF</span>
+                  </>
+                )}
+              </button>
+              <button
+                onClick={refreshStaffStats}
+                disabled={loading}
+                className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors disabled:opacity-50"
+                aria-label="Refresh staff data"
+              >
+                <RefreshCw className={cn("w-4 h-4 text-white/70", loading && "animate-spin")} />
+              </button>
+            </div>
           </div>
 
           {loading ? (

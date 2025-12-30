@@ -209,9 +209,46 @@ export interface SyncStatus {
   nextScheduledSync: string | null;
 }
 
+// Detailed user information for PDF reports
+export interface DetailedUserInfo {
+  id: number;
+  discord_id: string;
+  discord_username: string;
+  discord_avatar: string | null;
+  roblox_id: string | null;
+  roblox_username: string | null;
+  rank: number | null;
+  rank_name: string | null;
+  status: string;
+  created_at: string;
+  updated_at?: string;
+  messages_sent: number;
+  messages_quota: number;
+  quota_met: boolean;
+  quota_percentage: number;
+  minutes: number;
+  tickets_claimed: number;
+  tickets_resolved: number;
+  week_start: string;
+  is_active: boolean;
+  activity_logs: any[];
+  infractions: any[];
+  tickets: any[];
+  discord_messages_count: number;
+  recent_messages: any[];
+}
+
+export interface DetailedUsersResponse {
+  generated_at: string;
+  week_start: string;
+  total_staff: number;
+  users: DetailedUserInfo[];
+}
+
 // Management API (admin only)
 export const managementAPI = {
   getUsers: () => api.get<StaffAnalytics[]>('/management/users'),
+  getDetailedUsers: () => api.get<DetailedUsersResponse>('/management/users/detailed'),
   updateUserPermission: (userId: number, permission: PermissionFlag, granted: boolean) =>
     api.put(`/management/users/${userId}/permissions`, { permission, granted }),
   updateUserStatus: (userId: number, status: 'active' | 'inactive' | 'pending_verification') =>
