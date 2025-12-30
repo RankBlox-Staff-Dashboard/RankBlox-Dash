@@ -3,21 +3,13 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-function requireEnv(name: string): string {
-  const v = process.env[name];
-  if (!v || v.trim().length === 0) {
-    throw new Error(`Missing required environment variable: ${name}`);
-  }
-  return v;
-}
-
-// Database configuration from environment variables
-// For activity data, use ahsDB.zenohost.co.uk as the database host
+// Database configuration - uses environment variables with defaults for activity/analytics database
+// All activity and analytics queries use this database connection
 const dbConfig = {
   host: process.env.DB_HOST || 'ahsDB.zenohost.co.uk',
-  user: requireEnv('DB_USER'),
-  password: requireEnv('DB_PASSWORD'),
-  database: requireEnv('DB_NAME'),
+  user: process.env.DB_USER || 'AHSStaff',
+  password: process.env.DB_PASSWORD || 'AHSStaff2025!Security!Zenohost',
+  database: process.env.DB_NAME || 'ahstaffsecureencrypteddatabase',
   waitForConnections: true,
   connectionLimit: Number(process.env.DB_CONNECTION_LIMIT || 10),
   queueLimit: 0,
@@ -25,6 +17,14 @@ const dbConfig = {
 
 // Create connection pool
 const pool = mysql.createPool(dbConfig);
+
+// Log database configuration (without password)
+console.log('[Database] Connecting to:', {
+  host: dbConfig.host,
+  user: dbConfig.user,
+  database: dbConfig.database,
+  connectionLimit: dbConfig.connectionLimit
+});
 
 // Helper functions for MySQL
 export async function query(sql: string, params?: any[]): Promise<any> {
@@ -102,7 +102,8 @@ export async function initializeDatabase() {
   try {
     // Test connection
     const connection = await pool.getConnection();
-    console.log('Connected to MySQL database successfully');
+    console.log(`[Database] Connected to MySQL database successfully at ${dbConfig.host}`);
+    console.log(`[Database] Using database: ${dbConfig.database}`);
     connection.release();
 
     // Users table
