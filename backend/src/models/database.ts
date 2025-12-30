@@ -3,28 +3,53 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-// Database configuration - uses environment variables with defaults for activity/analytics database
-// All activity and analytics queries use this database connection
+// Database configuration - MySQL database for activity/analytics
+// All activity and analytics queries use this MySQL database connection
+// Requires authentication: user, password, and database name
 const dbConfig = {
   host: process.env.DB_HOST || 'ahsDB.zenohost.co.uk',
   user: process.env.DB_USER || 'AHSStaff',
   password: process.env.DB_PASSWORD || 'AHSStaff2025!Security!Zenohost',
   database: process.env.DB_NAME || 'ahstaffsecureencrypteddatabase',
+  // MySQL connection options
   waitForConnections: true,
   connectionLimit: Number(process.env.DB_CONNECTION_LIMIT || 10),
   queueLimit: 0,
+  // MySQL-specific options
+  ssl: false, // Set to true if your MySQL server requires SSL
+  multipleStatements: false, // Security: prevent SQL injection via multiple statements
 } as const;
 
-// Create connection pool
+// Create MySQL connection pool with authentication
 const pool = mysql.createPool(dbConfig);
 
-// Log database configuration (without password)
-console.log('[Database] Connecting to:', {
+// Log database configuration (without password) - shows MySQL connection details
+console.log('[Database] MySQL Connection Configuration:', {
   host: dbConfig.host,
   user: dbConfig.user,
   database: dbConfig.database,
-  connectionLimit: dbConfig.connectionLimit
+  connectionLimit: dbConfig.connectionLimit,
+  type: 'MySQL'
 });
+
+// Test connection on startup to verify authentication
+pool.getConnection()
+  .then((connection) => {
+    console.log('[Database] MySQL authentication successful');
+    console.log(`[Database] Connected to MySQL server: ${dbConfig.host}`);
+    console.log(`[Database] Using database: ${dbConfig.database}`);
+    connection.release();
+  })
+  .catch((error) => {
+    console.error('[Database] MySQL connection/authentication error:', error.message);
+    if (error.code === 'ER_ACCESS_DENIED_ERROR') {
+      console.error('[Database] Authentication failed - check DB_USER and DB_PASSWORD');
+    } else if (error.code === 'ER_BAD_DB_ERROR') {
+      console.error('[Database] Database does not exist - check DB_NAME');
+    } else if (error.code === 'ECONNREFUSED') {
+      console.error('[Database] Connection refused - check DB_HOST and ensure MySQL server is running');
+    }
+  });
 
 // Helper functions for MySQL
 export async function query(sql: string, params?: any[]): Promise<any> {
@@ -100,10 +125,19 @@ const db = new DatabaseWrapper();
 // Initialize database schema
 export async function initializeDatabase() {
   try {
-    // Test connection
+    // Test MySQL connection and authentication
     const connection = await pool.getConnection();
-    console.log(`[Database] Connected to MySQL database successfully at ${dbConfig.host}`);
-    console.log(`[Database] Using database: ${dbConfig.database}`);
+    console.log(`[Database] MySQL connection authenticated successfully`);
+    console.log(`[Database] Connected to MySQL server: ${dbConfig.host}`);
+    console.log(`[Database] Authenticated as user: ${dbConfig.user}`);
+    console.log(`[Database] Using MySQL database: ${dbConfig.database}`);
+    
+    // Verify we can query the database
+    const [result] = await connection.query('SELECT 1 as test') as any[];
+    if (result && result[0]?.test === 1) {
+      console.log('[Database] MySQL query test successful - database is accessible');
+    }
+    
     connection.release();
 
     // Users table
