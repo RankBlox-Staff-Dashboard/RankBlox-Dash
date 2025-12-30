@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { dashboardAPI, activityAPI } from '../services/api';
+import { dashboardAPI } from '../services/api';
 import { useAuth } from '@/context/AuthContext';
 import type { Stats } from '../types';
 
@@ -17,31 +17,14 @@ export function useStats() {
       setLoading(true);
       setError(null);
       
-      // Fetch stats from backend
+      // Fetch stats from backend - minutes are already in the database (activity_logs table)
+      // No need to call EasyPOS API - database is the source of truth
       const response = await dashboardAPI.getStats();
-      let statsData = response.data;
+      const statsData = response.data;
       
-      // Fetch minutes from EasyPOS API if user has roblox_id
-      if (user.roblox_id) {
-        try {
-          const robloxUserId = parseInt(user.roblox_id, 10);
-          
-          if (!isNaN(robloxUserId)) {
-            const minutes = await activityAPI.getActivityData(robloxUserId);
-            // Update stats with minutes from EasyPOS
-            statsData = {
-              ...statsData,
-              minutes: minutes
-            };
-          }
-        } catch (activityError: any) {
-          // Silently continue with backend minutes if EasyPOS fails
-          // This is expected if the endpoint doesn't exist or API is unavailable
-          if (activityError.response?.status !== 404) {
-            console.warn('[Stats] Error fetching minutes from EasyPOS API:', activityError.message);
-          }
-        }
-      }
+      // Minutes are already included in the stats response from the database
+      // The backend queries activity_logs table which has the minutes column
+      // No external API call needed - all data comes from the database
       
       setStats(statsData);
     } catch (err: any) {
