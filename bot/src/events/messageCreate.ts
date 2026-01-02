@@ -87,6 +87,12 @@ process.on('SIGINT', async () => {
 
 export const name = Events.MessageCreate;
 
+// Categories to monitor for tickets
+const TICKET_CATEGORIES = [
+  '980275354704953415', // Category 1
+  '993210302185345124', // Category 2
+];
+
 export async function execute(message: Message) {
   // Ignore bots
   if (message.author.bot) return;
@@ -94,7 +100,71 @@ export async function execute(message: Message) {
   // Ignore DMs
   if (!message.guild) return;
 
-  // Check if channel is tracked
+  // Handle !claim command in ticket channels
+  if (message.content.toLowerCase().trim() === '!claim') {
+    const channel = message.channel;
+    
+    // Check if channel is in a ticket category
+    if (channel.isTextBased() && !channel.isDMBased()) {
+      const textChannel = channel as any;
+      const parentId = textChannel.parentId;
+      
+      if (parentId && TICKET_CATEGORIES.includes(parentId)) {
+        try {
+          // Get user from backend to verify they're staff
+          const discordId = message.author.id;
+          const isAllowed = await isUserAllowed(discordId);
+          
+          if (!isAllowed) {
+            await message.reply('❌ You must be an active staff member to claim tickets.');
+            return;
+          }
+
+          // Get user info to find their user ID
+          const userResponse = await botAPI.getUser(discordId);
+          if (!userResponse.data) {
+            await message.reply('❌ You are not registered in the staff system.');
+            return;
+          }
+
+          // Claim ticket by channel ID using bot API
+          try {
+            const claimResponse = await botAPI.claimTicketByChannel(channel.id, userResponse.data.id);
+            if (claimResponse.data.success) {
+              await message.reply(`✅ Ticket claimed by ${message.author.username}!`);
+            } else {
+              await message.reply(`❌ ${claimResponse.data.error || 'Failed to claim ticket'}`);
+            }
+          } catch (claimError: any) {
+            // If ticket doesn't exist, try to create it first
+            if (claimError.response?.status === 404) {
+              try {
+                await botAPI.createTicket(channel.id, message.id);
+                // Try claiming again
+                const retryResponse = await botAPI.claimTicketByChannel(channel.id, userResponse.data.id);
+                if (retryResponse.data.success) {
+                  await message.reply(`✅ Ticket created and claimed by ${message.author.username}!`);
+                } else {
+                  await message.reply(`❌ ${retryResponse.data.error || 'Failed to claim ticket'}`);
+                }
+              } catch (createError: any) {
+                await message.reply('❌ Failed to create or claim ticket. Please contact an administrator.');
+              }
+            } else {
+              const errorMsg = claimError.response?.data?.error || 'Failed to claim ticket';
+              await message.reply(`❌ ${errorMsg}`);
+            }
+          }
+        } catch (error: any) {
+          console.error('[TicketTracker] Error handling !claim:', error);
+          await message.reply('❌ An error occurred while claiming the ticket.');
+        }
+        return;
+      }
+    }
+  }
+
+  // Check if channel is tracked for message quota
   const channels = await getTrackedChannels();
   if (!channels.includes(message.channel.id)) return;
 

@@ -289,6 +289,83 @@ router.post('/tickets/close', async (req: Request, res: Response) => {
 });
 
 /**
+ * Bot ticket claim by channel endpoint (for !claim command)
+ */
+router.post('/tickets/claim-by-channel', async (req: Request, res: Response) => {
+  try {
+    const { discord_channel_id, user_id } = req.body;
+
+    if (!discord_channel_id || typeof discord_channel_id !== 'string') {
+      return res.status(400).json({ error: 'discord_channel_id is required' });
+    }
+
+    if (!user_id || typeof user_id !== 'number') {
+      return res.status(400).json({ error: 'user_id is required' });
+    }
+
+    // Find ticket by channel ID
+    const ticket = await db
+      .prepare('SELECT * FROM tickets WHERE discord_channel_id = ?')
+      .get(discord_channel_id) as any;
+
+    if (!ticket) {
+      return res.status(404).json({ error: 'Ticket not found for this channel' });
+    }
+
+    if (ticket.status !== 'open') {
+      return res.status(400).json({ 
+        error: `Ticket is already ${ticket.status}`,
+        success: false 
+      });
+    }
+
+    // Race-safe claim: only claim if currently open
+    const claimResult = await db.prepare(
+      "UPDATE tickets SET claimed_by = ?, status = 'claimed' WHERE id = ? AND status = 'open'"
+    ).run(user_id, ticket.id);
+
+    if (!claimResult || claimResult.changes === 0) {
+      // Ticket was claimed by someone else
+      const updated = await db
+        .prepare('SELECT * FROM tickets WHERE id = ?')
+        .get(ticket.id) as any;
+      
+      return res.status(409).json({ 
+        error: `Ticket is already ${updated?.status || 'claimed'}`,
+        success: false 
+      });
+    }
+
+    // Increment user's tickets_claimed count for current week
+    const weekStartStr = getCurrentWeekStart();
+
+    // Check if activity log exists
+    let activityLog = await db
+      .prepare('SELECT * FROM activity_logs WHERE user_id = ? AND week_start = ?')
+      .get(user_id, weekStartStr) as any;
+
+    if (activityLog) {
+      await db.prepare(
+        'UPDATE activity_logs SET tickets_claimed = tickets_claimed + 1 WHERE user_id = ? AND week_start = ?'
+      ).run(user_id, weekStartStr);
+    } else {
+      await db.prepare(
+        'INSERT INTO activity_logs (user_id, week_start, tickets_claimed) VALUES (?, ?, 1)'
+      ).run(user_id, weekStartStr);
+    }
+
+    res.json({ 
+      success: true,
+      message: 'Ticket claimed successfully',
+      ticket_id: ticket.id,
+    });
+  } catch (error) {
+    console.error('Error claiming ticket by channel:', error);
+    res.status(500).json({ error: 'Failed to claim ticket', success: false });
+  }
+});
+
+/**
  * Get user by Discord ID (for bot to check permissions)
  */
 router.get('/user/:discord_id', async (req: Request, res: Response) => {

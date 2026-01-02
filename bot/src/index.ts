@@ -15,6 +15,7 @@ import {
   sendLOANotificationDM,
   LOANotificationData
 } from './services/notifications';
+import { botAPI } from './services/api';
 
 config();
 
@@ -390,6 +391,39 @@ client.once(Events.ClientReady, async (readyClient) => {
     }
   } catch (error) {
     console.error('Error registering commands:', error);
+  }
+
+  // Sync existing ticket channels on startup
+  try {
+    const TICKET_CATEGORIES = ['980275354704953415', '993210302185345124'];
+    
+    let syncedCount = 0;
+    for (const guild of readyClient.guilds.cache.values()) {
+      // Fetch all channels to ensure cache is populated
+      await guild.channels.fetch();
+      
+      for (const channel of guild.channels.cache.values()) {
+        if (channel.isTextBased() && !channel.isDMBased()) {
+          const textChannel = channel as any;
+          if (textChannel.parentId && TICKET_CATEGORIES.includes(textChannel.parentId)) {
+            try {
+              await botAPI.createTicket(textChannel.id, null);
+              syncedCount++;
+            } catch (error: any) {
+              // Ignore "already exists" errors
+              if (error.response?.status !== 400 || !error.response?.data?.error?.includes('already exists')) {
+                console.error(`[TicketSync] Error syncing channel ${textChannel.id}:`, error.message);
+              }
+            }
+          }
+        }
+      }
+    }
+    if (syncedCount > 0) {
+      console.log(`[TicketSync] Synced ${syncedCount} existing ticket channels`);
+    }
+  } catch (error) {
+    console.error('[TicketSync] Error during startup sync:', error);
   }
 });
 

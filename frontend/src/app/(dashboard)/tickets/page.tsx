@@ -98,7 +98,7 @@ export default function TicketsPage() {
             <Ticket className="w-5 h-5 text-white/70" />
             <div>
               <h3 className="text-base font-semibold text-white">Ticket Lookup</h3>
-              <p className="text-xs text-white/50">Search and manage support tickets</p>
+              <p className="text-xs text-white/50">View and manage tickets from the main Discord server</p>
             </div>
           </div>
           <button

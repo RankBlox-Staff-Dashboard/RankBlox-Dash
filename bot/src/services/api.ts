@@ -78,6 +78,9 @@ export const botAPI = {
   closeTicket: (discordChannelId: string) =>
     api.post('/bot/tickets/close', { discord_channel_id: discordChannelId }),
 
+  claimTicketByChannel: (discordChannelId: string, userId: number) =>
+    api.post('/bot/tickets/claim-by-channel', { discord_channel_id: discordChannelId, user_id: userId }),
+
   getUser: (discordId: string) => api.get(`/bot/user/${discordId}`),
 
   getTrackedChannels: () => api.get('/bot/tracked-channels'),
