@@ -7,7 +7,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://ahsback.zenohost.co.uk/api/:path*"
+      "destination": "https://rankblox-dash-backend-706270663868.europe-west1.run.app/api/:path*"
     }
   ]
 }

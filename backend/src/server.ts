@@ -22,8 +22,8 @@ dotenv.config();
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '8080', 10);
-const DEFAULT_FRONTEND_URL = 'https://staff.rankblox.xyz';
-const FRONTEND_URL = process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL;
+// Hardcoded frontend URL
+const HARDCODED_FRONTEND_URL = 'https://rank-blox-dash.vercel.app';
 const normalizeOrigin = (value?: string) => {
   if (!value) return '';
   try {
@@ -32,12 +32,12 @@ const normalizeOrigin = (value?: string) => {
     return value.replace(/\/+$/, '');
   }
 };
-const FRONTEND_URLS = Array.from(new Set(
-  (process.env.FRONTEND_URLS || FRONTEND_URL)
-    .split(',')
-    .map((s) => normalizeOrigin(s.trim()))
-    .filter(Boolean)
-));
+// Allow hardcoded URL and any additional URLs from environment
+const FRONTEND_URLS = Array.from(new Set([
+  normalizeOrigin(HARDCODED_FRONTEND_URL),
+  ...(process.env.FRONTEND_URLS ? process.env.FRONTEND_URLS.split(',').map((s) => normalizeOrigin(s.trim())) : []),
+  ...(process.env.FRONTEND_URL ? [normalizeOrigin(process.env.FRONTEND_URL)] : [])
+].filter(Boolean)));
 
 // Debug logging for CORS configuration
 console.log('=== CORS Configuration ===');

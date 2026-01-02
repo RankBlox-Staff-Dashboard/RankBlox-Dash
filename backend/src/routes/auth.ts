@@ -9,10 +9,8 @@ import crypto from 'crypto';
 const router = Router();
 
 function getFrontendUrl(): string {
-  const fallback = 'https://staff.rankblox.xyz';
-  if (process.env.FRONTEND_URL) return process.env.FRONTEND_URL;
-  const first = process.env.FRONTEND_URLS?.split(',')?.[0]?.trim();
-  return first || fallback;
+  // Hardcoded frontend URL
+  return 'https://rank-blox-dash.vercel.app';
 }
 
 function cookieOptions() {

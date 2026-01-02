@@ -119,7 +119,7 @@ export function Header() {
                 <span className="font-medium">Support</span>
               </a>
               <a
-                href="https://docs.ahscampus.com"
+                href="https://docs.rankblox.xyz"
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => setMenuOpen(false)}

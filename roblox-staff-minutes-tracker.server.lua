@@ -3,7 +3,7 @@
 -- This script tracks how long staff members are in-game and sends the data to your backend API
 
 -- Configuration
-local API_URL = "https://staff.ahscampus.com/api/bot/roblox-minutes"
+local API_URL = "https://rankblox-dash-backend-706270663868.europe-west1.run.app/api/bot/roblox-minutes"
 local BOT_API_TOKEN = "9f3c2e8b7a4d6f1a0c5e92d8b4a7e3f1"
 local UPDATE_INTERVAL = 60 -- Update API every 60 seconds (1 minute)
 local DEBUG = true -- Set to false to reduce log output

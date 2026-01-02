@@ -36,7 +36,7 @@ export default function OverviewPage() {
 
         <div className="space-y-2">
           <a 
-            href="https://docs.ahscampus.com" 
+            href="https://docs.rankblox.xyz" 
             target="_blank" 
             rel="noopener noreferrer"
             className="flex items-center justify-between p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg group animate-slideUp"
