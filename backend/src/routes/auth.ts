@@ -229,14 +229,12 @@ router.get('/discord/callback', async (req: Request, res: Response) => {
     const token = generateToken(user.id, user.discord_id, user.rank);
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
-    // Format datetime for MySQL (YYYY-MM-DD HH:MM:SS). Avoid ISO 8601 `T`/`Z` strings.
-    const mysqlExpiresAt = expiresAt.toISOString().slice(0, 19).replace('T', ' ');
 
     // Delete old sessions and create new one
     await db.prepare('DELETE FROM sessions WHERE user_id = ?').run(user.id);
     const sessionInsertResult = await db.prepare(
       'INSERT INTO sessions (id, user_id, token, expires_at) VALUES (?, ?, ?, ?)'
-    ).run(sessionId, user.id, token, mysqlExpiresAt);
+    ).run(sessionId, user.id, token, expiresAt);
     
     // Verify session was created
     const verifySession = await db

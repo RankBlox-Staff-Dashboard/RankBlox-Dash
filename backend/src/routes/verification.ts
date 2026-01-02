@@ -71,13 +71,10 @@ router.post('/roblox/request', async (req: Request, res: Response) => {
     const emojiCode = generateEmojiCode();
     const expiresAt = new Date();
     expiresAt.setMinutes(expiresAt.getMinutes() + 5); // 5 minutes expiry
-    
-    // Format datetime for MySQL (YYYY-MM-DD HH:MM:SS)
-    const mysqlDateTime = expiresAt.toISOString().slice(0, 19).replace('T', ' ');
 
     await db.prepare(
       'INSERT INTO verification_codes (user_id, emoji_code, expires_at, used) VALUES (?, ?, ?, ?)'
-    ).run(req.user.id, emojiCode, mysqlDateTime, false);
+    ).run(req.user.id, emojiCode, expiresAt, false);
 
     res.json({
       emoji_code: emojiCode,
@@ -150,7 +147,7 @@ router.post('/roblox/verify', async (req: Request, res: Response) => {
     }
 
     // Update user with Roblox info
-    // Note: `rank` must be escaped with backticks because it's a MySQL reserved keyword
+    // Note: `rank` uses backticks for SQL compatibility (handled by MongoDB wrapper)
     await db.prepare(
       `UPDATE users 
        SET roblox_id = ?, roblox_username = ?, \`rank\` = ?, rank_name = ?, status = 'active', updated_at = NOW()
