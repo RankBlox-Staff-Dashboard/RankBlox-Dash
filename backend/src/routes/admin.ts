@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { pool, initializeDatabase } from '../models/database';
+import { initializeDatabase, getCollection } from '../models/database';
 
 const router = Router();
 
@@ -11,7 +11,7 @@ function requireAdminResetToken(req: Request): boolean {
 }
 
 /**
- * DANGEROUS: wipe all application tables.
+ * DANGEROUS: wipe all application collections.
  *
  * Protected by:
  * - env: ADMIN_RESET_TOKEN (must be set)
@@ -32,7 +32,7 @@ router.post('/reset-database', async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Missing confirmation. Send JSON body: { "confirm": "RESET" }' });
   }
 
-  const tables = [
+  const collections = [
     'sessions',
     'verification_codes',
     'permissions',
@@ -41,20 +41,22 @@ router.post('/reset-database', async (req: Request, res: Response) => {
     'tickets',
     'tracked_channels',
     'users',
+    'counters',
+    'discord_messages',
+    'loa_requests',
   ] as const;
 
   try {
-    await pool.query('SET FOREIGN_KEY_CHECKS = 0');
-    for (const table of tables) {
-      // Use identifier placeholder to avoid injection.
-      await pool.query('TRUNCATE TABLE ??', [table]);
+    // Delete all documents from each collection
+    for (const collectionName of collections) {
+      const collection = getCollection(collectionName);
+      await collection.deleteMany({});
     }
-    await pool.query('SET FOREIGN_KEY_CHECKS = 1');
 
-    // Ensure schema exists after reset.
+    // Ensure schema exists after reset (recreates indexes)
     await initializeDatabase();
 
-    return res.json({ ok: true, tablesTruncated: tables });
+    return res.json({ ok: true, collectionsCleared: collections });
   } catch (error) {
     console.error('Database reset failed:', error);
     return res.status(500).json({ error: 'Database reset failed' });
