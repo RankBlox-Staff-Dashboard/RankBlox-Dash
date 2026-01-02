@@ -66,11 +66,16 @@ router.get('/stats', requirePermission('VIEW_DASHBOARD'), async (req: Request, r
       tickets_claimed: activityLog.tickets_claimed || 0,
       tickets_resolved: activityLog.tickets_resolved || 0,
       minutes: activityLog.minutes != null ? parseInt(String(activityLog.minutes)) || 0 : 0,
-      infractions: infractionCount.count != null ? parseInt(String(infractionCount.count)) || 0 : 0,
+      infractions: infractionCount?.count != null ? parseInt(String(infractionCount.count)) || 0 : 0,
       week_start: weekStart,
     });
-  } catch (error) {
-    console.error('Error fetching stats:', error);
+  } catch (error: any) {
+    console.error('[Dashboard/Stats] Error fetching stats:', {
+      error: error.message,
+      stack: error.stack,
+      userId: req.user?.id,
+      timestamp: new Date().toISOString(),
+    });
     res.status(500).json({ error: 'Failed to fetch stats' });
   }
 });
@@ -96,8 +101,13 @@ router.get('/messages/count', requirePermission('VIEW_DASHBOARD'), async (req: R
       week_start: weekStart,
       week_start_datetime: weekStartDateTime,
     });
-  } catch (error) {
-    console.error('Error fetching messages count:', error);
+  } catch (error: any) {
+    console.error('[Dashboard/Messages/Count] Error fetching messages count:', {
+      error: error.message,
+      stack: error.stack,
+      userId: req.user?.id,
+      timestamp: new Date().toISOString(),
+    });
     res.status(500).json({ error: 'Failed to fetch messages count' });
   }
 });
@@ -154,10 +164,15 @@ router.get('/analytics', requireAdmin, requirePermission('VIEW_ANALYTICS'), asyn
     res.json({
       total_active_users: totalActiveUsers,
       active_workspaces: activeWorkspaces,
-      total_staff: totalStaff.count != null ? parseInt(String(totalStaff.count)) || 0 : 0,
+      total_staff: totalStaff?.count != null ? parseInt(String(totalStaff.count)) || 0 : 0,
     });
-  } catch (error) {
-    console.error('Error fetching analytics:', error);
+  } catch (error: any) {
+    console.error('[Dashboard/Analytics] Error fetching analytics:', {
+      error: error.message,
+      stack: error.stack,
+      userId: req.user?.id,
+      timestamp: new Date().toISOString(),
+    });
     res.status(500).json({ error: 'Failed to fetch analytics' });
   }
 });
@@ -262,9 +277,15 @@ router.get('/analytics/staff', requireAdmin, requirePermission('VIEW_ANALYTICS')
       };
     });
 
-    res.json(staffAnalytics);
-  } catch (error) {
-    console.error('Error fetching staff analytics:', error);
+    // Ensure we always return an array (never undefined or null)
+    res.json(staffAnalytics || []);
+  } catch (error: any) {
+    console.error('[Dashboard/Analytics/Staff] Error fetching staff analytics:', {
+      error: error.message,
+      stack: error.stack,
+      userId: req.user?.id,
+      timestamp: new Date().toISOString(),
+    });
     res.status(500).json({ error: 'Failed to fetch staff analytics' });
   }
 });
@@ -351,9 +372,14 @@ router.get('/analytics/non-staff', requireAdmin, requirePermission('VIEW_ANALYTI
       .sort((a, b) => a.discord_username.localeCompare(b.discord_username)); // Sort alphabetically
 
     // Always return array, even if empty (frontend handles empty state)
-    res.json(nonStaffMembers);
-  } catch (error) {
-    console.error('Error fetching non-staff members:', error);
+    res.json(nonStaffMembers || []);
+  } catch (error: any) {
+    console.error('[Dashboard/Analytics/NonStaff] Error fetching non-staff members:', {
+      error: error.message,
+      stack: error.stack,
+      userId: req.user?.id,
+      timestamp: new Date().toISOString(),
+    });
     // Return empty array with proper status code instead of error to allow frontend to show empty state
     return res.status(200).json([]);
   }
@@ -383,8 +409,13 @@ router.get('/loa/status', async (req: Request, res: Response) => {
       has_active_loa: !!activeLoa,
       loa: activeLoa || null,
     });
-  } catch (error) {
-    console.error('Error fetching LOA status:', error);
+  } catch (error: any) {
+    console.error('[Dashboard/LOA/Status] Error fetching LOA status:', {
+      error: error.message,
+      stack: error.stack,
+      userId: req.user?.id,
+      timestamp: new Date().toISOString(),
+    });
     res.status(500).json({ error: 'Failed to fetch LOA status' });
   }
 });
@@ -488,8 +519,13 @@ router.post('/loa', async (req: Request, res: Response) => {
       message: 'LOA request submitted successfully',
       loa_id: result.lastInsertRowid,
     });
-  } catch (error) {
-    console.error('Error creating LOA request:', error);
+  } catch (error: any) {
+    console.error('[Dashboard/LOA/Create] Error creating LOA request:', {
+      error: error.message,
+      stack: error.stack,
+      userId: req.user?.id,
+      timestamp: new Date().toISOString(),
+    });
     res.status(500).json({ error: 'Failed to create LOA request' });
   }
 });
@@ -524,8 +560,14 @@ router.delete('/loa/:id', async (req: Request, res: Response) => {
     await db.prepare('DELETE FROM loa_requests WHERE id = ?').run(loaId);
 
     res.json({ message: 'LOA request cancelled successfully' });
-  } catch (error) {
-    console.error('Error cancelling LOA request:', error);
+  } catch (error: any) {
+    console.error('[Dashboard/LOA/Delete] Error cancelling LOA request:', {
+      error: error.message,
+      stack: error.stack,
+      userId: req.user?.id,
+      loaId: req.params.id,
+      timestamp: new Date().toISOString(),
+    });
     res.status(500).json({ error: 'Failed to cancel LOA request' });
   }
 });

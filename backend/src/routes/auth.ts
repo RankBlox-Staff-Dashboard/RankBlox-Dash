@@ -330,13 +330,14 @@ router.get('/me', authenticateToken, async (req: Request, res: Response) => {
     return res.status(401).json({ error: 'Authentication required' });
   }
 
-  const user = await db
-    .prepare('SELECT * FROM users WHERE id = ?')
-    .get(req.user.id) as any;
+  try {
+    const user = await db
+      .prepare('SELECT * FROM users WHERE id = ?')
+      .get(req.user.id) as any;
 
-  if (!user) {
-    return res.status(404).json({ error: 'User not found' });
-  }
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
 
   // Compute verification status on backend - frontend should NOT compute this
   const isDiscordVerified = !!user.discord_id;
@@ -379,7 +380,16 @@ router.get('/me', authenticateToken, async (req: Request, res: Response) => {
       complete: isFullyVerified,
       next_step: verificationStep,
     },
-  });
+    });
+  } catch (error: any) {
+    console.error('[Auth/Me] Error fetching user:', {
+      error: error.message,
+      stack: error.stack,
+      userId: req.user?.id,
+      timestamp: new Date().toISOString(),
+    });
+    res.status(500).json({ error: 'Failed to fetch user profile' });
+  }
 });
 
 /**
@@ -390,16 +400,28 @@ router.post('/logout', authenticateToken, async (req: Request, res: Response) =>
     return res.status(401).json({ error: 'Authentication required' });
   }
 
-  // Use the session token that was resolved during authentication
-  // This handles both Bearer token and cookie-based sessions
-  if (req.sessionToken) {
-    await db.prepare('DELETE FROM sessions WHERE token = ?').run(req.sessionToken);
-  }
-  
-  // Clear the session cookie
-  res.clearCookie('session', cookieOptions());
+  try {
+    // Use the session token that was resolved during authentication
+    // This handles both Bearer token and cookie-based sessions
+    if (req.sessionToken) {
+      await db.prepare('DELETE FROM sessions WHERE token = ?').run(req.sessionToken);
+    }
+    
+    // Clear the session cookie
+    res.clearCookie('session', cookieOptions());
 
-  res.json({ message: 'Logged out successfully' });
+    res.json({ message: 'Logged out successfully' });
+  } catch (error: any) {
+    console.error('[Auth/Logout] Error during logout:', {
+      error: error.message,
+      stack: error.stack,
+      userId: req.user?.id,
+      timestamp: new Date().toISOString(),
+    });
+    // Still clear cookie even if DB deletion fails
+    res.clearCookie('session', cookieOptions());
+    res.status(500).json({ error: 'Failed to complete logout' });
+  }
 });
 
 export default router;

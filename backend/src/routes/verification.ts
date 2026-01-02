@@ -81,8 +81,13 @@ router.post('/roblox/request', async (req: Request, res: Response) => {
       expires_at: expiresAt.toISOString(),
       message: 'Place this emoji code in your Roblox bio or status, then click verify',
     });
-  } catch (error) {
-    console.error('Error generating verification code:', error);
+  } catch (error: any) {
+    console.error('[Verification/Roblox/Request] Error generating verification code:', {
+      error: error.message,
+      stack: error.stack,
+      userId: req.user?.id,
+      timestamp: new Date().toISOString(),
+    });
     res.status(500).json({ error: 'Failed to generate verification code' });
   }
 });
@@ -194,8 +199,13 @@ router.post('/roblox/verify', async (req: Request, res: Response) => {
       // Return new token so frontend can update localStorage
       token: newToken,
     });
-  } catch (error) {
-    console.error('Error verifying Roblox account:', error);
+  } catch (error: any) {
+    console.error('[Verification/Roblox/Verify] Error verifying Roblox account:', {
+      error: error.message,
+      stack: error.stack,
+      userId: req.user?.id,
+      timestamp: new Date().toISOString(),
+    });
     res.status(500).json({ error: 'Verification failed' });
   }
 });
@@ -208,18 +218,32 @@ router.get('/roblox/status', async (req: Request, res: Response) => {
     return res.status(401).json({ error: 'Authentication required' });
   }
 
-  // Note: `rank` uses backticks for SQL compatibility (handled by MongoDB wrapper)
-  const user = await db
-    .prepare('SELECT roblox_id, roblox_username, `rank`, rank_name, status FROM users WHERE id = ?')
-    .get(req.user.id) as any;
+  try {
+    // Note: `rank` uses backticks for SQL compatibility (handled by MongoDB wrapper)
+    const user = await db
+      .prepare('SELECT roblox_id, roblox_username, `rank`, rank_name, status FROM users WHERE id = ?')
+      .get(req.user.id) as any;
 
-  res.json({
-    verified: user.roblox_id !== null,
-    roblox_username: user.roblox_username,
-    rank: user.rank,
-    rank_name: user.rank_name,
-    status: user.status,
-  });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({
+      verified: user.roblox_id !== null,
+      roblox_username: user.roblox_username,
+      rank: user.rank,
+      rank_name: user.rank_name,
+      status: user.status,
+    });
+  } catch (error: any) {
+    console.error('[Verification/Roblox/Status] Error fetching verification status:', {
+      error: error.message,
+      stack: error.stack,
+      userId: req.user?.id,
+      timestamp: new Date().toISOString(),
+    });
+    res.status(500).json({ error: 'Failed to fetch verification status' });
+  }
 });
 
 export default router;

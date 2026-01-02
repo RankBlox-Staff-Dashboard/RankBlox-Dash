@@ -764,9 +764,16 @@ router.get('/loa', async (req: Request, res: Response) => {
 
     const loaRequests = await db.prepare(query).all(...params) as any[];
 
-    res.json(loaRequests);
-  } catch (error) {
-    console.error('Error fetching LOA requests:', error);
+    // Ensure we always return an array (never undefined or null)
+    res.json(loaRequests || []);
+  } catch (error: any) {
+    console.error('[Management/LOA] Error fetching LOA requests:', {
+      error: error.message,
+      stack: error.stack,
+      userId: req.user?.id,
+      status: req.query.status,
+      timestamp: new Date().toISOString(),
+    });
     res.status(500).json({ error: 'Failed to fetch LOA requests' });
   }
 });
@@ -902,9 +909,15 @@ router.get('/infractions', async (req: Request, res: Response) => {
       )
       .all() as any[];
 
-    res.json(infractions);
-  } catch (error) {
-    console.error('Error fetching infractions:', error);
+    // Ensure we always return an array (never undefined or null)
+    res.json(infractions || []);
+  } catch (error: any) {
+    console.error('[Management/Infractions] Error fetching infractions:', {
+      error: error.message,
+      stack: error.stack,
+      userId: req.user?.id,
+      timestamp: new Date().toISOString(),
+    });
     res.status(500).json({ error: 'Failed to fetch infractions' });
   }
 });
@@ -1086,9 +1099,16 @@ router.get('/users/:id/infractions', async (req: Request, res: Response) => {
       )
       .all(userId) as any[];
 
-    res.json(infractions);
-  } catch (error) {
-    console.error('Error fetching user infractions:', error);
+    // Ensure we always return an array (never undefined or null)
+    res.json(infractions || []);
+  } catch (error: any) {
+    console.error('[Management/UserInfractions] Error fetching user infractions:', {
+      error: error.message,
+      stack: error.stack,
+      userId: req.user?.id,
+      targetUserId: req.params.id,
+      timestamp: new Date().toISOString(),
+    });
     res.status(500).json({ error: 'Failed to fetch user infractions' });
   }
 });

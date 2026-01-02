@@ -45,9 +45,15 @@ router.get('/', requirePermission('VIEW_TICKETS'), async (req: Request, res: Res
 
     const tickets = await db.prepare(query).all(...params) as any[];
 
-    res.json(tickets);
-  } catch (error) {
-    console.error('Error fetching tickets:', error);
+    // Ensure we always return an array (never undefined or null)
+    res.json(tickets || []);
+  } catch (error: any) {
+    console.error('[Tickets] Error fetching tickets:', {
+      error: error.message,
+      stack: error.stack,
+      userId: req.user?.id,
+      timestamp: new Date().toISOString(),
+    });
     res.status(500).json({ error: 'Failed to fetch tickets' });
   }
 });
