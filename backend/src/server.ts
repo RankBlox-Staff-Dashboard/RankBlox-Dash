@@ -21,7 +21,7 @@ import { startAutoSync, stopAutoSync } from './services/groupSync';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 8080;
+const PORT = parseInt(process.env.PORT || '8080', 10);
 const DEFAULT_FRONTEND_URL = 'https://staff.rankblox.xyz';
 const FRONTEND_URL = process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL;
 const normalizeOrigin = (value?: string) => {
@@ -94,9 +94,14 @@ app.use('/api/permissions', permissionsRoutes);
 app.use('/api/bot', botRoutes);
 app.use('/api/admin', adminRoutes);
 
-// Health check
+// Health check - must respond quickly for Cloud Run
+let dbReady = false;
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok' });
+  if (dbReady) {
+    res.json({ status: 'ok', database: 'connected' });
+  } else {
+    res.status(503).json({ status: 'starting', database: 'connecting' });
+  }
 });
 
 // CORS test endpoint (temporary - for debugging)
@@ -197,8 +202,19 @@ cron.schedule('0 0 * * 1', checkWeeklyQuotas, {
   timezone: 'UTC',
 });
 
-// Initialize database and start server
-async function startServer() {
+// Start server immediately (Cloud Run requires this)
+// Database connection will happen in background
+const server = app.listen(PORT, '0.0.0.0', () => {
+  console.log('========================================');
+  console.log('✅ HTTP server started and listening!');
+  console.log(`📡 Server running on port ${PORT}`);
+  console.log(`🌐 Frontend URL(s): ${FRONTEND_URLS.join(', ')}`);
+  console.log('========================================');
+  console.log('[Startup] Connecting to database in background...');
+});
+
+// Initialize database in background (non-blocking)
+async function initializeDatabaseConnection() {
   try {
     console.log('[Startup] Connecting to database...');
     await connectDatabase();
@@ -209,40 +225,34 @@ async function startServer() {
     console.log('[Startup] Starting automatic group rank synchronization...');
     startAutoSync();
     
-    // Start server after database is ready
-    const server = app.listen(PORT, () => {
-      console.log('========================================');
-      console.log('✅ Server started successfully!');
-      console.log(`📡 Server running on port ${PORT}`);
-      console.log(`🌐 Frontend URL(s): ${FRONTEND_URLS.join(', ')}`);
-      console.log('========================================');
-    });
-    
-        // Graceful shutdown handlers
-    const shutdown = (signal: string) => {
-      console.log(`${signal} received, closing server gracefully...`);
-      // Stop group sync interval
-      stopAutoSync();
-      server.close(() => {
-        console.log('Server closed');
-        db.close().then(() => {
-          console.log('Database connection closed');
-          process.exit(0);
-        }).catch((err) => {
-          console.error('Error closing database:', err);
-          process.exit(1);
-        });
-      });
-    };
-    
-    process.on('SIGTERM', () => shutdown('SIGTERM'));
-    process.on('SIGINT', () => shutdown('SIGINT'));
-    
-  } catch (error) {
-    console.error('[Startup] ❌ Failed to start server:', error);
-    process.exit(1);
+    dbReady = true;
+    console.log('[Startup] ✅ Database initialization complete!');
+  } catch (error: any) {
+    console.error('[Startup] ❌ Failed to initialize database:', error.message || error);
+    // Don't exit - server can still serve requests, just without database
+    // Health check will show database is not ready
   }
 }
 
-// Start the server
-startServer();
+// Start database initialization in background
+initializeDatabaseConnection();
+
+// Graceful shutdown handlers
+const shutdown = (signal: string) => {
+  console.log(`${signal} received, closing server gracefully...`);
+  // Stop group sync interval
+  stopAutoSync();
+  server.close(() => {
+    console.log('Server closed');
+    db.close().then(() => {
+      console.log('Database connection closed');
+      process.exit(0);
+    }).catch((err) => {
+      console.error('Error closing database:', err);
+      process.exit(1);
+    });
+  });
+};
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));

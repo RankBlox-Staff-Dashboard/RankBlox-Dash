@@ -56,7 +56,8 @@ FRONTEND_URLS=https://your-frontend-domain.com,https://another-domain.com
 BOT_API_TOKEN=your-long-random-secret-token
 
 # Bot API URL (optional, defaults to http://localhost:3001)
-BOT_API_URL=http://localhost:3001
+# Production: https://rankblox-dash-706270663868.europe-west1.run.app
+BOT_API_URL=https://rankblox-dash-706270663868.europe-west1.run.app
 ```
 
 ## Optional Variables
@@ -105,7 +106,7 @@ FRONTEND_URL=https://staff.rankblox.xyz
 
 # Bot Integration
 BOT_API_TOKEN=your-long-random-secret-token-must-match-bot
-BOT_API_URL=https://bot.rankblox.com
+BOT_API_URL=https://rankblox-dash-706270663868.europe-west1.run.app
 
 # Server
 PORT=8080
