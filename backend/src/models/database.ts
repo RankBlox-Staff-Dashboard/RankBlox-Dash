@@ -64,7 +64,12 @@ class DatabaseWrapper {
       // SELECT queries -> find operations
       get: async (...params: any[]) => {
         const parsed = this.parseSQL(sql, params);
-        if (parsed.type === 'findOne') {
+        if (parsed.type === 'count') {
+          // Handle COUNT queries
+          const collection = getCollection(parsed.collection);
+          const count = await collection.countDocuments(parsed.filter);
+          return { count };
+        } else if (parsed.type === 'findOne') {
           const collection = getCollection(parsed.collection);
           const result = await collection.findOne(parsed.filter) as any;
           // Convert ObjectId to string for _id if present
@@ -309,16 +314,22 @@ class DatabaseWrapper {
     
     // SELECT ... FROM table WHERE ... ORDER BY ... LIMIT ...
     if (normalized.match(/^SELECT/i)) {
-      const match = normalized.match(/FROM\s+(\w+)(?:\s+WHERE\s+(.+?))?(?:\s+ORDER\s+BY\s+(.+?))?(?:\s+LIMIT\s+(\d+))?/i);
+      // Check if it's a COUNT query FIRST (before parsing WHERE clause)
+      // This is important because COUNT queries need special handling
+      const isCountQuery = normalized.match(/COUNT\(\*\)/i);
+      
+      // Use a more robust regex that captures the full WHERE clause
+      // Match everything from WHERE to ORDER BY, LIMIT, or end of string
+      const match = normalized.match(/FROM\s+(\w+)(?:\s+WHERE\s+((?:(?!\s+ORDER\s+BY|\s+LIMIT|$).)+))?(?:\s+ORDER\s+BY\s+((?:(?!\s+LIMIT|$).)+))?(?:\s+LIMIT\s+(\d+))?$/i);
       if (match) {
         const [, table, whereClause, orderBy, limit] = match;
-        const filter = this.parseWhere(whereClause, params);
-        const sort = orderBy ? this.parseOrderBy(orderBy) : undefined;
+        const filter = whereClause ? this.parseWhere(whereClause.trim(), params) : {};
+        const sort = orderBy ? this.parseOrderBy(orderBy.trim()) : undefined;
         const limitNum = limit ? parseInt(limit) : undefined;
         
         // Check if it's a COUNT query
-        if (normalized.match(/COUNT\(\*\)/i)) {
-          // For COUNT, we'll need to use countDocuments
+        if (isCountQuery) {
+          // For COUNT, use MongoDB countDocuments
           return { type: 'count', collection: table, filter };
         }
         
@@ -399,6 +410,26 @@ class DatabaseWrapper {
         const col = condition.replace(' IS NOT NULL', '').trim();
         const fieldName = this.convertColumnName(col);
         filter[fieldName] = { $ne: null };
+      } else if (condition.match(/\s+=\s+false$/i)) {
+        // Handle literal boolean false (e.g., voided = false)
+        const col = condition.replace(/\s+=\s+false$/i, '').trim();
+        const fieldName = this.convertColumnName(col);
+        filter[fieldName] = false;
+      } else if (condition.match(/\s+=\s+true$/i)) {
+        // Handle literal boolean true (e.g., active = true)
+        const col = condition.replace(/\s+=\s+true$/i, '').trim();
+        const fieldName = this.convertColumnName(col);
+        filter[fieldName] = true;
+      } else if (condition.match(/\s+=\s+0$/)) {
+        // Handle literal integer 0 (e.g., voided = 0)
+        const col = condition.replace(/\s+=\s+0$/, '').trim();
+        const fieldName = this.convertColumnName(col);
+        filter[fieldName] = 0;
+      } else if (condition.match(/\s+=\s+1$/)) {
+        // Handle literal integer 1 (e.g., voided = 1)
+        const col = condition.replace(/\s+=\s+1$/, '').trim();
+        const fieldName = this.convertColumnName(col);
+        filter[fieldName] = 1;
       } else if (condition.includes(' >= ?')) {
         const [col, val] = condition.split(' >= ?');
         const fieldName = this.convertColumnName(col.trim());

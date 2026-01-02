@@ -28,12 +28,12 @@ function getFrontendUrl(): string {
 function cookieOptions() {
   const isProd = process.env.NODE_ENV === 'production';
   return {
-    httpOnly: true,
-    secure: isProd, // Only send over HTTPS in production
-    sameSite: 'lax' as const, // Allow cookie on top-level navigation (OAuth redirect)
+    httpOnly: true, // CRITICAL: Prevents XSS attacks - cookie not accessible via JavaScript
+    secure: isProd, // CRITICAL: Only send over HTTPS in production
+    sameSite: 'lax' as const, // SECURITY: 'lax' allows OAuth redirects but prevents CSRF on POST requests
     path: '/',
-    // Don't set domain - let browser handle it automatically
-    // This ensures cookie works for the exact domain (including subdomains)
+    // CRITICAL: Don't set domain - let browser handle it automatically
+    // Setting domain explicitly can cause cookie sharing across subdomains (security risk)
   };
 }
 
@@ -129,36 +129,36 @@ router.get('/discord/callback', async (req: Request, res: Response) => {
     }
     
     if (!stateRecord) {
-      console.error('[OAuth Callback] ❌ State not found in database or expired');
+      console.error('[OAuth Callback] ❌ SECURITY: State not found in database or expired');
       console.error('[OAuth Callback] This could mean:');
       console.error('[OAuth Callback]   1. State was never stored');
       console.error('[OAuth Callback]   2. State expired (>10 minutes)');
-      console.error('[OAuth Callback]   3. Invalid/forged state parameter');
+      console.error('[OAuth Callback]   3. Invalid/forged state parameter - POSSIBLE ATTACK');
       console.error('[OAuth Callback]   4. Database connection issue');
       
-      // Fallback: try cookie (for backwards compatibility)
-      const cookieState = (req as any)?.cookies?.oauth_state as string | undefined;
-      if (cookieState && cookieState === state) {
-        console.warn('[OAuth Callback] ⚠️  State not in DB but cookie matches - using cookie as fallback');
-        // Continue with authentication using cookie validation
+      // SECURITY: Do NOT use cookie fallback - database validation is required
+      // Cookie fallback was a security vulnerability that allowed state reuse
+      console.error('[OAuth Callback] ❌ Rejecting authentication - state validation failed (no cookie fallback for security)');
+      res.clearCookie('oauth_state', cookieOptions());
+      const frontendUrl = getFrontendUrl();
+      return res.redirect(`${frontendUrl}/login?error=invalid_state&message=State validation failed. Please try again.`);
+    }
+    
+    // SECURITY: State validated successfully - delete it immediately (one-time use)
+    console.log('[OAuth Callback] ✅ State found in database - deleting (one-time use)');
+    try {
+      const oauthStatesCollection = getCollection('oauth_states');
+      const deleteResult = await oauthStatesCollection.deleteOne({ state: state });
+      if (deleteResult.deletedCount === 1) {
+        console.log('[OAuth Callback] ✅ State record deleted successfully');
       } else {
-        console.error('[OAuth Callback] ❌ Cookie fallback also failed');
-        console.error('[OAuth Callback] Cookie state:', cookieState ? 'present' : 'missing');
-        res.clearCookie('oauth_state', cookieOptions());
-        const frontendUrl = getFrontendUrl();
-        return res.redirect(`${frontendUrl}/login?error=invalid_state&message=State validation failed. Please try again.`);
+        console.warn('[OAuth Callback] ⚠️  State record not found for deletion (may have been deleted already)');
       }
-    } else {
-      console.log('[OAuth Callback] ✅ State found in database');
-      
-      // Delete the state record (one-time use)
-      try {
-        const oauthStatesCollection = getCollection('oauth_states');
-        await oauthStatesCollection.deleteOne({ state: state });
-        console.log('[OAuth Callback] ✅ State record deleted (one-time use)');
-      } catch (deleteError: any) {
-        console.warn('[OAuth Callback] ⚠️  Failed to delete state record (non-critical):', deleteError.message);
-      }
+    } catch (deleteError: any) {
+      console.error('[OAuth Callback] ❌ CRITICAL: Failed to delete state record:', deleteError.message);
+      // Don't proceed if we can't delete the state - security risk
+      const frontendUrl = getFrontendUrl();
+      return res.redirect(`${frontendUrl}/login?error=server_error&message=State deletion failed`);
     }
     
     // Also clear cookie if present
@@ -186,34 +186,60 @@ router.get('/discord/callback', async (req: Request, res: Response) => {
       return res.redirect(`${frontendUrl}/login?error=token_exchange_failed`);
     }
 
-    // Get Discord user info
+    // SECURITY: Get Discord user info directly from OAuth provider
+    // CRITICAL: This is the ONLY source of truth for Discord user identity
     const discordUser = await getDiscordUser(accessToken);
-    if (!discordUser) {
-      console.error('[OAuth Callback] ❌ Failed to fetch Discord user info');
+    if (!discordUser || !discordUser.id) {
+      console.error('[OAuth Callback] ❌ Failed to fetch Discord user info or missing Discord ID');
       const frontendUrl = getFrontendUrl();
       return res.redirect(`${frontendUrl}/login?error=user_fetch_failed`);
     }
+    
+    console.log(`[OAuth Callback] ✅ Discord user authenticated: ${discordUser.id} (${discordUser.username})`);
 
-    // Find or create user
+    // SECURITY: Find or create user using Discord ID ONLY (from OAuth provider)
+    // CRITICAL: Never trust client-provided user IDs - always use Discord ID from OAuth
     let user = await db
-      .prepare('SELECT * FROM users WHERE discord_id = ?')
+      .prepare('SELECT id, discord_id, discord_username, discord_avatar, roblox_id, roblox_username, `rank`, status FROM users WHERE discord_id = ?')
       .get(discordUser.id) as any;
 
     if (!user) {
-      // Create new user with avatar
+      // SECURITY: Create new user - Discord ID is the primary identifier
+      console.log(`[OAuth Callback] Creating new user for Discord ID: ${discordUser.id}`);
       const insertResult = await db
         .prepare('INSERT INTO users (discord_id, discord_username, discord_avatar, status) VALUES (?, ?, ?, ?)')
         .run(discordUser.id, discordUser.username, discordUser.avatar, 'pending_verification') as any;
       
       if (!insertResult || !insertResult.lastInsertRowid) {
+        console.error(`[OAuth Callback] ❌ Failed to create user for Discord ID: ${discordUser.id}`);
         throw new Error('Failed to create user');
       }
       
-      // Fetch the newly created user
+      // SECURITY: Fetch the newly created user using the database-generated ID
+      // CRITICAL: Use lastInsertRowid to ensure we get the correct user
       user = await db
-        .prepare('SELECT * FROM users WHERE id = ?')
+        .prepare('SELECT id, discord_id, discord_username, discord_avatar, roblox_id, roblox_username, `rank`, status FROM users WHERE id = ?')
         .get(insertResult.lastInsertRowid) as any;
+      
+      // SECURITY: Verify the created user has the correct Discord ID
+      if (!user || user.discord_id !== discordUser.id) {
+        console.error(`[OAuth Callback] ❌ CRITICAL: Created user Discord ID mismatch!`);
+        console.error(`[OAuth Callback] Expected: ${discordUser.id}, Got: ${user?.discord_id}`);
+        throw new Error('User creation verification failed');
+      }
+      
+      console.log(`[OAuth Callback] ✅ New user created: ID ${user.id}, Discord ID: ${user.discord_id}`);
     } else {
+      // SECURITY: Update existing user - verify Discord ID matches
+      if (user.discord_id !== discordUser.id) {
+        console.error(`[OAuth Callback] ❌ CRITICAL SECURITY VIOLATION: User Discord ID mismatch!`);
+        console.error(`[OAuth Callback] Expected: ${discordUser.id}, Got: ${user.discord_id} for user ID: ${user.id}`);
+        const frontendUrl = getFrontendUrl();
+        return res.redirect(`${frontendUrl}/login?error=security_violation`);
+      }
+      
+      console.log(`[OAuth Callback] ✅ Existing user found: ID ${user.id}, Discord ID: ${user.discord_id}`);
+      
       // Update username and avatar if changed
       await db.prepare('UPDATE users SET discord_username = ?, discord_avatar = ? WHERE id = ?').run(
         discordUser.username,
@@ -221,30 +247,59 @@ router.get('/discord/callback', async (req: Request, res: Response) => {
         user.id
       );
       // Refetch user to get updated data
-      user = await db.prepare('SELECT * FROM users WHERE id = ?').get(user.id) as any;
+      user = await db
+        .prepare('SELECT id, discord_id, discord_username, discord_avatar, roblox_id, roblox_username, `rank`, status FROM users WHERE id = ?')
+        .get(user.id) as any;
+    }
+    
+    // SECURITY: Final verification - ensure user Discord ID matches OAuth provider
+    if (user.discord_id !== discordUser.id) {
+      console.error(`[OAuth Callback] ❌ CRITICAL: Final verification failed - Discord ID mismatch!`);
+      console.error(`[OAuth Callback] User ID: ${user.id}, Expected Discord ID: ${discordUser.id}, Got: ${user.discord_id}`);
+      const frontendUrl = getFrontendUrl();
+      return res.redirect(`${frontendUrl}/login?error=security_violation`);
     }
 
-    // Create session
+    // SECURITY: Create session atomically
+    // CRITICAL: Generate unique session ID and token for THIS user only
     const sessionId = uuidv4();
     const token = generateToken(user.id, user.discord_id, user.rank);
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
 
-    // Delete old sessions and create new one
-    await db.prepare('DELETE FROM sessions WHERE user_id = ?').run(user.id);
+    // SECURITY: Delete ALL old sessions for THIS user only (prevents session reuse)
+    // Using user.id ensures sessions are isolated per user
+    console.log(`[OAuth Callback] Deleting old sessions for user ${user.id} (Discord ID: ${user.discord_id})`);
+    const deleteResult = await db.prepare('DELETE FROM sessions WHERE user_id = ?').run(user.id);
+    console.log(`[OAuth Callback] Deleted ${deleteResult.changes} old session(s) for user ${user.id}`);
+
+    // SECURITY: Create new session with unique token bound to THIS user
+    console.log(`[OAuth Callback] Creating new session for user ${user.id} (Discord ID: ${user.discord_id})`);
     const sessionInsertResult = await db.prepare(
       'INSERT INTO sessions (id, user_id, token, expires_at) VALUES (?, ?, ?, ?)'
     ).run(sessionId, user.id, token, expiresAt);
     
-    // Verify session was created
+    // SECURITY: Verify session was created correctly and belongs to the correct user
     const verifySession = await db
-      .prepare('SELECT * FROM sessions WHERE token = ?')
-      .get(token) as any;
+      .prepare('SELECT id, user_id, token, expires_at FROM sessions WHERE token = ? AND user_id = ?')
+      .get(token, user.id) as { id: string; user_id: number; token: string; expires_at: Date } | undefined;
     
     if (!verifySession) {
-      console.error('Failed to create session - session not found after insert');
-      throw new Error('Failed to create session');
+      console.error(`[OAuth Callback] ❌ CRITICAL: Session verification failed for user ${user.id}`);
+      console.error(`[OAuth Callback] Token: ${token.substring(0, 20)}...`);
+      throw new Error('Failed to create session - verification failed');
     }
+    
+    // SECURITY: Verify the session user_id matches the user we just created/updated
+    if (verifySession.user_id !== user.id) {
+      console.error(`[OAuth Callback] ❌ CRITICAL SECURITY VIOLATION: Session user_id mismatch!`);
+      console.error(`[OAuth Callback] Expected user_id: ${user.id}, Got: ${verifySession.user_id}`);
+      // Delete the incorrectly created session
+      await db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
+      throw new Error('Session verification failed - user ID mismatch');
+    }
+    
+    console.log(`[OAuth Callback] ✅ Session created and verified for user ${user.id} (Discord ID: ${user.discord_id})`);
     
     // Set httpOnly cookie as a safer default transport; frontend can still use Bearer token.
     res.cookie('session', token, { ...cookieOptions(), maxAge: 7 * 24 * 60 * 60 * 1000 });

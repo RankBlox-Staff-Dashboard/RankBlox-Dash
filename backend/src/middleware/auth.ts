@@ -67,28 +67,42 @@ export async function authenticateToken(
   try {
     const decoded = jwt.verify(token, jwtSecret, { algorithms: ['HS256'] }) as JwtPayload;
     
-    // Verify session still exists and is valid (NOW() is converted to current date by MongoDB wrapper)
+    // SECURITY: Verify session still exists and is valid
+    // CRITICAL: Session lookup uses token as primary key to ensure session isolation
     let session: { id: string; user_id: number; token: string; expires_at: Date } | undefined;
     try {
       session = await db
-        .prepare('SELECT * FROM sessions WHERE token = ? AND expires_at > NOW()')
+        .prepare('SELECT id, user_id, token, expires_at FROM sessions WHERE token = ? AND expires_at > NOW()')
         .get(token) as { id: string; user_id: number; token: string; expires_at: Date } | undefined;
     } catch (dbError) {
-      console.error('Database error during session lookup:', dbError);
+      console.error('[Auth] ❌ Database error during session lookup:', dbError);
       res.status(500).json({ error: 'Database error' });
       return;
     }
 
     if (!session) {
+      console.warn(`[Auth] ⚠️  Session not found or expired for token (length: ${token.length})`);
       res.status(401).json({ error: 'Session expired or invalid', code: 'SESSION_EXPIRED' });
       return;
     }
 
-    // Defensive consistency check
+    // SECURITY: Defensive consistency check - JWT userId must match session user_id
+    // CRITICAL: Prevents token reuse across different users
     if (decoded.userId !== session.user_id) {
+      console.error(`[Auth] ❌ CRITICAL SECURITY VIOLATION: JWT userId ${decoded.userId} does not match session user_id ${session.user_id}`);
+      console.error(`[Auth] Session ID: ${session.id}, Token prefix: ${token.substring(0, 20)}...`);
+      // Invalidate the session immediately
+      try {
+        await db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
+        console.error('[Auth] ✅ Invalidated compromised session');
+      } catch (deleteError) {
+        console.error('[Auth] ❌ Failed to delete compromised session:', deleteError);
+      }
       res.status(403).json({ error: 'Invalid token', code: 'TOKEN_USER_MISMATCH' });
       return;
     }
+    
+    console.log(`[Auth] ✅ Session validated for user_id: ${session.user_id}, JWT userId: ${decoded.userId}`);
 
     // Get FRESH user info from database (backticks around 'rank' are for SQL compatibility, handled by MongoDB wrapper)
     const user = await db
@@ -105,6 +119,20 @@ export async function authenticateToken(
 
     if (!user) {
       res.status(404).json({ error: 'User not found', code: 'USER_NOT_FOUND' });
+      return;
+    }
+
+    // CRITICAL SECURITY CHECK: Validate JWT discordId matches database discord_id
+    // This prevents token reuse if a user's Discord ID changes or tokens are somehow compromised
+    if (decoded.discordId !== user.discord_id) {
+      console.error(`[Auth] Security violation: JWT discordId ${decoded.discordId} does not match user discord_id ${user.discord_id} for user ${user.id}`);
+      // Invalidate the session since the token is no longer valid for this user
+      try {
+        await db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
+      } catch (deleteError) {
+        console.error('[Auth] Error deleting invalid session:', deleteError);
+      }
+      res.status(403).json({ error: 'Token validation failed', code: 'TOKEN_DISCORD_MISMATCH' });
       return;
     }
 
@@ -219,6 +247,7 @@ export function generateToken(userId: number, discordId: string, rank: number | 
 
 /**
  * Update session with new token.
+ * SECURITY: Validates that the old token belongs to the specified user before updating.
  */
 export async function refreshSessionToken(
   userId: number,
@@ -226,10 +255,30 @@ export async function refreshSessionToken(
   rank: number | null,
   oldToken: string
 ): Promise<string> {
+  // Verify the old token exists and belongs to this user
+  const oldSession = await db
+    .prepare('SELECT user_id, token FROM sessions WHERE token = ? AND user_id = ? AND expires_at > NOW()')
+    .get(oldToken, userId) as { user_id: number; token: string } | undefined;
+  
+  if (!oldSession) {
+    throw new Error('Invalid or expired session token');
+  }
+  
+  // Verify the session token matches exactly (defense in depth)
+  if (oldSession.token !== oldToken || oldSession.user_id !== userId) {
+    throw new Error('Session token validation failed');
+  }
+  
   const newToken = generateToken(userId, discordId, rank);
   
-  await db.prepare('UPDATE sessions SET token = ? WHERE token = ? AND user_id = ?')
+  // Update the session token - only update if old token matches and user_id matches
+  const result = await db.prepare('UPDATE sessions SET token = ? WHERE token = ? AND user_id = ?')
     .run(newToken, oldToken, userId);
+  
+  // Verify the update succeeded (should have modified 1 row)
+  if (result.changes !== 1) {
+    throw new Error('Failed to refresh session token - update did not affect exactly one row');
+  }
   
   return newToken;
 }
