@@ -93,7 +93,10 @@ DB_NAME=rankblox_staff
 # Discord OAuth
 DISCORD_CLIENT_ID=1413264592368435382
 DISCORD_CLIENT_SECRET=your_discord_client_secret
-DISCORD_REDIRECT_URI=https://rankblox-dash-backend-706270663868.europe-west1.run.app/api/auth/discord/callback
+# NOTE: DISCORD_REDIRECT_URI is now hardcoded in the code
+# The redirect URI is: https://rankblox-dash-backend-706270663868.europe-west1.run.app/api/auth/discord/callback
+# Make sure this EXACT URL is configured in your Discord app settings
+# DISCORD_REDIRECT_URI=https://rankblox-dash-backend-706270663868.europe-west1.run.app/api/auth/discord/callback
 
 # Security
 JWT_SECRET=your-strong-random-secret-key-generated-with-openssl-rand-hex-32

@@ -2,7 +2,9 @@ import axios from 'axios';
 
 const CLIENT_ID = process.env.DISCORD_CLIENT_ID;
 const CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET;
-const REDIRECT_URI = process.env.DISCORD_REDIRECT_URI;
+// Hardcoded redirect URI - must point to backend endpoint, not frontend
+const HARDCODED_REDIRECT_URI = 'https://rankblox-dash-backend-706270663868.europe-west1.run.app/api/auth/discord/callback';
+const REDIRECT_URI = HARDCODED_REDIRECT_URI; // Always use hardcoded URL
 
 interface DiscordTokenResponse {
   access_token: string;
