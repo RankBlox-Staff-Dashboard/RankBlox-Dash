@@ -72,6 +72,22 @@ class DatabaseWrapper {
             result._id = result._id.toString();
           }
           return result;
+        } else if (parsed.type === 'find') {
+          // Handle regular SELECT queries - get() should return first result only
+          const collection = getCollection(parsed.collection);
+          let cursor = collection.find(parsed.filter);
+          if (parsed.sort) {
+            cursor = cursor.sort(parsed.sort);
+          }
+          // Limit to 1 since get() should return a single row
+          cursor = cursor.limit(1);
+          const results = await cursor.toArray() as any[];
+          const result = results[0] || null;
+          // Convert ObjectId to string for _id if present
+          if (result && result._id) {
+            result._id = result._id.toString();
+          }
+          return result;
         } else if (parsed.type === 'findWithJoin') {
           // Handle JOIN queries
           const mainCollection = getCollection(parsed.collection);
