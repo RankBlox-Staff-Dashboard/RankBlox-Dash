@@ -25,6 +25,10 @@ interface DiscordUser {
  */
 export async function exchangeDiscordCode(code: string): Promise<string | null> {
   try {
+    console.log('[Discord OAuth] Exchanging code for token...');
+    console.log('[Discord OAuth] Redirect URI:', REDIRECT_URI);
+    console.log('[Discord OAuth] Client ID:', CLIENT_ID ? 'SET' : 'NOT SET');
+    
     const response = await axios.post(
       'https://discord.com/api/oauth2/token',
       new URLSearchParams({
@@ -42,9 +46,14 @@ export async function exchangeDiscordCode(code: string): Promise<string | null> 
     );
 
     const data = response.data as DiscordTokenResponse;
+    console.log('[Discord OAuth] ✅ Token exchange successful');
     return data.access_token;
-  } catch (error) {
-    console.error('Error exchanging Discord code:', error);
+  } catch (error: any) {
+    console.error('[Discord OAuth] ❌ Error exchanging code:', error.response?.data || error.message);
+    if (error.response) {
+      console.error('[Discord OAuth] Status:', error.response.status);
+      console.error('[Discord OAuth] Response:', JSON.stringify(error.response.data, null, 2));
+    }
     return null;
   }
 }

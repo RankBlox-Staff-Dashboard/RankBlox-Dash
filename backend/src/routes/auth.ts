@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { exchangeDiscordCode, getDiscordUser, getDiscordOAuthUrl } from '../services/discord';
 import { generateToken, authenticateToken } from '../middleware/auth';
-import { db } from '../models/database';
+import { db, getCollection } from '../models/database';
 import { v4 as uuidv4 } from 'uuid';
 import { initializeUserPermissions } from '../services/permissions';
 import crypto from 'crypto';
@@ -9,31 +9,76 @@ import crypto from 'crypto';
 const router = Router();
 
 function getFrontendUrl(): string {
-  // Hardcoded frontend URL
-  return 'https://rank-blox-dash.vercel.app';
+  // Hardcoded frontend URL - must match actual frontend deployment
+  const hardcodedUrl = 'https://staff.rankblox.xyz';
+  // Safeguard: if an old URL is somehow still configured, use the hardcoded one.
+  if (process.env.FRONTEND_URL?.includes('ahscampus.com') || process.env.FRONTEND_URLS?.includes('ahscampus.com')) {
+    console.warn('Detected old ahscampus.com frontend URL in environment variables. Using hardcoded URL instead.');
+    return hardcodedUrl;
+  }
+  // Original logic (now secondary to hardcoded value)
+  if (process.env.FRONTEND_URL) return process.env.FRONTEND_URL;
+  const first = process.env.FRONTEND_URLS?.split(',')?.[0]?.trim();
+  return first || hardcodedUrl; // Fallback to hardcoded
 }
 
 function cookieOptions() {
   const isProd = process.env.NODE_ENV === 'production';
   return {
     httpOnly: true,
-    secure: isProd,
-    sameSite: 'lax' as const,
+    secure: isProd, // Only send over HTTPS in production
+    sameSite: 'lax' as const, // Allow cookie on top-level navigation (OAuth redirect)
     path: '/',
-    domain: undefined, // Let browser set domain automatically
+    // Don't set domain - let browser handle it automatically
+    // This ensures cookie works for the exact domain (including subdomains)
   };
 }
 
 /**
  * Initiate Discord OAuth flow
+ * Uses database storage for state instead of cookies to avoid browser cookie blocking
  */
-router.get('/discord', (req: Request, res: Response) => {
+router.get('/discord', async (req: Request, res: Response) => {
   // Always generate and bind state server-side to prevent login CSRF / swapping.
   const state = crypto.randomUUID();
-  res.cookie('oauth_state', state, { ...cookieOptions(), maxAge: 10 * 60 * 1000 });
+  
+  // Log for debugging
+  console.log('[OAuth Init] Generated state:', state);
+  console.log('[OAuth Init] Request origin:', req.headers.origin);
+  console.log('[OAuth Init] Request referer:', req.headers.referer);
+  
+  try {
+    // Store state in database with 10 minute expiration
+    const expiresAt = new Date();
+    expiresAt.setMinutes(expiresAt.getMinutes() + 10);
+    
+    const oauthStatesCollection = getCollection('oauth_states');
+    await oauthStatesCollection.insertOne({
+      state: state,
+      created_at: new Date(),
+      expires_at: expiresAt,
+    });
+    
+    console.log('[OAuth Init] ✅ State stored in database, expires at:', expiresAt.toISOString());
+    
+    // Also try to set cookie as fallback (but don't rely on it)
+    const cookieOpts = {
+      ...cookieOptions(),
+      maxAge: 10 * 60 * 1000, // 10 minutes
+      sameSite: 'none' as const, // Use 'none' for cross-site redirects
+      secure: true, // Required when SameSite is 'none'
+    };
+    
+    res.cookie('oauth_state', state, cookieOpts);
+    console.log('[OAuth Init] Cookie also set (fallback)');
 
-  const url = getDiscordOAuthUrl(state);
-  res.redirect(url);
+    const url = getDiscordOAuthUrl(state);
+    console.log('[OAuth Init] Redirecting to Discord:', url);
+    res.redirect(url);
+  } catch (error: any) {
+    console.error('[OAuth Init] ❌ Failed to store state:', error);
+    res.redirect(`${getFrontendUrl()}/login?error=server_error`);
+  }
 });
 
 /**
@@ -44,21 +89,63 @@ router.get('/discord/callback', async (req: Request, res: Response) => {
   const state = req.query.state as string;
 
   if (!code) {
+    console.error('[OAuth Callback] ❌ No authorization code received');
     return res.redirect(`${getFrontendUrl()}/login?error=no_code`);
   }
 
-  const expectedState = (req as any)?.cookies?.oauth_state as string | undefined;
-  
-  // Log for debugging
-  console.log('[OAuth Callback] State from query:', state);
-  console.log('[OAuth Callback] State from cookie:', expectedState);
-  console.log('[OAuth Callback] Cookies:', req.headers.cookie);
-  
-  res.clearCookie('oauth_state', cookieOptions());
-  
-  if (!state || !expectedState || state !== expectedState) {
-    console.error('[OAuth Callback] State mismatch - redirecting to login');
+  if (!state) {
+    console.error('[OAuth Callback] ❌ No state parameter in callback');
     return res.redirect(`${getFrontendUrl()}/login?error=invalid_state`);
+  }
+
+  // Log for debugging
+  console.log('[OAuth Callback] ========================================');
+  console.log('[OAuth Callback] Authorization code received:', code ? 'YES' : 'NO');
+  console.log('[OAuth Callback] State from query:', state);
+  console.log('[OAuth Callback] Request origin:', req.headers.origin);
+  console.log('[OAuth Callback] Request referer:', req.headers.referer);
+  console.log('[OAuth Callback] Request host:', req.headers.host);
+  console.log('[OAuth Callback] ========================================');
+  
+  try {
+    // Validate state from database (primary method)
+    const oauthStatesCollection = getCollection('oauth_states');
+    const stateRecord = await oauthStatesCollection.findOne({
+      state: state,
+      expires_at: { $gt: new Date() }, // Not expired
+    });
+    
+    if (!stateRecord) {
+      console.error('[OAuth Callback] ❌ State not found in database or expired');
+      console.error('[OAuth Callback] This could mean:');
+      console.error('[OAuth Callback]   1. State was never stored');
+      console.error('[OAuth Callback]   2. State expired (>10 minutes)');
+      console.error('[OAuth Callback]   3. Invalid/forged state parameter');
+      
+      // Fallback: try cookie (for backwards compatibility)
+      const cookieState = (req as any)?.cookies?.oauth_state as string | undefined;
+      if (cookieState && cookieState === state) {
+        console.warn('[OAuth Callback] ⚠️  State not in DB but cookie matches - using cookie as fallback');
+      } else {
+        console.error('[OAuth Callback] ❌ Cookie fallback also failed');
+        res.clearCookie('oauth_state', cookieOptions());
+        return res.redirect(`${getFrontendUrl()}/login?error=invalid_state`);
+      }
+    } else {
+      console.log('[OAuth Callback] ✅ State found in database');
+    }
+    
+    // Delete the state record (one-time use)
+    await oauthStatesCollection.deleteOne({ state: state });
+    console.log('[OAuth Callback] ✅ State record deleted (one-time use)');
+    
+    // Also clear cookie if present
+    res.clearCookie('oauth_state', cookieOptions());
+    
+    console.log('[OAuth Callback] ✅ State validated successfully');
+  } catch (error: any) {
+    console.error('[OAuth Callback] ❌ Database error during state validation:', error);
+    return res.redirect(`${getFrontendUrl()}/login?error=server_error`);
   }
 
   try {

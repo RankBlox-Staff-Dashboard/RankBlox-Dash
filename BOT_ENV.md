@@ -11,9 +11,9 @@ DISCORD_BOT_TOKEN=your_discord_bot_token
 
 ### Backend API Integration
 ```bash
-# Backend API URL
-# Example: https://rankblox-dash-backend-706270663868.europe-west1.run.app/api
-BACKEND_API_URL=https://rankblox-dash-backend-706270663868.europe-west1.run.app/api
+# NOTE: BACKEND_API_URL is now hardcoded in the bot code
+# The backend URL is: https://rankblox-dash-backend-706270663868.europe-west1.run.app/api
+# No need to set BACKEND_API_URL environment variable
 
 # Shared secret token for bot <-> backend communication
 # Must match the BOT_API_TOKEN in backend environment
@@ -46,7 +46,7 @@ GUILD_ID=your_discord_guild_id
 DISCORD_BOT_TOKEN=your_discord_bot_token_here
 
 # Backend Integration
-BACKEND_API_URL=https://rankblox-dash-backend-706270663868.europe-west1.run.app/api
+# NOTE: BACKEND_API_URL is hardcoded, no need to set it
 BOT_API_TOKEN=your-long-random-secret-token-must-match-backend
 
 # Server
@@ -61,7 +61,7 @@ GUILD_ID=your_discord_guild_id
 
 1. **BOT_API_TOKEN**: Must be the same value in both backend and bot environments
 2. **DISCORD_BOT_TOKEN**: Get this from Discord Developer Portal → Your Application → Bot → Token
-3. **BACKEND_API_URL**: Should point to your backend API (include `/api` at the end)
+3. **BACKEND_API_URL**: Now hardcoded to `https://rankblox-dash-backend-706270663868.europe-west1.run.app/api` (no environment variable needed)
 4. **GUILD_ID**: Optional but recommended for faster command registration during development
 
 ## Ticket Categories

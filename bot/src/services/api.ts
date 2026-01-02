@@ -1,7 +1,12 @@
 import axios from 'axios';
 
-const BACKEND_API_URL = process.env.BACKEND_API_URL || 'https://rankblox-dash-backend-706270663868.europe-west1.run.app/api';
+// Hardcoded backend URL - must match actual backend deployment
+const HARDCODED_BACKEND_URL = 'https://rankblox-dash-backend-706270663868.europe-west1.run.app/api';
+const BACKEND_API_URL = HARDCODED_BACKEND_URL; // Always use hardcoded URL
 const BOT_API_TOKEN = process.env.BOT_API_TOKEN;
+
+// Log the backend URL being used (for debugging)
+console.log('[Bot API] Backend URL:', BACKEND_API_URL);
 
 if (!BOT_API_TOKEN || BOT_API_TOKEN.trim().length === 0) {
   // This bot calls /api/bot/* endpoints that require a shared secret.

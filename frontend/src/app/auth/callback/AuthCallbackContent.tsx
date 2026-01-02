@@ -13,7 +13,7 @@ function getTokenFromLocation(): string | null {
   const hashToken = hashParams.get('token');
   if (hashToken) return hashToken;
 
-  // Backward compatibility for older backend deployments
+  // Backward compatibility for older backend deployments - check query string
   const url = new URL(window.location.href);
   return url.searchParams.get('token');
 }

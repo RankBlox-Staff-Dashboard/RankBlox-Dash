@@ -527,6 +527,11 @@ export async function initializeDatabase() {
     await loaRequestsCollection.createIndex({ user_id: 1 });
     
     const discordMessagesCollection = getCollection('discord_messages');
+    
+    // OAuth states collection for temporary state storage
+    const oauthStatesCollection = getCollection('oauth_states');
+    await oauthStatesCollection.createIndex({ state: 1 }, { unique: true });
+    await oauthStatesCollection.createIndex({ expires_at: 1 }, { expireAfterSeconds: 0 });
     await discordMessagesCollection.createIndex({ discord_message_id: 1 }, { unique: true });
     await discordMessagesCollection.createIndex({ user_id: 1, created_at: 1 });
     await discordMessagesCollection.createIndex({ discord_channel_id: 1, created_at: 1 });

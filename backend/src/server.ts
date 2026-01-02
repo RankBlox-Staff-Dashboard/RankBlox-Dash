@@ -22,8 +22,8 @@ dotenv.config();
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '8080', 10);
-// Hardcoded frontend URL
-const HARDCODED_FRONTEND_URL = 'https://rank-blox-dash.vercel.app';
+// Hardcoded frontend URL - must match actual frontend deployment
+const HARDCODED_FRONTEND_URL = 'https://staff.rankblox.xyz';
 const normalizeOrigin = (value?: string) => {
   if (!value) return '';
   try {
