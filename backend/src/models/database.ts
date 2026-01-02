@@ -340,7 +340,19 @@ class DatabaseWrapper {
     const conditions = whereClause.split(/\s+AND\s+/i).map(c => c.trim());
     
     conditions.forEach(condition => {
-      if (condition.includes(' = ?')) {
+      // Handle LOWER(field) = LOWER(?) for case-insensitive comparison
+      const lowerMatch = condition.match(/LOWER\((\w+)\)\s*=\s*LOWER\(\?\)/i);
+      if (lowerMatch) {
+        const [, col] = lowerMatch;
+        const fieldName = this.convertColumnName(col);
+        const value = params[paramIdx++];
+        if (typeof value === 'string') {
+          // Use case-insensitive regex for MongoDB
+          filter[fieldName] = { $regex: `^${value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' };
+        } else {
+          filter[fieldName] = value;
+        }
+      } else if (condition.includes(' = ?')) {
         const [col] = condition.split(' = ?');
         const fieldName = this.convertColumnName(col.trim());
         const value = params[paramIdx++];
@@ -358,10 +370,6 @@ class DatabaseWrapper {
         const col = condition.replace(' IS NOT NULL', '').trim();
         const fieldName = this.convertColumnName(col);
         filter[fieldName] = { $ne: null };
-      } else if (condition.includes(' IS NULL')) {
-        const col = condition.replace(' IS NULL', '').trim();
-        const fieldName = this.convertColumnName(col);
-        filter[fieldName] = null;
       } else if (condition.includes(' >= ?')) {
         const [col, val] = condition.split(' >= ?');
         const fieldName = this.convertColumnName(col.trim());
@@ -421,6 +429,22 @@ class DatabaseWrapper {
             const dateValue = params[paramIdx++];
             filter[fieldName] = { $gte: new Date(dateValue) };
           }
+        }
+      } else if (condition.includes(' > NOW()')) {
+        // Handle NOW() for current timestamp comparisons
+        const match = condition.match(/(\w+)\s+>\s+NOW\(\)/);
+        if (match) {
+          const [, col] = match;
+          const fieldName = this.convertColumnName(col);
+          filter[fieldName] = { $gt: new Date() };
+        }
+      } else if (condition.includes(' >= NOW()')) {
+        // Handle >= NOW() for current timestamp comparisons
+        const match = condition.match(/(\w+)\s+>=\s+NOW\(\)/);
+        if (match) {
+          const [, col] = match;
+          const fieldName = this.convertColumnName(col);
+          filter[fieldName] = { $gte: new Date() };
         }
       }
     });

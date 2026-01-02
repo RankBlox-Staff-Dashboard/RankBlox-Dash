@@ -664,8 +664,8 @@ router.post('/tracked-channels', async (req: Request, res: Response) => {
 
       res.json({ message: 'Tracked channel added successfully' });
     } catch (error: any) {
-      // MySQL duplicate key error
-      if (error.code === 'ER_DUP_ENTRY' || error.errno === 1062) {
+      // MongoDB duplicate key error (code 11000) or MySQL duplicate key error
+      if (error.code === 11000 || error.code === 'ER_DUP_ENTRY' || error.errno === 1062) {
         return res.status(400).json({ error: 'Channel already tracked' });
       }
       throw error;

@@ -89,8 +89,8 @@ router.post('/message', async (req: Request, res: Response) => {
          VALUES (?, ?, ?, ?, ?)`
       ).run(discord_message_id, user.id, discord_channel_id, guild_id, content_length || 0);
     } catch (err: any) {
-      // Ignore duplicate key errors
-      if (err.code !== 'ER_DUP_ENTRY' && err.errno !== 1062) {
+      // Ignore duplicate key errors (MongoDB uses error code 11000 for duplicate keys)
+      if (err.code !== 11000 && err.code !== 'ER_DUP_ENTRY' && err.errno !== 1062) {
         throw err;
       }
     }
@@ -167,8 +167,8 @@ router.post('/messages/batch', async (req: Request, res: Response) => {
         recorded++;
         userCounts[discord_id] = (userCounts[discord_id] || 0) + 1;
       } catch (err: any) {
-        // Ignore duplicate key errors
-        if (err.code !== 'ER_DUP_ENTRY' && err.errno !== 1062) {
+        // Ignore duplicate key errors (MongoDB uses error code 11000 for duplicate keys)
+        if (err.code !== 11000 && err.code !== 'ER_DUP_ENTRY' && err.errno !== 1062) {
           console.error('Error inserting message:', err);
         }
       }
