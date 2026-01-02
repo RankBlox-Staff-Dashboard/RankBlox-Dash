@@ -17,14 +17,24 @@ DB_NAME=rankblox_staff
 ### Discord OAuth
 ```bash
 # Discord Application Client ID
+# Get from: https://discord.com/developers/applications → Your App → OAuth2 → Client ID
 DISCORD_CLIENT_ID=your_discord_client_id
 
 # Discord Application Client Secret
+# Get from: https://discord.com/developers/applications → Your App → OAuth2 → Client Secret → Reset Secret (if needed)
+# IMPORTANT: This is a long string - make sure you copy the ENTIRE secret
 DISCORD_CLIENT_SECRET=your_discord_client_secret
 
-# Discord OAuth Redirect URI (must match Discord Developer Portal)
-# Example: https://your-backend-domain.com/api/auth/discord/callback
-DISCORD_REDIRECT_URI=https://your-backend-domain.com/api/auth/discord/callback
+# NOTE: DISCORD_REDIRECT_URI is now hardcoded in the backend code
+# The redirect URI is: https://rankblox-dash-backend-706270663868.europe-west1.run.app/api/auth/discord/callback
+# You MUST add this EXACT URL to your Discord Developer Portal:
+# https://discord.com/developers/applications → Your App → OAuth2 → Redirects → Add Redirect
+# 
+# Common issues:
+# - "invalid_client" error usually means:
+#   1. Client secret is incorrect or not set
+#   2. Redirect URI doesn't match exactly (check for trailing slashes, http vs https, etc.)
+#   3. Client ID is incorrect
 ```
 
 ### JWT Security

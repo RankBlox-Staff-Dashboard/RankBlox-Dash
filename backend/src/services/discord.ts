@@ -43,11 +43,21 @@ export async function exchangeDiscordCode(code: string): Promise<string | null> 
   try {
     console.log('[Discord OAuth] Exchanging code for token...');
     console.log('[Discord OAuth] Redirect URI:', REDIRECT_URI);
-    console.log('[Discord OAuth] Client ID:', CLIENT_ID ? 'SET' : 'NOT SET');
+    console.log('[Discord OAuth] Client ID:', CLIENT_ID ? `SET (${CLIENT_ID.substring(0, 10)}...)` : 'NOT SET');
+    console.log('[Discord OAuth] Client Secret:', CLIENT_SECRET ? 'SET (hidden)' : 'NOT SET');
     
     // Validate required configuration
     if (!CLIENT_ID || !CLIENT_SECRET) {
       console.error('[Discord OAuth] Missing required configuration: CLIENT_ID or CLIENT_SECRET');
+      console.error('[Discord OAuth] Please check your environment variables:');
+      console.error('[Discord OAuth]   - DISCORD_CLIENT_ID must be set');
+      console.error('[Discord OAuth]   - DISCORD_CLIENT_SECRET must be set');
+      return null;
+    }
+    
+    // Validate that client secret is not empty or placeholder
+    if (CLIENT_SECRET.trim().length === 0 || CLIENT_SECRET.includes('your_') || CLIENT_SECRET.includes('example')) {
+      console.error('[Discord OAuth] Client secret appears to be invalid or placeholder');
       return null;
     }
     
@@ -75,6 +85,17 @@ export async function exchangeDiscordCode(code: string): Promise<string | null> 
     if (error.response) {
       console.error('[Discord OAuth] Status:', error.response.status);
       console.error('[Discord OAuth] Response:', JSON.stringify(error.response.data, null, 2));
+      
+      // Provide helpful error messages for common issues
+      if (error.response.status === 401 && error.response.data?.error === 'invalid_client') {
+        console.error('[Discord OAuth] ⚠️  TROUBLESHOOTING:');
+        console.error('[Discord OAuth]   1. Verify DISCORD_CLIENT_SECRET is correct in your environment variables');
+        console.error('[Discord OAuth]   2. Check that the redirect URI in Discord Developer Portal matches EXACTLY:');
+        console.error('[Discord OAuth]      ' + REDIRECT_URI);
+        console.error('[Discord OAuth]   3. Ensure there are no trailing slashes or extra characters');
+        console.error('[Discord OAuth]   4. Verify the Client ID matches your Discord application');
+        console.error('[Discord OAuth]   5. Make sure you copied the full client secret (it\'s long)');
+      }
     }
     return null;
   }
