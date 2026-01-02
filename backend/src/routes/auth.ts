@@ -10,16 +10,19 @@ const router = Router();
 
 function getFrontendUrl(): string {
   // Hardcoded frontend URL - must match actual frontend deployment
+  // Remove any trailing slashes to prevent double slashes in redirects
   const hardcodedUrl = 'https://staff.rankblox.xyz';
   // Safeguard: if an old URL is somehow still configured, use the hardcoded one.
   if (process.env.FRONTEND_URL?.includes('ahscampus.com') || process.env.FRONTEND_URLS?.includes('ahscampus.com')) {
     console.warn('Detected old ahscampus.com frontend URL in environment variables. Using hardcoded URL instead.');
-    return hardcodedUrl;
+    return hardcodedUrl.replace(/\/+$/, ''); // Remove trailing slashes
   }
   // Original logic (now secondary to hardcoded value)
-  if (process.env.FRONTEND_URL) return process.env.FRONTEND_URL;
+  if (process.env.FRONTEND_URL) {
+    return process.env.FRONTEND_URL.replace(/\/+$/, ''); // Remove trailing slashes
+  }
   const first = process.env.FRONTEND_URLS?.split(',')?.[0]?.trim();
-  return first || hardcodedUrl; // Fallback to hardcoded
+  return (first || hardcodedUrl).replace(/\/+$/, ''); // Remove trailing slashes
 }
 
 function cookieOptions() {
@@ -77,7 +80,8 @@ router.get('/discord', async (req: Request, res: Response) => {
     res.redirect(url);
   } catch (error: any) {
     console.error('[OAuth Init] ❌ Failed to store state:', error);
-    res.redirect(`${getFrontendUrl()}/login?error=server_error`);
+    const frontendUrl = getFrontendUrl();
+    res.redirect(`${frontendUrl}/login?error=server_error`);
   }
 });
 
@@ -90,12 +94,14 @@ router.get('/discord/callback', async (req: Request, res: Response) => {
 
   if (!code) {
     console.error('[OAuth Callback] ❌ No authorization code received');
-    return res.redirect(`${getFrontendUrl()}/login?error=no_code`);
+    const frontendUrl = getFrontendUrl();
+    return res.redirect(`${frontendUrl}/login?error=no_code`);
   }
 
   if (!state) {
     console.error('[OAuth Callback] ❌ No state parameter in callback');
-    return res.redirect(`${getFrontendUrl()}/login?error=invalid_state`);
+    const frontendUrl = getFrontendUrl();
+    return res.redirect(`${frontendUrl}/login?error=invalid_state`);
   }
 
   // Log for debugging
@@ -139,7 +145,8 @@ router.get('/discord/callback', async (req: Request, res: Response) => {
         console.error('[OAuth Callback] ❌ Cookie fallback also failed');
         console.error('[OAuth Callback] Cookie state:', cookieState ? 'present' : 'missing');
         res.clearCookie('oauth_state', cookieOptions());
-        return res.redirect(`${getFrontendUrl()}/login?error=invalid_state&message=State validation failed. Please try again.`);
+        const frontendUrl = getFrontendUrl();
+        return res.redirect(`${frontendUrl}/login?error=invalid_state&message=State validation failed. Please try again.`);
       }
     } else {
       console.log('[OAuth Callback] ✅ State found in database');
@@ -161,20 +168,30 @@ router.get('/discord/callback', async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('[OAuth Callback] ❌ Unexpected error during state validation:', error);
     console.error('[OAuth Callback] Error stack:', error.stack);
-    return res.redirect(`${getFrontendUrl()}/login?error=server_error&message=${encodeURIComponent(error.message || 'Unexpected error during authentication')}`);
+    const frontendUrl = getFrontendUrl();
+    return res.redirect(`${frontendUrl}/login?error=server_error&message=${encodeURIComponent(error.message || 'Unexpected error during authentication')}`);
   }
 
   try {
     // Exchange code for access token
     const accessToken = await exchangeDiscordCode(code);
     if (!accessToken) {
-      return res.redirect(`${getFrontendUrl()}/login?error=token_exchange_failed`);
+      console.error('[OAuth Callback] ❌ Failed to exchange code for access token');
+      console.error('[OAuth Callback] This usually means:');
+      console.error('[OAuth Callback]   1. DISCORD_CLIENT_SECRET is incorrect or not set');
+      console.error('[OAuth Callback]   2. Redirect URI in Discord Developer Portal doesn\'t match');
+      console.error('[OAuth Callback]   3. Client ID is incorrect');
+      console.error('[OAuth Callback]   4. Authorization code expired or already used');
+      const frontendUrl = getFrontendUrl();
+      return res.redirect(`${frontendUrl}/login?error=token_exchange_failed`);
     }
 
     // Get Discord user info
     const discordUser = await getDiscordUser(accessToken);
     if (!discordUser) {
-      return res.redirect(`${getFrontendUrl()}/login?error=user_fetch_failed`);
+      console.error('[OAuth Callback] ❌ Failed to fetch Discord user info');
+      const frontendUrl = getFrontendUrl();
+      return res.redirect(`${frontendUrl}/login?error=user_fetch_failed`);
     }
 
     // Find or create user
@@ -240,12 +257,14 @@ router.get('/discord/callback', async (req: Request, res: Response) => {
     }
 
     // Redirect to frontend with token in fragment (prevents referrer/header leakage)
+    const frontendUrl = getFrontendUrl();
     res.redirect(
-      `${getFrontendUrl()}/auth/callback?token=${encodeURIComponent(token)}`
+      `${frontendUrl}/auth/callback?token=${encodeURIComponent(token)}`
     );
   } catch (error) {
     console.error('Discord OAuth error:', error);
-    res.redirect(`${getFrontendUrl()}/login?error=server_error`);
+    const frontendUrl = getFrontendUrl();
+    res.redirect(`${frontendUrl}/login?error=server_error`);
   }
 });
 

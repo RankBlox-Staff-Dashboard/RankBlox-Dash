@@ -54,7 +54,12 @@ console.log('========================');
 
 // Middleware
 app.disable('x-powered-by');
-app.use(helmet());
+// Relaxed helmet settings - less strict security headers
+app.use(helmet({
+  contentSecurityPolicy: false, // Disable CSP to allow more flexibility
+  crossOriginEmbedderPolicy: false, // Less strict
+  crossOriginResourcePolicy: { policy: 'cross-origin' }, // More permissive
+}));
 app.use(cookieParser());
 app.use(cors({
   origin(origin, callback) {
@@ -75,15 +80,15 @@ app.use(cors({
     return callback(null, false);
   },
   credentials: true,
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Bot-Token'],
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Bot-Token', 'X-Requested-With'], // Added more headers
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'], // Added PATCH
 }));
-app.use(express.json({ limit: '200kb' }));
+app.use(express.json({ limit: '1mb' })); // Increased from 200kb to 1mb
 
-// Basic global rate limit (stricter limits can be added per-route later)
+// Basic global rate limit - increased limits
 app.use(rateLimit({
   windowMs: 60 * 1000,
-  limit: 300,
+  limit: 500, // Increased from 300 to 500
   standardHeaders: true,
   legacyHeaders: false,
 }));

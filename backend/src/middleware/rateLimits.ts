@@ -13,7 +13,7 @@ import { Request, Response } from 'express';
  */
 export const authRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  limit: 500, // 500 requests per 15 minutes
+  limit: 1000, // Increased from 500 to 1000 requests per 15 minutes
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many authentication attempts. Please try again later.' },
@@ -36,7 +36,7 @@ export const authRateLimit = rateLimit({
  */
 export const verificationRateLimit = rateLimit({
   windowMs: 5 * 60 * 1000, // 5 minutes
-  limit: 10, // 10 requests per 5 minutes
+  limit: 20, // Increased from 10 to 20 requests per 5 minutes
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many verification attempts. Please wait before trying again.' },
@@ -81,7 +81,7 @@ export const adminRateLimit = rateLimit({
  */
 export const strictAdminRateLimit = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  limit: 5, // 5 requests per hour
+  limit: 10, // Increased from 5 to 10 requests per hour
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many administrative operations. Please wait.' },
@@ -125,7 +125,7 @@ export const botRateLimit = rateLimit({
  */
 export const loaRateLimit = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  limit: 5, // 5 LOA requests per hour
+  limit: 10, // Increased from 5 to 10 LOA requests per hour
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many LOA requests. Please wait before submitting another.' },
@@ -136,7 +136,7 @@ export const loaRateLimit = rateLimit({
  */
 export const infractionRateLimit = rateLimit({
   windowMs: 5 * 60 * 1000, // 5 minutes
-  limit: 20, // 20 infractions per 5 minutes
+  limit: 40, // Increased from 20 to 40 infractions per 5 minutes
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many infraction operations. Please slow down.' },

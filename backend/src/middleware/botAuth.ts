@@ -50,7 +50,8 @@ export function requireBotAuth(req: Request, res: Response, next: NextFunction):
   }
   
   // Validate token length to prevent DoS attacks with extremely long tokens
-  if (provided.length > 1000) {
+  // Increased limit from 1000 to 2000 characters for more flexibility
+  if (provided.length > 2000) {
     console.warn(`[BotAuth] Token too long (${provided.length} chars) - possible attack`);
     res.status(401).json({ error: 'Unauthorized' });
     return;
