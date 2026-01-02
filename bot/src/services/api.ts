@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const BACKEND_API_URL = process.env.BACKEND_API_URL || 'https://ahsback.zenohost.co.uk/api';
+const BACKEND_API_URL = process.env.BACKEND_API_URL || 'https://rankblox-dash-backend-706270663868.europe-west1.run.app/api';
 const BOT_API_TOKEN = process.env.BOT_API_TOKEN;
 
 if (!BOT_API_TOKEN || BOT_API_TOKEN.trim().length === 0) {

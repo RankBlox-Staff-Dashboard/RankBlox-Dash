@@ -12,8 +12,8 @@ DISCORD_BOT_TOKEN=your_discord_bot_token
 ### Backend API Integration
 ```bash
 # Backend API URL
-# Example: https://api.rankblox.com/api
-BACKEND_API_URL=https://your-backend-domain.com/api
+# Example: https://rankblox-dash-backend-706270663868.europe-west1.run.app/api
+BACKEND_API_URL=https://rankblox-dash-backend-706270663868.europe-west1.run.app/api
 
 # Shared secret token for bot <-> backend communication
 # Must match the BOT_API_TOKEN in backend environment
@@ -46,7 +46,7 @@ GUILD_ID=your_discord_guild_id
 DISCORD_BOT_TOKEN=your_discord_bot_token_here
 
 # Backend Integration
-BACKEND_API_URL=https://api.rankblox.com/api
+BACKEND_API_URL=https://rankblox-dash-backend-706270663868.europe-west1.run.app/api
 BOT_API_TOKEN=your-long-random-secret-token-must-match-backend
 
 # Server

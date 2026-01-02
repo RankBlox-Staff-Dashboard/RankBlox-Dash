@@ -93,7 +93,7 @@ DB_NAME=rankblox_staff
 # Discord OAuth
 DISCORD_CLIENT_ID=1413264592368435382
 DISCORD_CLIENT_SECRET=your_discord_client_secret
-DISCORD_REDIRECT_URI=https://api.rankblox.com/api/auth/discord/callback
+DISCORD_REDIRECT_URI=https://rankblox-dash-backend-706270663868.europe-west1.run.app/api/auth/discord/callback
 
 # Security
 JWT_SECRET=your-strong-random-secret-key-generated-with-openssl-rand-hex-32

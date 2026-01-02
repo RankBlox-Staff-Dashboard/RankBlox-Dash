@@ -94,9 +94,21 @@ app.use('/api/permissions', permissionsRoutes);
 app.use('/api/bot', botRoutes);
 app.use('/api/admin', adminRoutes);
 
-// Health check - must respond quickly for Cloud Run
+// Health check - must always return 200 OK for Cloud Run startup
+// Cloud Run uses this to determine if the container is ready
 let dbReady = false;
 app.get('/health', (req, res) => {
+  // Always return 200 OK - server is ready to accept requests
+  // Database status is informational only
+  res.json({ 
+    status: 'ok', 
+    database: dbReady ? 'connected' : 'connecting',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Separate endpoint for database readiness check
+app.get('/health/db', (req, res) => {
   if (dbReady) {
     res.json({ status: 'ok', database: 'connected' });
   } else {
@@ -204,14 +216,40 @@ cron.schedule('0 0 * * 1', checkWeeklyQuotas, {
 
 // Start server immediately (Cloud Run requires this)
 // Database connection will happen in background
-const server = app.listen(PORT, '0.0.0.0', () => {
-  console.log('========================================');
-  console.log('✅ HTTP server started and listening!');
-  console.log(`📡 Server running on port ${PORT}`);
-  console.log(`🌐 Frontend URL(s): ${FRONTEND_URLS.join(', ')}`);
-  console.log('========================================');
-  console.log('[Startup] Connecting to database in background...');
-});
+console.log('========================================');
+console.log('🚀 Starting server...');
+console.log(`📡 Port: ${PORT}`);
+console.log(`🌐 Frontend URL(s): ${FRONTEND_URLS.join(', ')}`);
+console.log('========================================');
+
+let server: any;
+try {
+  server = app.listen(PORT, '0.0.0.0', () => {
+    console.log('========================================');
+    console.log('✅ HTTP server started and listening!');
+    console.log(`📡 Server running on port ${PORT}`);
+    console.log(`🌐 Frontend URL(s): ${FRONTEND_URLS.join(', ')}`);
+    console.log('========================================');
+    console.log('[Startup] Connecting to database in background...');
+  });
+  
+  // Handle server errors
+  server.on('error', (error: any) => {
+    if (error.code === 'EADDRINUSE') {
+      console.error(`❌ Port ${PORT} is already in use`);
+      process.exit(1);
+    } else {
+      console.error('❌ Server error:', error);
+      process.exit(1);
+    }
+  });
+  
+  // Log that we're attempting to start
+  console.log(`[Startup] Server listening on 0.0.0.0:${PORT}`);
+} catch (error: any) {
+  console.error('❌ Failed to start server:', error);
+  process.exit(1);
+}
 
 // Initialize database in background (non-blocking)
 async function initializeDatabaseConnection() {
