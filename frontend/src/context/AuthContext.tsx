@@ -92,13 +92,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         console.warn('[Auth] No verification status from backend, using fallback');
         // Fallback for old backend responses (backwards compatibility)
-        const fallbackVerification = {
-          discord: !!userData.discord_id,
-          roblox: !!userData.roblox_id,
-          active: userData.status === 'active',
-          rank: userData.rank !== null,
-          complete: userData.status === 'active' && userData.roblox_id !== null && userData.rank !== null,
-          next_step: !userData.roblox_id ? 'roblox' : (userData.status !== 'active' ? 'activation' : null),
+        // Match backend logic: discord -> roblox -> activation -> rank -> null
+        const isDiscordVerified = !!userData.discord_id;
+        const isRobloxVerified = !!userData.roblox_id;
+        const isActive = userData.status === 'active';
+        const hasRank = userData.rank !== null;
+        
+        let nextStep: 'discord' | 'roblox' | 'activation' | 'rank' | null = null;
+        if (!isDiscordVerified) {
+          nextStep = 'discord';
+        } else if (!isRobloxVerified) {
+          nextStep = 'roblox';
+        } else if (!isActive) {
+          nextStep = 'activation';
+        } else if (!hasRank) {
+          nextStep = 'rank';
+        }
+        
+        const fallbackVerification: VerificationStatus = {
+          discord: isDiscordVerified,
+          roblox: isRobloxVerified,
+          active: isActive,
+          rank: hasRank,
+          complete: isDiscordVerified && isRobloxVerified && isActive && hasRank,
+          next_step: nextStep,
         };
         console.log('[Auth] Fallback verification:', fallbackVerification);
         setVerification(fallbackVerification);
