@@ -1,335 +1,567 @@
-import mysql, { Pool, PoolConnection } from 'mysql2/promise';
+import { MongoClient, Db, Collection, ObjectId, Filter, UpdateFilter } from 'mongodb';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
-// Database configuration - MySQL database for activity/analytics
-// All activity and analytics queries use this MySQL database connection
-// Requires authentication: user, password, and database name
-const dbConfig = {
-  host: process.env.DB_HOST || 'ahsDB.zenohost.co.uk',
-  user: process.env.DB_USER || 'AHSStaff',
-  password: process.env.DB_PASSWORD || 'AHSStaff2025!Security!Zenohost',
-  database: process.env.DB_NAME || 'ahstaffsecureencrypteddatabase',
-  // MySQL connection options
-  waitForConnections: true,
-  connectionLimit: Number(process.env.DB_CONNECTION_LIMIT || 10),
-  queueLimit: 0,
-  // MySQL-specific options
-  ssl: false, // Set to true if your MySQL server requires SSL
-  multipleStatements: false, // Security: prevent SQL injection via multiple statements
-} as const;
+// MongoDB connection configuration
+const MONGODB_URI = process.env.MONGODB_URI || process.env.DATABASE_URL || 'mongodb://localhost:27017';
+const DB_NAME = process.env.DB_NAME || 'rankblox_staff';
 
-// Create MySQL connection pool with authentication
-// IMPORTANT: This connects directly to MySQL database, NOT to the backend API
-const pool = mysql.createPool(dbConfig);
+let client: MongoClient | null = null;
+let db: Db | null = null;
 
-// Log database configuration - shows we're connecting to MySQL database, not backend
+// Initialize MongoDB connection
+export async function connectDatabase(): Promise<Db> {
+  if (db) {
+    return db;
+  }
+
+  try {
+    client = new MongoClient(MONGODB_URI);
+    await client.connect();
+    db = client.db(DB_NAME);
+    
 console.log('[Database] ========================================');
-console.log('[Database] MySQL Database Connection (NOT Backend API)');
+    console.log('[Database] MongoDB Database Connection');
 console.log('[Database] ========================================');
-console.log('[Database] Host:', dbConfig.host);
-console.log('[Database] User:', dbConfig.user);
-console.log('[Database] Database:', dbConfig.database);
-console.log('[Database] Type: MySQL (Direct Database Connection)');
+    console.log('[Database] URI:', MONGODB_URI.replace(/\/\/.*@/, '//***:***@')); // Hide credentials
+    console.log('[Database] Database:', DB_NAME);
+    console.log('[Database] Type: MongoDB');
 console.log('[Database] ========================================');
-
-// Test connection on startup to verify MySQL authentication
-pool.getConnection()
-  .then((connection) => {
-    console.log('[Database] ✅ MySQL database authentication successful');
-    console.log(`[Database] ✅ Connected to MySQL server: ${dbConfig.host}`);
-    console.log(`[Database] ✅ Authenticated as MySQL user: ${dbConfig.user}`);
-    console.log(`[Database] ✅ Using MySQL database: ${dbConfig.database}`);
-    console.log('[Database] ✅ This is a DIRECT MySQL connection, NOT a backend API call');
-    connection.release();
-  })
-  .catch((error) => {
-    console.error('[Database] ❌ MySQL database connection/authentication error:', error.message);
-    console.error('[Database] ❌ This is trying to connect to MySQL database, NOT backend API');
-    if (error.code === 'ER_ACCESS_DENIED_ERROR') {
-      console.error('[Database] ❌ MySQL authentication failed - check DB_USER and DB_PASSWORD');
-    } else if (error.code === 'ER_BAD_DB_ERROR') {
-      console.error('[Database] ❌ MySQL database does not exist - check DB_NAME');
-    } else if (error.code === 'ECONNREFUSED') {
-      console.error('[Database] ❌ MySQL connection refused - check DB_HOST and ensure MySQL server is running');
-      console.error(`[Database] ❌ Trying to connect to: ${dbConfig.host}`);
-    }
-  });
-
-// Helper functions for MySQL
-export async function query(sql: string, params?: any[]): Promise<any> {
-  const [results] = await pool.query(sql, params);
-  return results;
+    console.log('[Database] ✅ MongoDB database connection successful');
+    
+    return db;
+  } catch (error: any) {
+    console.error('[Database] ❌ MongoDB connection error:', error.message);
+    throw error;
+  }
 }
 
-export async function dbGet(sql: string, params?: any[]): Promise<any> {
-  const [rows] = await pool.query(sql, params) as any[];
-  return rows[0];
+// Helper function to get a collection
+function getCollection<T = any>(name: string): Collection<T> {
+  if (!db) {
+    throw new Error('Database not initialized. Call connectDatabase() first.');
+  }
+  return db.collection<T>(name);
 }
 
-export async function dbRun(sql: string, params?: any[]): Promise<any> {
-  const [result] = await pool.query(sql, params);
-  return result;
+// Get next numeric ID for a collection (using counter pattern)
+async function getNextId(collectionName: string): Promise<number> {
+  const countersCollection = getCollection('counters');
+  const result = await countersCollection.findOneAndUpdate(
+    { _id: collectionName },
+    { $inc: { seq: 1 } },
+    { upsert: true, returnDocument: 'after' }
+  );
+  return result?.seq || 1;
 }
 
-export async function dbAll(sql: string, params?: any[]): Promise<any[]> {
-  const [rows] = await pool.query(sql, params);
-  return rows as any[];
-}
-
-// Create a wrapper that mimics the existing API (for compatibility)
+// Convert SQL-style queries to MongoDB
+// This wrapper mimics the existing database API for compatibility
 class DatabaseWrapper {
-  constructor(private runner: Pool | PoolConnection = pool) {}
-
   prepare(sql: string) {
     return {
+      // SELECT queries -> find operations
       get: async (...params: any[]) => {
-        const [rows] = await this.runner.query(sql, params) as any[];
-        return rows[0];
+        const parsed = this.parseSQL(sql, params);
+        if (parsed.type === 'findOne') {
+          const collection = getCollection(parsed.collection);
+          const result = await collection.findOne(parsed.filter) as any;
+          // Convert ObjectId to string for _id if present
+          if (result && result._id) {
+            result._id = result._id.toString();
+          }
+          return result;
+        } else if (parsed.type === 'findWithJoin') {
+          // Handle JOIN queries
+          const mainCollection = getCollection(parsed.collection);
+          const joinCollection = getCollection(parsed.joinCollection);
+          const mainDocs = await mainCollection.find(parsed.filter).toArray();
+          const results = await Promise.all(mainDocs.map(async (doc: any) => {
+            const joinFilter: any = {};
+            joinFilter[parsed.join.foreignField] = doc[parsed.join.localField];
+            const joined = await joinCollection.findOne(joinFilter);
+            return { ...doc, [parsed.join.as]: joined };
+          }));
+          return results[0] || null;
+        }
+        throw new Error(`Unsupported query type for get: ${sql}`);
       },
+      
+      // INSERT/UPDATE/DELETE queries -> insertOne/updateOne/deleteOne
       run: async (...params: any[]) => {
-        const [result] = await this.runner.query(sql, params) as any;
+        const parsed = this.parseSQL(sql, params);
+        const collection = getCollection(parsed.collection);
+        
+        if (parsed.type === 'insertOne') {
+          // Add numeric ID if not present
+          if (!parsed.document.id) {
+            parsed.document.id = await getNextId(parsed.collection);
+          }
+          const result = await collection.insertOne(parsed.document);
+          return {
+            lastInsertRowid: parsed.document.id,
+            changes: result.acknowledged ? 1 : 0,
+          };
+        } else if (parsed.type === 'updateOne') {
+          const result = await collection.updateOne(parsed.filter, parsed.update);
+          return {
+            lastInsertRowid: null,
+            changes: result.modifiedCount,
+          };
+        } else if (parsed.type === 'deleteOne') {
+          const result = await collection.deleteOne(parsed.filter);
         return {
-          lastInsertRowid: result.insertId || null,
-          changes: result.affectedRows || 0,
+            lastInsertRowid: null,
+            changes: result.deletedCount,
         };
+        }
+        throw new Error(`Unsupported query type for run: ${sql}`);
       },
+      
+      // SELECT queries returning multiple rows -> find operations
       all: async (...params: any[]) => {
-        const [rows] = await this.runner.query(sql, params);
-        return rows as any[];
+        const parsed = this.parseSQL(sql, params);
+        if (parsed.type === 'find') {
+          const collection = getCollection(parsed.collection);
+          const cursor = collection.find(parsed.filter);
+          if (parsed.sort) {
+            cursor.sort(parsed.sort);
+          }
+          if (parsed.limit) {
+            cursor.limit(parsed.limit);
+          }
+          const results = await cursor.toArray() as any[];
+          // Convert ObjectId to string for _id if present
+          return results.map((doc: any) => {
+            if (doc && doc._id) {
+              doc._id = doc._id.toString();
+            }
+            return doc;
+          });
+        } else if (parsed.type === 'findWithJoin') {
+          // Handle JOIN queries
+          const mainCollection = getCollection(parsed.collection);
+          const joinCollection = getCollection(parsed.joinCollection);
+          let cursor = mainCollection.find(parsed.filter);
+          if (parsed.sort) {
+            cursor = cursor.sort(parsed.sort);
+          }
+          if (parsed.limit) {
+            cursor = cursor.limit(parsed.limit);
+          }
+          const mainDocs = await cursor.toArray();
+          const results = await Promise.all(mainDocs.map(async (doc: any) => {
+            const joinFilter: any = {};
+            joinFilter[parsed.join.foreignField] = doc[parsed.join.localField];
+            const joined = await joinCollection.findOne(joinFilter);
+            return { ...doc, [parsed.join.as]: joined };
+          }));
+          return results;
+        } else if (parsed.type === 'count') {
+          const collection = getCollection(parsed.collection);
+          const count = await collection.countDocuments(parsed.filter);
+          return [{ count }];
+        }
+        throw new Error(`Unsupported query type for all: ${sql}`);
       },
     };
   }
 
   async exec(sql: string) {
-    return this.runner.query(sql);
+    // For schema initialization
+    const parsed = this.parseSQL(sql, []);
+    if (parsed.type === 'createCollection') {
+      const collection = getCollection(parsed.collection);
+      // Collections are created automatically in MongoDB
+      return { acknowledged: true };
+    }
+    return { acknowledged: true };
   }
 
   async transaction<T>(fn: (tx: DatabaseWrapper) => Promise<T> | T): Promise<T> {
-    const connection = await pool.getConnection();
+    // MongoDB transactions require a session
+    if (!client) {
+      throw new Error('Database client not initialized');
+    }
+    const session = client.startSession();
     try {
-      await connection.beginTransaction();
-      const result = await Promise.resolve(fn(new DatabaseWrapper(connection)));
-      await connection.commit();
+      session.startTransaction();
+      const result = await Promise.resolve(fn(this));
+      await session.commitTransaction();
       return result;
     } catch (error) {
-      await connection.rollback();
+      await session.abortTransaction();
       throw error;
     } finally {
-      connection.release();
+      await session.endSession();
     }
   }
 
   async close() {
-    await pool.end();
+    if (client) {
+      await client.close();
+      client = null;
+      db = null;
+    }
+  }
+
+  // Parse SQL-like queries and convert to MongoDB operations
+  private parseSQL(sql: string, params: any[]): any {
+    const normalized = sql.trim().replace(/\s+/g, ' ');
+    
+    // INSERT INTO table (cols) VALUES (?, ?)
+    if (normalized.match(/^INSERT\s+INTO\s+(\w+)/i)) {
+      const match = normalized.match(/^INSERT\s+INTO\s+(\w+)\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)/i);
+      if (match) {
+        const [, table, cols, values] = match;
+        const columns = cols.split(',').map(c => c.trim().replace(/`/g, ''));
+        const document: any = {};
+        columns.forEach((col, idx) => {
+          const value = params[idx];
+          // Convert MySQL column names to MongoDB field names
+          const fieldName = this.convertColumnName(col);
+          // Handle special values
+          if (value === null || value === undefined) {
+            document[fieldName] = null;
+          } else if (typeof value === 'string' && (value.includes('NOW()') || value.includes('CURRENT_TIMESTAMP'))) {
+            document[fieldName] = new Date();
+          } else {
+            document[fieldName] = value;
+          }
+        });
+        // Add created_at/updated_at if not present
+        if (!document.created_at) document.created_at = new Date();
+        if (!document.updated_at) document.updated_at = new Date();
+        return { type: 'insertOne', collection: table, document };
+      }
+    }
+    
+    // UPDATE table SET col = ? WHERE condition
+    if (normalized.match(/^UPDATE\s+(\w+)/i)) {
+      const match = normalized.match(/^UPDATE\s+(\w+)\s+SET\s+(.+?)(?:\s+WHERE\s+(.+))?$/i);
+      if (match) {
+        const [, table, setClause, whereClause] = match;
+        const filter = this.parseWhere(whereClause, params);
+        const update: any = {};
+        
+        // Parse SET clause
+        const sets = setClause.split(',').map(s => s.trim());
+        sets.forEach(set => {
+          const [col, val] = set.split('=').map(s => s.trim());
+          const fieldName = this.convertColumnName(col);
+          if (val === '?') {
+            const paramIdx = params.findIndex((_, i) => !filter.paramsUsed?.includes(i));
+            if (paramIdx >= 0) {
+              update[fieldName] = params[paramIdx];
+              if (!filter.paramsUsed) filter.paramsUsed = [];
+              filter.paramsUsed.push(paramIdx);
+            }
+          } else if (val === 'NOW()') {
+            update[fieldName] = new Date();
+          } else {
+            update[fieldName] = this.parseValue(val);
+          }
+        });
+        
+        return { type: 'updateOne', collection: table, filter, update: { $set: update } };
+      }
+    }
+    
+    // DELETE FROM table WHERE condition
+    if (normalized.match(/^DELETE\s+FROM\s+(\w+)/i)) {
+      const match = normalized.match(/^DELETE\s+FROM\s+(\w+)(?:\s+WHERE\s+(.+))?$/i);
+      if (match) {
+        const [, table, whereClause] = match;
+        const filter = this.parseWhere(whereClause, params);
+        return { type: 'deleteOne', collection: table, filter };
+      }
+    }
+    
+    // SELECT ... FROM table WHERE ... ORDER BY ... LIMIT ...
+    if (normalized.match(/^SELECT/i)) {
+      const match = normalized.match(/FROM\s+(\w+)(?:\s+WHERE\s+(.+?))?(?:\s+ORDER\s+BY\s+(.+?))?(?:\s+LIMIT\s+(\d+))?/i);
+      if (match) {
+        const [, table, whereClause, orderBy, limit] = match;
+        const filter = this.parseWhere(whereClause, params);
+        const sort = orderBy ? this.parseOrderBy(orderBy) : undefined;
+        const limitNum = limit ? parseInt(limit) : undefined;
+        
+        // Check if it's a COUNT query
+        if (normalized.match(/COUNT\(\*\)/i)) {
+          // For COUNT, we'll need to use countDocuments
+          return { type: 'count', collection: table, filter };
+        }
+        
+        // Handle JOIN queries - for now, we'll do a simple find and manually join
+        if (normalized.match(/LEFT\s+JOIN/i) || normalized.match(/JOIN/i)) {
+          // Extract the main table and joined table
+          const joinMatch = normalized.match(/FROM\s+(\w+)\s+(?:LEFT\s+)?JOIN\s+(\w+)\s+ON\s+(\w+)\.(\w+)\s*=\s*(\w+)\.(\w+)/i);
+          if (joinMatch) {
+            const [, mainTable, joinTable, mainTableAlias, mainCol, joinTableAlias, joinCol] = joinMatch;
+            return { 
+              type: 'findWithJoin', 
+              collection: mainTable, 
+              joinCollection: joinTable,
+              filter,
+              join: {
+                localField: mainCol,
+                foreignField: joinCol,
+                as: joinTable
+              },
+              sort,
+              limit: limitNum
+            };
+          }
+        }
+        
+        return { type: 'find', collection: table, filter, sort, limit: limitNum };
+      }
+    }
+    
+    // CREATE TABLE IF NOT EXISTS -> create collection
+    if (normalized.match(/^CREATE\s+TABLE/i)) {
+      const match = normalized.match(/CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)/i);
+      if (match) {
+        return { type: 'createCollection', collection: match[1] };
+      }
+    }
+    
+    throw new Error(`Unable to parse SQL: ${sql}`);
+  }
+
+  private parseWhere(whereClause: string | undefined, params: any[]): Filter<any> {
+    if (!whereClause) return {};
+    
+    const filter: any = {};
+    let paramIdx = 0;
+    
+    // Simple WHERE parsing - handles: col = ?, col IS NULL, col IS NOT NULL, col IN (?)
+    const conditions = whereClause.split(/\s+AND\s+/i).map(c => c.trim());
+    
+    conditions.forEach(condition => {
+      if (condition.includes(' = ?')) {
+        const [col] = condition.split(' = ?');
+        const fieldName = this.convertColumnName(col.trim());
+        const value = params[paramIdx++];
+        // Convert string IDs to numbers if the field is 'id'
+        if (fieldName === 'id' && typeof value === 'string' && !isNaN(Number(value))) {
+          filter[fieldName] = Number(value);
+        } else {
+          filter[fieldName] = value;
+        }
+      } else if (condition.includes(' IS NULL')) {
+        const col = condition.replace(' IS NULL', '').trim();
+        const fieldName = this.convertColumnName(col);
+        filter[fieldName] = null;
+      } else if (condition.includes(' IS NOT NULL')) {
+        const col = condition.replace(' IS NOT NULL', '').trim();
+        const fieldName = this.convertColumnName(col);
+        filter[fieldName] = { $ne: null };
+      } else if (condition.includes(' IS NULL')) {
+        const col = condition.replace(' IS NULL', '').trim();
+        const fieldName = this.convertColumnName(col);
+        filter[fieldName] = null;
+      } else if (condition.includes(' >= ?')) {
+        const [col, val] = condition.split(' >= ?');
+        const fieldName = this.convertColumnName(col.trim());
+        filter[fieldName] = { $gte: params[paramIdx++] };
+      } else if (condition.includes(' > ?')) {
+        const [col, val] = condition.split(' > ?');
+        const fieldName = this.convertColumnName(col.trim());
+        filter[fieldName] = { $gt: params[paramIdx++] };
+      } else if (condition.includes(' IN (')) {
+        const match = condition.match(/(\w+)\s+IN\s+\(([^)]+)\)/);
+        if (match) {
+          const [, col, values] = match;
+          const fieldName = this.convertColumnName(col);
+          // For IN (?), we expect a single param that is an array
+          filter[fieldName] = { $in: params[paramIdx++] };
+        }
+      } else if (condition.includes(' LIKE ')) {
+        // Handle LIKE with % wildcards
+        const match = condition.match(/(\w+)\s+LIKE\s+(.+)/);
+        if (match) {
+          const [, col, pattern] = match;
+          const fieldName = this.convertColumnName(col);
+          const patternValue = params[paramIdx++];
+          if (typeof patternValue === 'string') {
+            // Convert SQL LIKE pattern to MongoDB regex
+            const regexPattern = patternValue.replace(/%/g, '.*').replace(/_/g, '.');
+            filter[fieldName] = { $regex: regexPattern, $options: 'i' };
+          }
+        }
+      } else if (condition.includes(' > DATE_SUB')) {
+        // Handle DATE_SUB for date comparisons
+        const match = condition.match(/(\w+)\s+>\s+DATE_SUB\((.+?),\s+INTERVAL\s+(\d+)\s+(\w+)\)/);
+        if (match) {
+          const [, col, dateRef, interval, unit] = match;
+          const fieldName = this.convertColumnName(col);
+          const dateValue = params[paramIdx++];
+          const date = new Date(dateValue);
+          // Subtract interval
+          if (unit === 'DAY' || unit === 'DAYS') {
+            date.setDate(date.getDate() - parseInt(interval));
+          } else if (unit === 'HOUR' || unit === 'HOURS') {
+            date.setHours(date.getHours() - parseInt(interval));
+          }
+          filter[fieldName] = { $gt: date };
+        }
+      } else if (condition.includes(' >= CURDATE()') || condition.includes(' >= ?')) {
+        // Handle CURDATE() and date comparisons
+        const match = condition.match(/(\w+)\s+>=\s+(CURDATE\(\)|\?)/);
+        if (match) {
+          const [, col, dateRef] = match;
+          const fieldName = this.convertColumnName(col);
+          if (dateRef === 'CURDATE()') {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            filter[fieldName] = { $gte: today };
+          } else {
+            const dateValue = params[paramIdx++];
+            filter[fieldName] = { $gte: new Date(dateValue) };
+          }
+        }
+      }
+    });
+    
+    return filter;
+  }
+
+  private parseOrderBy(orderBy: string | undefined): any {
+    if (!orderBy) return undefined;
+    
+    const sort: any = {};
+    const parts = orderBy.split(',').map(p => p.trim());
+    parts.forEach(part => {
+      const [col, dir] = part.split(/\s+/);
+      const fieldName = this.convertColumnName(col);
+      sort[fieldName] = dir?.toUpperCase() === 'DESC' ? -1 : 1;
+    });
+    
+    return sort;
+  }
+
+  private parseValue(value: string): any {
+    if (value === 'NOW()' || value === 'CURRENT_TIMESTAMP') {
+      return new Date();
+    }
+    if (value === 'false' || value === 'FALSE') return false;
+    if (value === 'true' || value === 'TRUE') return true;
+    if (!isNaN(Number(value))) return Number(value);
+    return value;
+  }
+
+  private convertColumnName(col: string): string {
+    // Remove backticks and convert MySQL reserved keywords
+    const cleaned = col.replace(/`/g, '').trim();
+    // Handle MySQL reserved keywords
+    if (cleaned === 'rank') return 'rank';
+    return cleaned;
   }
 }
 
-const db = new DatabaseWrapper();
+const dbWrapper = new DatabaseWrapper();
 
 // Initialize database schema
 export async function initializeDatabase() {
   try {
-    // Test MySQL connection and authentication (direct database connection, not backend API)
-    const connection = await pool.getConnection();
-    console.log(`[Database] ✅ MySQL database connection authenticated successfully`);
-    console.log(`[Database] ✅ Connected directly to MySQL server: ${dbConfig.host}`);
-    console.log(`[Database] ✅ Authenticated as MySQL user: ${dbConfig.user}`);
-    console.log(`[Database] ✅ Using MySQL database: ${dbConfig.database}`);
-    console.log(`[Database] ✅ This is a DIRECT MySQL connection, NOT connecting to backend API`);
+    await connectDatabase();
     
-    // Verify we can query the MySQL database
-    const [result] = await connection.query('SELECT 1 as test') as any[];
-    if (result && result[0]?.test === 1) {
-      console.log('[Database] ✅ MySQL query test successful - database is accessible');
-      console.log('[Database] ✅ All activity/analytics queries will use this MySQL database connection');
-    }
+    // Create indexes for better performance
+    const usersCollection = getCollection('users');
+    await usersCollection.createIndex({ discord_id: 1 }, { unique: true });
+    await usersCollection.createIndex({ roblox_id: 1 });
+    await usersCollection.createIndex({ rank: 1 });
     
-    connection.release();
-
-    // Users table
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        discord_id VARCHAR(255) UNIQUE NOT NULL,
-        discord_username VARCHAR(255) NOT NULL,
-        discord_avatar VARCHAR(255),
-        roblox_id VARCHAR(255),
-        roblox_username VARCHAR(255),
-        \`rank\` INT,
-        rank_name VARCHAR(255),
-        status VARCHAR(50) NOT NULL DEFAULT 'pending_verification',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        CHECK (status IN ('active', 'inactive', 'pending_verification'))
-      )
-    `);
+    const sessionsCollection = getCollection('sessions');
+    await sessionsCollection.createIndex({ user_id: 1 });
+    await sessionsCollection.createIndex({ token: 1 }, { unique: true });
+    await sessionsCollection.createIndex({ expires_at: 1 }, { expireAfterSeconds: 0 });
     
-    // Add discord_avatar column if it doesn't exist (for existing tables)
-    await pool.query(`
-      ALTER TABLE users ADD COLUMN IF NOT EXISTS discord_avatar VARCHAR(255)
-    `).catch(() => {
-      // Column might already exist or MySQL doesn't support IF NOT EXISTS for columns
-      // Try alternative approach
-      pool.query(`
-        ALTER TABLE users ADD COLUMN discord_avatar VARCHAR(255)
-      `).catch(() => {
-        // Column already exists, ignore
-      });
-    });
-
-    // Sessions table
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS sessions (
-        id VARCHAR(255) PRIMARY KEY,
-        user_id INT NOT NULL,
-        token TEXT NOT NULL,
-        expires_at TIMESTAMP NOT NULL,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-      )
-    `);
-
-    // Verification codes table
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS verification_codes (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        user_id INT NOT NULL,
-        emoji_code VARCHAR(255) NOT NULL,
-        expires_at TIMESTAMP NOT NULL,
-        used BOOLEAN DEFAULT FALSE,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-      )
-    `);
-
-    // Permissions table
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS permissions (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        user_id INT NOT NULL,
-        permission_flag VARCHAR(255) NOT NULL,
-        granted BOOLEAN NOT NULL DEFAULT TRUE,
-        overridden BOOLEAN NOT NULL DEFAULT FALSE,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-        UNIQUE KEY unique_user_permission (user_id, permission_flag)
-      )
-    `);
-
-    // Activity logs table
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS activity_logs (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        user_id INT NOT NULL,
-        week_start DATE NOT NULL,
-        messages_sent INT DEFAULT 0,
-        tickets_claimed INT DEFAULT 0,
-        tickets_resolved INT DEFAULT 0,
-        minutes INT DEFAULT 0,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-        UNIQUE KEY unique_user_week (user_id, week_start)
-      )
-    `);
+    const verificationCodesCollection = getCollection('verification_codes');
+    await verificationCodesCollection.createIndex({ user_id: 1 });
+    await verificationCodesCollection.createIndex({ expires_at: 1 }, { expireAfterSeconds: 0 });
     
-    // Add minutes column if it doesn't exist (for existing tables)
-    await pool.query(`
-      ALTER TABLE activity_logs ADD COLUMN IF NOT EXISTS minutes INT DEFAULT 0
-    `).catch(() => {
-      // Column might already exist or MySQL doesn't support IF NOT EXISTS for columns
-      // Try alternative approach
-      pool.query(`
-        ALTER TABLE activity_logs ADD COLUMN minutes INT DEFAULT 0
-      `).catch(() => {
-        // Column already exists, ignore
-      });
-    });
+    const permissionsCollection = getCollection('permissions');
+    await permissionsCollection.createIndex({ user_id: 1, permission_flag: 1 }, { unique: true });
     
-    // Create index for faster lookups
-    await pool.query(`
-      CREATE INDEX IF NOT EXISTS idx_activity_logs_user_week ON activity_logs(user_id, week_start)
-    `).catch(() => {
-      // Index might already exist, ignore error
-    });
-
-    // Infractions table
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS infractions (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        user_id INT NOT NULL,
-        reason TEXT NOT NULL,
-        type VARCHAR(50) NOT NULL,
-        issued_by INT,
-        voided BOOLEAN DEFAULT FALSE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-        FOREIGN KEY (issued_by) REFERENCES users(id) ON DELETE SET NULL,
-        CHECK (type IN ('warning', 'strike'))
-      )
-    `);
-
-    // Tickets table
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS tickets (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        discord_channel_id VARCHAR(255) NOT NULL,
-        discord_message_id VARCHAR(255),
-        claimed_by INT,
-        status VARCHAR(50) NOT NULL DEFAULT 'open',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (claimed_by) REFERENCES users(id) ON DELETE SET NULL,
-        CHECK (status IN ('open', 'claimed', 'resolved', 'closed'))
-      )
-    `);
-
-    // Tracked channels table
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS tracked_channels (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        discord_channel_id VARCHAR(255) UNIQUE NOT NULL,
-        channel_name VARCHAR(255) NOT NULL
-      )
-    `);
-
-    // LOA (Leave of Absence) requests table
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS loa_requests (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        user_id INT NOT NULL,
-        start_date DATE NOT NULL,
-        end_date DATE NOT NULL,
-        reason TEXT NOT NULL,
-        status VARCHAR(50) NOT NULL DEFAULT 'pending',
-        reviewed_by INT,
-        review_notes TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-        FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL,
-        CHECK (status IN ('pending', 'approved', 'denied'))
-      )
-    `);
-
-    // Discord messages table for tracking quota
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS discord_messages (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        discord_message_id VARCHAR(255) UNIQUE NOT NULL,
-        user_id INT NOT NULL,
-        discord_channel_id VARCHAR(255) NOT NULL,
-        guild_id VARCHAR(255) NOT NULL,
-        content_length INT DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-        INDEX idx_user_created (user_id, created_at),
-        INDEX idx_channel_created (discord_channel_id, created_at)
-      )
-    `);
-
-    console.log('MySQL database schema initialized successfully');
+    const activityLogsCollection = getCollection('activity_logs');
+    await activityLogsCollection.createIndex({ user_id: 1, week_start: 1 }, { unique: true });
+    
+    const infractionsCollection = getCollection('infractions');
+    await infractionsCollection.createIndex({ user_id: 1 });
+    
+    const ticketsCollection = getCollection('tickets');
+    await ticketsCollection.createIndex({ discord_channel_id: 1 }, { unique: true });
+    await ticketsCollection.createIndex({ claimed_by: 1 });
+    
+    const trackedChannelsCollection = getCollection('tracked_channels');
+    await trackedChannelsCollection.createIndex({ discord_channel_id: 1 }, { unique: true });
+    
+    const loaRequestsCollection = getCollection('loa_requests');
+    await loaRequestsCollection.createIndex({ user_id: 1 });
+    
+    const discordMessagesCollection = getCollection('discord_messages');
+    await discordMessagesCollection.createIndex({ discord_message_id: 1 }, { unique: true });
+    await discordMessagesCollection.createIndex({ user_id: 1, created_at: 1 });
+    await discordMessagesCollection.createIndex({ discord_channel_id: 1, created_at: 1 });
+    
+    console.log('MongoDB database schema initialized successfully');
   } catch (error) {
     console.error('Error initializing database:', error);
     throw error;
   }
 }
 
-// Export database instance
-export { db, pool };
+// Export database instance and helper functions
+export { dbWrapper as db };
+export { getCollection };
+
+// Helper functions for direct MongoDB operations (for complex queries)
+export async function query(collectionName: string, filter: Filter<any> = {}, options: any = {}) {
+  const collection = getCollection(collectionName);
+  if (options.count) {
+    return await collection.countDocuments(filter);
+  }
+  let cursor = collection.find(filter);
+  if (options.sort) {
+    cursor = cursor.sort(options.sort);
+  }
+  if (options.limit) {
+    cursor = cursor.limit(options.limit);
+  }
+  return await cursor.toArray();
+}
+
+export async function dbGet(collectionName: string, filter: Filter<any> = {}) {
+  const collection = getCollection(collectionName);
+  return await collection.findOne(filter);
+}
+
+export async function dbRun(collectionName: string, operation: 'insert' | 'update' | 'delete', data: any) {
+  const collection = getCollection(collectionName);
+  if (operation === 'insert') {
+    const result = await collection.insertOne(data);
+    return { insertedId: result.insertedId, acknowledged: result.acknowledged };
+  } else if (operation === 'update') {
+    const { filter, update } = data;
+    const result = await collection.updateOne(filter, update);
+    return { modifiedCount: result.modifiedCount, acknowledged: result.acknowledged };
+  } else if (operation === 'delete') {
+    const result = await collection.deleteOne(data);
+    return { deletedCount: result.deletedCount, acknowledged: result.acknowledged };
+  }
+}
+
+export async function dbAll(collectionName: string, filter: Filter<any> = {}, options: any = {}) {
+  const collection = getCollection(collectionName);
+  let cursor = collection.find(filter);
+  if (options.sort) {
+    cursor = cursor.sort(options.sort);
+  }
+  if (options.limit) {
+    cursor = cursor.limit(options.limit);
+  }
+  return await cursor.toArray();
+}

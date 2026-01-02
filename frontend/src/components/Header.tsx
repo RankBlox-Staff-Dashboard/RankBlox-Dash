@@ -27,7 +27,7 @@ export function Header() {
 
   const getRankColor = () => {
     if (!user?.rank) return 'bg-blue-600';
-    if (user.rank >= 24 && user.rank <= 255) return 'bg-red-600';
+    if (user.rank >= 5 && user.rank <= 255) return 'bg-red-600';
     if (user.rank >= 8) return 'bg-purple-600';
     return 'bg-green-600';
   };
@@ -48,7 +48,7 @@ export function Header() {
           </button>
           <div className="flex items-center gap-2">
             <Shield className="w-5 h-5 text-blue-400" />
-            <span className="text-lg font-bold text-white">Atlanta High</span>
+            <span className="text-lg font-bold text-white">RankBlox</span>
           </div>
         </div>
         <span className={`px-3 py-1 text-xs font-semibold rounded-full ${getRankColor()} text-white transition-all hover:scale-105`}>

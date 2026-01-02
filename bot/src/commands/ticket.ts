@@ -70,7 +70,7 @@ async function handleCreate(interaction: ChatInputCommandInteraction) {
         { name: 'Status', value: 'Open', inline: true },
         { name: 'Created By', value: interaction.user.tag, inline: true }
       )
-      .setFooter({ text: 'Atlanta High Staff System' })
+      .setFooter({ text: 'RankBlox Staff System' })
       .setTimestamp();
 
     await interaction.editReply({ embeds: [embed] });
@@ -144,7 +144,7 @@ async function handleClose(interaction: ChatInputCommandInteraction) {
           { name: 'Closed By', value: interaction.user.tag, inline: true },
           { name: 'Time', value: new Date().toLocaleString(), inline: true }
         )
-        .setFooter({ text: 'Atlanta High Staff System' })
+        .setFooter({ text: 'RankBlox Staff System' })
         .setTimestamp();
 
       await interaction.editReply({ embeds: [embed] });
@@ -178,7 +178,7 @@ async function handleInfo(interaction: ChatInputCommandInteraction) {
 
   const embed = new EmbedBuilder()
     .setTitle('🎫 Ticket System Information')
-    .setDescription('The Atlanta High ticket system helps manage support requests.')
+    .setDescription('The RankBlox ticket system helps manage support requests.')
     .setColor(0x3498db)
     .addFields(
       { name: '/ticket create', value: 'Create a new support ticket in the current channel', inline: false },
@@ -186,7 +186,7 @@ async function handleInfo(interaction: ChatInputCommandInteraction) {
       { name: '/ticket info', value: 'Show this information', inline: false },
       { name: 'Web Dashboard', value: 'You can also manage tickets through the staff dashboard for more options.', inline: false }
     )
-    .setFooter({ text: 'Atlanta High Staff System' })
+    .setFooter({ text: 'RankBlox Staff System' })
     .setTimestamp();
 
   await interaction.editReply({ embeds: [embed] });

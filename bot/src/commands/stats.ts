@@ -72,7 +72,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     if (userData.rank) {
       if (hasImmuneRank) {
         rankBadge = '🛡️'; // Immune
-      } else if (userData.rank >= 24 && userData.rank <= 255) {
+      } else if (userData.rank >= 5 && userData.rank <= 255) {
         rankBadge = '👑'; // Admin
       } else if (userData.rank >= 8) {
         rankBadge = '⭐'; // Senior
@@ -109,7 +109,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         { name: '📊 Rank', value: userData.rank_name || `Rank ${userData.rank || 'N/A'}`, inline: true },
         { name: '📋 Status', value: statusText, inline: true }
       )
-      .setFooter({ text: 'Atlanta High Staff System' })
+      .setFooter({ text: 'RankBlox Staff System' })
       .setTimestamp();
 
     if (thumbnailUrl) {

@@ -39,7 +39,7 @@ export default function StaffDashboardPage() {
             <div className="flex items-center gap-2">
               <Shield className="h-[18px] w-[18px] text-blue-400" strokeWidth={2.2} />
               <div className="text-[20px] font-semibold tracking-tight text-white">
-                Atlanta High
+                RankBlox
               </div>
               <Badge
                 className="ml-1 bg-rose-500/12 text-rose-200 ring-1 ring-rose-400/25"
@@ -113,7 +113,7 @@ export default function StaffDashboardPage() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="text-[15px] font-semibold text-white">
-                    Atlanta High Documentation
+                    RankBlox Documentation
                   </div>
                   <div className="mt-0.5 text-[12px] text-white/45">
                     Official staff guidelines and procedures
@@ -221,7 +221,7 @@ export default function StaffDashboardPage() {
           </Card>
 
           <div className="mt-10 pb-4 text-center text-[12px] text-white/35">
-            © 2025 Atlanta High. All rights reserved.
+            © 2025 RankBlox. All rights reserved.
           </div>
         </main>
       </div>

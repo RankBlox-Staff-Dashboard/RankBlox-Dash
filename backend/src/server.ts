@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
-import { initializeDatabase } from './models/database';
+import { initializeDatabase, connectDatabase } from './models/database';
 import authRoutes from './routes/auth';
 import verificationRoutes from './routes/verification';
 import dashboardRoutes from './routes/dashboard';
@@ -84,7 +84,8 @@ app.use(rateLimit({
 }));
 
 // Initialize database and start auto-sync
-initializeDatabase()
+connectDatabase()
+  .then(() => initializeDatabase())
   .then(() => {
     // Start automatic group rank synchronization
     startAutoSync();

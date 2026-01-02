@@ -45,12 +45,12 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       embed.setDescription('Your Discord account is linked, but Roblox verification is pending.')
         .addFields(
           { name: 'How to Verify', value: '1. Go to the staff dashboard\n2. Click "Get Verification Code"\n3. Add the emoji code to your Roblox bio\n4. Enter your Roblox username and verify', inline: false },
-          { name: 'Dashboard', value: 'Visit the Atlanta High staff dashboard to complete verification.', inline: false }
+          { name: 'Dashboard', value: 'Visit the RankBlox staff dashboard to complete verification.', inline: false }
         );
     } else {
       embed.setDescription('You need to log in through the web dashboard first.')
         .addFields(
-          { name: 'How to Start', value: '1. Visit the Atlanta High staff dashboard\n2. Click "Authorize Securely"\n3. Log in with Discord\n4. Complete Roblox verification', inline: false }
+          { name: 'How to Start', value: '1. Visit the RankBlox staff dashboard\n2. Click "Authorize Securely"\n3. Log in with Discord\n4. Complete Roblox verification', inline: false }
         );
     }
 

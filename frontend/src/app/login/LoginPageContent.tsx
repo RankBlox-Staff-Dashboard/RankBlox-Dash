@@ -147,7 +147,7 @@ export default function LoginPageContent() {
             </div>
           </div>
           <h1 className="text-3xl font-bold text-white mb-2 text-center">
-            Atlanta High
+            RankBlox
           </h1>
           <p className="text-white/60 mb-8 text-center">
             Staff Management Portal

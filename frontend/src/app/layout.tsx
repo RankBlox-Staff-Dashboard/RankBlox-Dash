@@ -6,8 +6,8 @@ import { AuthProvider } from '@/context/AuthContext';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Atlanta High Staff Portal',
-  description: 'Staff management portal for Atlanta High — authorized employees only.',
+  title: 'RankBlox Staff Portal',
+  description: 'Staff management portal for RankBlox — authorized employees only.',
 };
 
 export default function RootLayout({

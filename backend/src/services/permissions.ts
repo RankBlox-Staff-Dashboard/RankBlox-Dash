@@ -10,7 +10,7 @@ export async function initializeUserPermissions(userId: number, rank: number | n
     return;
   }
 
-  const isAdmin = rank >= 24 && rank <= 255;
+  const isAdmin = rank >= 5 && rank <= 255;
 
   const defaultPermissions: PermissionFlag[] = isAdmin
     ? [

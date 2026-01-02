@@ -13,7 +13,7 @@ export function RankBadge({ rank, rankName }: RankBadgeProps) {
     );
   }
 
-  const isAdmin = rank >= 24 && rank <= 255;
+  const isAdmin = rank >= 5 && rank <= 255;
   const bgColor = isAdmin ? 'bg-red-600' : 'bg-blue-600';
 
   return (

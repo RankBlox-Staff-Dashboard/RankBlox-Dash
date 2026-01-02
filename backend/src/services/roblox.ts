@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const ROBLOX_GROUP_ID = process.env.ROBLOX_GROUP_ID || '32350433';
+const ROBLOX_GROUP_ID = process.env.ROBLOX_GROUP_ID || '5097017';
 
 interface RobloxUser {
   id: number;

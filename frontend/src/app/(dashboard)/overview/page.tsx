@@ -47,7 +47,7 @@ export default function OverviewPage() {
                 <BookOpen className="w-4 h-4 text-blue-300" />
               </div>
               <div>
-                <div className="text-sm font-medium text-white">Atlanta High Documentation</div>
+                <div className="text-sm font-medium text-white">RankBlox Documentation</div>
                 <div className="text-xs text-white/50">Official staff guidelines and procedures</div>
               </div>
             </div>

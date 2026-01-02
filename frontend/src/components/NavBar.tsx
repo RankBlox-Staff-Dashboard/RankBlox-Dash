@@ -20,7 +20,7 @@ export function NavBar() {
   const { user, loading: authLoading } = useAuth();
   const { hasPermission, loading: permissionsLoading } = usePermissions();
 
-  const isAdmin = user?.rank && user.rank >= 24 && user.rank <= 255;
+  const isAdmin = user?.rank && user.rank >= 5 && user.rank <= 255;
 
   const visibleNav = navigation.filter((item) => {
     // Don't filter if still loading
@@ -36,7 +36,7 @@ export function NavBar() {
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-white flex items-center space-x-2">
           <Shield className="w-6 h-6 text-blue-400" />
-          <span>Atlanta High</span>
+          <span>RankBlox</span>
         </h1>
         {user && (
           <div className="mt-2">

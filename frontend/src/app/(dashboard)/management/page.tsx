@@ -47,7 +47,7 @@ export default function ManagementPage() {
   const { permissions, loading: permissionsLoading } = usePermissions();
 
   // User is admin if they have MANAGE_USERS or MANAGE_PERMISSIONS permission
-  // This is determined by backend based on rank (24-255) or permission overrides
+  // This is determined by backend based on rank (5-255) or permission overrides
   const isAdmin = useMemo(() => {
     return permissions.includes('MANAGE_USERS') || permissions.includes('MANAGE_PERMISSIONS');
   }, [permissions]);
@@ -276,7 +276,7 @@ export default function ManagementPage() {
             </div>
             <div>
               <h2 className="text-lg font-bold text-white">Management Panel</h2>
-              <p className="text-xs text-white/50">Administrator controls for Atlanta High</p>
+              <p className="text-xs text-white/50">Administrator controls for RankBlox</p>
             </div>
           </div>
           <button
@@ -327,7 +327,7 @@ export default function ManagementPage() {
               Staff Users ({staffUsers.length})
             </h3>
             
-            {/* Group Sync Button - Admin only (ranks 24-255) */}
+            {/* Group Sync Button - Admin only (ranks 5-255) */}
             <button
               onClick={triggerGroupSync}
               disabled={syncLoading || syncStatus?.isSyncing}

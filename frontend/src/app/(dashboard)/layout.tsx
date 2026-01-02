@@ -57,7 +57,7 @@ export default function DashboardLayout({
         {children}
       </main>
       <footer className="py-6 text-center text-white/40 text-sm animate-fadeIn">
-        © 2025 Atlanta High. All rights reserved.
+        © 2025 RankBlox. All rights reserved.
       </footer>
     </div>
   );

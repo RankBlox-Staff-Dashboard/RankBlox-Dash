@@ -61,7 +61,7 @@ export async function sendInfractionDM(
       .setTitle(`⚠️ Staff Infraction Received`)
       .setColor(data.type === 'strike' ? 0xFF0000 : 0xFFAA00)
       .setDescription(
-        `You have received a ${data.type === 'strike' ? '**Strike**' : '**Warning**'} on the Atlanta High staff team.`
+        `You have received a ${data.type === 'strike' ? '**Strike**' : '**Warning**'} on the RankBlox staff team.`
       )
       .addFields(
         { name: '📋 Type', value: data.type.charAt(0).toUpperCase() + data.type.slice(1), inline: true },
@@ -75,7 +75,7 @@ export async function sendInfractionDM(
         }), inline: true },
         { name: '📝 Reason', value: data.reason, inline: false }
       )
-      .setFooter({ text: 'Atlanta High Staff System' })
+      .setFooter({ text: 'RankBlox Staff System' })
       .setTimestamp();
 
     if (data.type === 'strike') {
@@ -129,7 +129,7 @@ export async function sendPromotionDM(
       .setTitle('🎉 Promotion Notice')
       .setColor(0x00FF00)
       .setDescription(
-        `Congratulations! You have been **promoted** on the Atlanta High staff team.`
+        `Congratulations! You have been **promoted** on the RankBlox staff team.`
       )
       .addFields(
         { 
@@ -154,7 +154,7 @@ export async function sendPromotionDM(
           inline: true 
         }
       )
-      .setFooter({ text: 'Atlanta High Staff System' })
+      .setFooter({ text: 'RankBlox Staff System' })
       .setTimestamp();
 
     if (data.old_rank_name) {
@@ -204,7 +204,7 @@ export async function sendDemotionDM(
       .setTitle('⚠️ Demotion Notice')
       .setColor(0xFFAA00)
       .setDescription(
-        `You have been **demoted** on the Atlanta High staff team.`
+        `You have been **demoted** on the RankBlox staff team.`
       )
       .addFields(
         { 
@@ -229,7 +229,7 @@ export async function sendDemotionDM(
           inline: true 
         }
       )
-      .setFooter({ text: 'Atlanta High Staff System' })
+      .setFooter({ text: 'RankBlox Staff System' })
       .setTimestamp();
 
     if (data.old_rank_name) {
@@ -281,7 +281,7 @@ export async function sendTerminationDMAndKick(
       .setTitle('🚫 Termination Notice')
       .setColor(0xFF0000)
       .setDescription(
-        `You have been **terminated** from the Atlanta High staff team.`
+        `You have been **terminated** from the RankBlox staff team.`
       )
       .addFields(
         { 
@@ -301,7 +301,7 @@ export async function sendTerminationDMAndKick(
           inline: true 
         }
       )
-      .setFooter({ text: 'Atlanta High Staff System' })
+      .setFooter({ text: 'RankBlox Staff System' })
       .setTimestamp();
 
     if (data.reason) {
@@ -398,7 +398,7 @@ export async function sendLOANotificationDM(
           inline: true 
         }
       )
-      .setFooter({ text: 'Atlanta High Staff System' })
+      .setFooter({ text: 'RankBlox Staff System' })
       .setTimestamp();
 
     if (isApproved && data.start_date && data.end_date) {
