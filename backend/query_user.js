@@ -12,12 +12,12 @@ async function queryUser() {
   // Usage: node query_user.js [host] [user] [password] [database]
   const args = process.argv.slice(2);
   
-  // Database configuration
+  // Database configuration - NO HARDCODED CREDENTIALS
   const dbConfig = {
-    host: args[0] || process.env.DB_HOST || 'ahsDB.zenohost.co.uk',
-    user: args[1] || process.env.DB_USER || 'AHSStaff',
-    password: args[2] || process.env.DB_PASSWORD || 'AHSStaff2025!Security!Zenohost',
-    database: args[3] || process.env.DB_NAME || 'ahstaffsecureencrypteddatabase',
+    host: args[0] || process.env.DB_HOST,
+    user: args[1] || process.env.DB_USER,
+    password: args[2] || process.env.DB_PASSWORD,
+    database: args[3] || process.env.DB_NAME,
   };
 
   // Try to get credentials from environment or prompt

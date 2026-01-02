@@ -59,12 +59,29 @@ async function processMessageQueue() {
   }
 }
 
-// Set up batch processing interval
-setInterval(processMessageQueue, BATCH_INTERVAL);
+// Set up batch processing interval - store reference for cleanup
+let messageQueueInterval: NodeJS.Timeout | null = null;
 
-// Process remaining messages on shutdown
+// Initialize interval on module load
+messageQueueInterval = setInterval(processMessageQueue, BATCH_INTERVAL);
+
+// Process remaining messages on shutdown and cleanup interval
 process.on('SIGINT', async () => {
   console.log('[MessageTracker] Processing remaining messages before shutdown...');
+  if (messageQueueInterval) {
+    clearInterval(messageQueueInterval);
+    messageQueueInterval = null;
+  }
+  await processMessageQueue();
+  process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+  console.log('[MessageTracker] Processing remaining messages before shutdown...');
+  if (messageQueueInterval) {
+    clearInterval(messageQueueInterval);
+    messageQueueInterval = null;
+  }
   await processMessageQueue();
   process.exit(0);
 });

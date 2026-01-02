@@ -228,8 +228,15 @@ router.put('/users/:id/permissions', async (req: Request, res: Response) => {
     }
     const { permission, granted } = req.body;
 
-    if (!permission || typeof granted !== 'boolean') {
-      return res.status(400).json({ error: 'permission and granted are required' });
+    // Validate input types and values
+    if (!permission || typeof permission !== 'string') {
+      return res.status(400).json({ error: 'permission is required and must be a string' });
+    }
+    if (permission.length > 100) {
+      return res.status(400).json({ error: 'permission name is too long' });
+    }
+    if (typeof granted !== 'boolean') {
+      return res.status(400).json({ error: 'granted is required and must be a boolean' });
     }
 
     // Validate permission flag
@@ -357,13 +364,14 @@ router.post('/users/:id/promote', async (req: Request, res: Response) => {
     let dmSent = false;
     let dmError: string | null = null;
 
+    let timeoutId: NodeJS.Timeout | null = null;
     try {
       const botApiUrl = process.env.BOT_API_URL || 'http://localhost:3001';
       const botApiToken = process.env.BOT_API_TOKEN;
 
       // Add timeout for bot API call
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
       const notifyResponse = await fetch(`${botApiUrl}/notify-promotion`, {
         method: 'POST',
@@ -382,7 +390,10 @@ router.post('/users/:id/promote', async (req: Request, res: Response) => {
         signal: controller.signal,
       });
 
-      clearTimeout(timeoutId);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
 
       if (notifyResponse.ok) {
         const notifyResult = await notifyResponse.json() as { dm_sent?: boolean; error?: string };
@@ -392,6 +403,11 @@ router.post('/users/:id/promote', async (req: Request, res: Response) => {
         dmError = 'Failed to reach notification service';
       }
     } catch (notifyError: any) {
+      // Always clear timeout in case of error
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
       console.error('Error sending promotion notification:', notifyError);
       if (notifyError.name === 'AbortError' || notifyError.name === 'TimeoutError') {
         dmError = 'Notification service timeout';
@@ -467,6 +483,7 @@ router.post('/users/:id/demote', async (req: Request, res: Response) => {
     // Send DM notification via bot
     let dmSent = false;
     let dmError: string | null = null;
+    let timeoutId: NodeJS.Timeout | null = null;
 
     try {
       const botApiUrl = process.env.BOT_API_URL || 'http://localhost:3001';
@@ -474,7 +491,7 @@ router.post('/users/:id/demote', async (req: Request, res: Response) => {
 
       // Add timeout for bot API call
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
       const notifyResponse = await fetch(`${botApiUrl}/notify-demotion`, {
         method: 'POST',
@@ -493,7 +510,10 @@ router.post('/users/:id/demote', async (req: Request, res: Response) => {
         signal: controller.signal,
       });
 
-      clearTimeout(timeoutId);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
 
       if (notifyResponse.ok) {
         const notifyResult = await notifyResponse.json() as { dm_sent?: boolean; error?: string };
@@ -503,6 +523,11 @@ router.post('/users/:id/demote', async (req: Request, res: Response) => {
         dmError = 'Failed to reach notification service';
       }
     } catch (notifyError: any) {
+      // Always clear timeout in case of error
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
       console.error('Error sending demotion notification:', notifyError);
       if (notifyError.name === 'AbortError' || notifyError.name === 'TimeoutError') {
         dmError = 'Notification service timeout';
@@ -568,6 +593,7 @@ router.post('/users/:id/terminate', async (req: Request, res: Response) => {
     let dmSent = false;
     let kicked = false;
     let dmError: string | null = null;
+    let timeoutId: NodeJS.Timeout | null = null;
 
     try {
       const botApiUrl = process.env.BOT_API_URL || 'http://localhost:3001';
@@ -575,7 +601,7 @@ router.post('/users/:id/terminate', async (req: Request, res: Response) => {
 
       // Add timeout for bot API call
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
       const notifyResponse = await fetch(`${botApiUrl}/notify-termination`, {
         method: 'POST',
@@ -603,6 +629,11 @@ router.post('/users/:id/terminate', async (req: Request, res: Response) => {
         dmError = 'Failed to reach notification service';
       }
     } catch (notifyError: any) {
+      // Always clear timeout in case of error
+      if (timeoutId !== null) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
       console.error('Error sending termination notification:', notifyError);
       if (notifyError.name === 'AbortError' || notifyError.name === 'TimeoutError') {
         dmError = 'Notification service timeout';
@@ -648,12 +679,18 @@ router.post('/tracked-channels', async (req: Request, res: Response) => {
   try {
     const { discord_channel_id, channel_name } = req.body;
 
-    if (!discord_channel_id || !channel_name) {
-      return res.status(400).json({ error: 'discord_channel_id and channel_name are required' });
+    // Validate input types and values
+    if (!discord_channel_id || typeof discord_channel_id !== 'string') {
+      return res.status(400).json({ error: 'discord_channel_id is required and must be a string' });
     }
-
+    if (discord_channel_id.length > 100) {
+      return res.status(400).json({ error: 'discord_channel_id is too long' });
+    }
+    if (!channel_name || typeof channel_name !== 'string') {
+      return res.status(400).json({ error: 'channel_name is required and must be a string' });
+    }
     // Validate channel name length
-    if (typeof channel_name !== 'string' || channel_name.length < 1 || channel_name.length > 255) {
+    if (channel_name.length < 1 || channel_name.length > 255) {
       return res.status(400).json({ error: 'Invalid channel name length (must be 1-255 characters)' });
     }
 
@@ -781,6 +818,7 @@ router.put('/loa/:id/review', async (req: Request, res: Response) => {
     // Send DM notification via bot
     let dmSent = false;
     let dmError: string | null = null;
+    let timeoutId: NodeJS.Timeout | null = null;
 
     try {
       const botApiUrl = process.env.BOT_API_URL || 'http://localhost:3001';
@@ -788,7 +826,7 @@ router.put('/loa/:id/review', async (req: Request, res: Response) => {
 
       // Add timeout for bot API call
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
       const notifyResponse = await fetch(`${botApiUrl}/notify-loa`, {
         method: 'POST',
@@ -807,7 +845,10 @@ router.put('/loa/:id/review', async (req: Request, res: Response) => {
         signal: controller.signal,
       });
 
-      clearTimeout(timeoutId);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
 
       if (notifyResponse.ok) {
         const notifyResult = await notifyResponse.json() as { dm_sent?: boolean; error?: string };
@@ -817,6 +858,11 @@ router.put('/loa/:id/review', async (req: Request, res: Response) => {
         dmError = 'Failed to reach notification service';
       }
     } catch (notifyError: any) {
+      // Always clear timeout in case of error
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
       console.error('Error sending LOA notification:', notifyError);
       if (notifyError.name === 'AbortError' || notifyError.name === 'TimeoutError') {
         dmError = 'Notification service timeout';
@@ -874,10 +920,22 @@ router.post('/infractions', requirePermission('ISSUE_INFRACTIONS'), async (req: 
   try {
     const { user_id, reason, type } = req.body;
 
-    if (!user_id || !reason || !type) {
-      return res.status(400).json({ error: 'user_id, reason, and type are required' });
+    // Validate input types and values
+    if (!user_id || typeof user_id !== 'number') {
+      return res.status(400).json({ error: 'user_id is required and must be a number' });
     }
-
+    if (!Number.isInteger(user_id) || user_id <= 0) {
+      return res.status(400).json({ error: 'user_id must be a positive integer' });
+    }
+    if (!reason || typeof reason !== 'string') {
+      return res.status(400).json({ error: 'reason is required and must be a string' });
+    }
+    if (reason.length > 1000) {
+      return res.status(400).json({ error: 'reason is too long (max 1000 characters)' });
+    }
+    if (!type || typeof type !== 'string') {
+      return res.status(400).json({ error: 'type is required and must be a string' });
+    }
     if (!['warning', 'strike'].includes(type)) {
       return res.status(400).json({ error: 'Invalid type. Must be warning or strike.' });
     }
@@ -910,6 +968,7 @@ router.post('/infractions', requirePermission('ISSUE_INFRACTIONS'), async (req: 
     // Send DM notification via bot
     let dmSent = false;
     let dmError: string | null = null;
+    let timeoutId: NodeJS.Timeout | null = null;
 
     try {
       const botApiUrl = process.env.BOT_API_URL || 'http://localhost:3001';
@@ -917,7 +976,7 @@ router.post('/infractions', requirePermission('ISSUE_INFRACTIONS'), async (req: 
 
       // Add timeout for bot API call
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
       const notifyResponse = await fetch(`${botApiUrl}/notify-infraction`, {
         method: 'POST',
@@ -935,7 +994,10 @@ router.post('/infractions', requirePermission('ISSUE_INFRACTIONS'), async (req: 
         signal: controller.signal,
       });
 
-      clearTimeout(timeoutId);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
 
       if (notifyResponse.ok) {
         const notifyResult = await notifyResponse.json() as { dm_sent?: boolean; error?: string };
@@ -945,6 +1007,11 @@ router.post('/infractions', requirePermission('ISSUE_INFRACTIONS'), async (req: 
         dmError = 'Failed to reach notification service';
       }
     } catch (notifyError: any) {
+      // Always clear timeout in case of error
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
       console.error('Error sending infraction notification:', notifyError);
       if (notifyError.name === 'AbortError' || notifyError.name === 'TimeoutError') {
         dmError = 'Notification service timeout';

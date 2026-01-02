@@ -33,10 +33,15 @@ const normalizeOrigin = (value?: string) => {
   }
 };
 // Allow hardcoded URL and any additional URLs from environment
+// Safely parse FRONTEND_URLS to prevent errors if it's not a string
 const FRONTEND_URLS = Array.from(new Set([
   normalizeOrigin(HARDCODED_FRONTEND_URL),
-  ...(process.env.FRONTEND_URLS ? process.env.FRONTEND_URLS.split(',').map((s) => normalizeOrigin(s.trim())) : []),
-  ...(process.env.FRONTEND_URL ? [normalizeOrigin(process.env.FRONTEND_URL)] : [])
+  ...(process.env.FRONTEND_URLS && typeof process.env.FRONTEND_URLS === 'string' 
+    ? process.env.FRONTEND_URLS.split(',').map((s) => normalizeOrigin(s.trim())).filter(Boolean)
+    : []),
+  ...(process.env.FRONTEND_URL && typeof process.env.FRONTEND_URL === 'string' 
+    ? [normalizeOrigin(process.env.FRONTEND_URL)] 
+    : [])
 ].filter(Boolean)));
 
 // Debug logging for CORS configuration

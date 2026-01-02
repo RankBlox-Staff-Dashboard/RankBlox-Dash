@@ -8,6 +8,14 @@ const HARDCODED_REDIRECT_URI = 'https://rankblox-dash-backend-706270663868.europ
 // Always use hardcoded URL - ignore any environment variable
 const REDIRECT_URI = HARDCODED_REDIRECT_URI;
 
+// Validate required environment variables on module load
+if (!CLIENT_ID) {
+  console.error('[Discord OAuth] ❌ DISCORD_CLIENT_ID is not set');
+}
+if (!CLIENT_SECRET) {
+  console.error('[Discord OAuth] ❌ DISCORD_CLIENT_SECRET is not set');
+}
+
 // Log the redirect URI being used (for debugging)
 console.log('[Discord OAuth Config] Redirect URI:', REDIRECT_URI);
 console.log('[Discord OAuth Config] Client ID:', CLIENT_ID ? 'SET' : 'NOT SET');
@@ -37,14 +45,20 @@ export async function exchangeDiscordCode(code: string): Promise<string | null> 
     console.log('[Discord OAuth] Redirect URI:', REDIRECT_URI);
     console.log('[Discord OAuth] Client ID:', CLIENT_ID ? 'SET' : 'NOT SET');
     
+    // Validate required configuration
+    if (!CLIENT_ID || !CLIENT_SECRET) {
+      console.error('[Discord OAuth] Missing required configuration: CLIENT_ID or CLIENT_SECRET');
+      return null;
+    }
+    
     const response = await axios.post(
       'https://discord.com/api/oauth2/token',
       new URLSearchParams({
-        client_id: CLIENT_ID!,
-        client_secret: CLIENT_SECRET!,
+        client_id: CLIENT_ID,
+        client_secret: CLIENT_SECRET,
         grant_type: 'authorization_code',
         code: code,
-        redirect_uri: REDIRECT_URI!,
+        redirect_uri: REDIRECT_URI,
       }),
       {
         headers: {
@@ -88,9 +102,13 @@ export async function getDiscordUser(accessToken: string): Promise<DiscordUser |
  * Get Discord OAuth authorization URL
  */
 export function getDiscordOAuthUrl(state?: string): string {
+  if (!CLIENT_ID) {
+    throw new Error('DISCORD_CLIENT_ID is not configured');
+  }
+  
   const params = new URLSearchParams({
-    client_id: CLIENT_ID!,
-    redirect_uri: REDIRECT_URI!,
+    client_id: CLIENT_ID,
+    redirect_uri: REDIRECT_URI,
     response_type: 'code',
     scope: 'identify email',
   });

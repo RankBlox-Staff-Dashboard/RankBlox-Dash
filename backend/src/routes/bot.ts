@@ -17,11 +17,22 @@ router.post('/activity', async (req: Request, res: Response) => {
   try {
     const { discord_id, messages_count } = req.body;
 
-    if (!discord_id || typeof discord_id !== 'string' || typeof messages_count !== 'number') {
-      return res.status(400).json({ error: 'discord_id and messages_count are required' });
+    // Validate input types and values
+    if (!discord_id || typeof discord_id !== 'string') {
+      return res.status(400).json({ error: 'discord_id is required and must be a string' });
+    }
+    if (discord_id.length > 100) {
+      return res.status(400).json({ error: 'discord_id is too long' });
+    }
+    if (typeof messages_count !== 'number') {
+      return res.status(400).json({ error: 'messages_count is required and must be a number' });
     }
     if (!Number.isFinite(messages_count) || messages_count < 0) {
-      return res.status(400).json({ error: 'messages_count must be a non-negative number' });
+      return res.status(400).json({ error: 'messages_count must be a non-negative finite number' });
+    }
+    // Prevent extremely large values that could cause issues
+    if (messages_count > 1000000) {
+      return res.status(400).json({ error: 'messages_count is too large' });
     }
 
     // Find user by Discord ID
@@ -64,8 +75,21 @@ router.post('/message', async (req: Request, res: Response) => {
   try {
     const { discord_id, discord_message_id, discord_channel_id, guild_id, content_length } = req.body;
 
-    if (!discord_id || !discord_message_id || !discord_channel_id || !guild_id) {
-      return res.status(400).json({ error: 'discord_id, discord_message_id, discord_channel_id, and guild_id are required' });
+    // Validate all required fields with type and length checks
+    if (!discord_id || typeof discord_id !== 'string' || discord_id.length > 100) {
+      return res.status(400).json({ error: 'discord_id is required, must be a string, and must be <= 100 characters' });
+    }
+    if (!discord_message_id || typeof discord_message_id !== 'string' || discord_message_id.length > 100) {
+      return res.status(400).json({ error: 'discord_message_id is required, must be a string, and must be <= 100 characters' });
+    }
+    if (!discord_channel_id || typeof discord_channel_id !== 'string' || discord_channel_id.length > 100) {
+      return res.status(400).json({ error: 'discord_channel_id is required, must be a string, and must be <= 100 characters' });
+    }
+    if (!guild_id || typeof guild_id !== 'string' || guild_id.length > 100) {
+      return res.status(400).json({ error: 'guild_id is required, must be a string, and must be <= 100 characters' });
+    }
+    if (content_length !== undefined && (typeof content_length !== 'number' || content_length < 0 || !Number.isFinite(content_length))) {
+      return res.status(400).json({ error: 'content_length must be a non-negative finite number if provided' });
     }
 
     // Find user by Discord ID
@@ -145,7 +169,20 @@ router.post('/messages/batch', async (req: Request, res: Response) => {
     for (const msg of messages) {
       const { discord_id, discord_message_id, discord_channel_id, guild_id, content_length } = msg;
 
-      if (!discord_id || !discord_message_id || !discord_channel_id || !guild_id) {
+      // Validate message structure and types
+      if (!discord_id || typeof discord_id !== 'string' || discord_id.length > 100) {
+        continue;
+      }
+      if (!discord_message_id || typeof discord_message_id !== 'string' || discord_message_id.length > 100) {
+        continue;
+      }
+      if (!discord_channel_id || typeof discord_channel_id !== 'string' || discord_channel_id.length > 100) {
+        continue;
+      }
+      if (!guild_id || typeof guild_id !== 'string' || guild_id.length > 100) {
+        continue;
+      }
+      if (content_length !== undefined && (typeof content_length !== 'number' || content_length < 0 || !Number.isFinite(content_length))) {
         continue;
       }
 
@@ -217,11 +254,20 @@ router.post('/tickets', async (req: Request, res: Response) => {
   const { discord_channel_id, discord_message_id } = req.body;
   
   try {
+    // Validate input types and lengths
     if (!discord_channel_id || typeof discord_channel_id !== 'string') {
-      return res.status(400).json({ error: 'discord_channel_id is required' });
+      return res.status(400).json({ error: 'discord_channel_id is required and must be a string' });
     }
-    if (discord_message_id !== undefined && discord_message_id !== null && typeof discord_message_id !== 'string') {
-      return res.status(400).json({ error: 'discord_message_id must be a string' });
+    if (discord_channel_id.length > 100) {
+      return res.status(400).json({ error: 'discord_channel_id is too long' });
+    }
+    if (discord_message_id !== undefined && discord_message_id !== null) {
+      if (typeof discord_message_id !== 'string') {
+        return res.status(400).json({ error: 'discord_message_id must be a string' });
+      }
+      if (discord_message_id.length > 100) {
+        return res.status(400).json({ error: 'discord_message_id is too long' });
+      }
     }
 
     // Check if ticket already exists
@@ -381,8 +427,12 @@ router.post('/tickets/claim-by-channel', async (req: Request, res: Response) => 
 router.get('/user/:discord_id', async (req: Request, res: Response) => {
   try {
     const discordId = req.params.discord_id;
+    // Validate input type and length
     if (!discordId || typeof discordId !== 'string') {
-      return res.status(400).json({ error: 'discord_id is required' });
+      return res.status(400).json({ error: 'discord_id is required and must be a string' });
+    }
+    if (discordId.length > 100) {
+      return res.status(400).json({ error: 'discord_id is too long' });
     }
 
     const user = await db
@@ -543,8 +593,16 @@ router.post('/roblox-minutes', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'roblox_username is required and must be a string' });
     }
 
-    // Hardcoded API token for EasyPOS activity API
-    const activityApiToken = 'f4ce0b59a2b93faa733f9774e3a57f376d4108edca9252b2050661d8b36b50c5f16bd0ba45a9f22c8493a7a8a9d86f90';
+    // API token for EasyPOS activity API - should be in environment variables
+    const activityApiToken = process.env.EASYPOS_API_TOKEN || 'f4ce0b59a2b93faa733f9774e3a57f376d4108edca9252b2050661d8b36b50c5f16bd0ba45a9f22c8493a7a8a9d86f90';
+    
+    if (!activityApiToken || activityApiToken === 'your_easypos_api_token_here') {
+      console.error('[Roblox Minutes] EASYPOS_API_TOKEN not configured');
+      return res.status(500).json({ 
+        error: 'Activity API not configured',
+        message: 'EASYPOS_API_TOKEN environment variable is required'
+      });
+    }
 
     // Trim whitespace and normalize username
     const username = roblox_username.trim();

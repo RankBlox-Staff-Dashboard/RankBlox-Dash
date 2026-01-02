@@ -282,10 +282,11 @@ router.get('/analytics/non-staff', requireAdmin, requirePermission('VIEW_ANALYTI
 
     // Try to fetch from bot API
     if (botApiToken && botApiUrl) {
+      let timeoutId: NodeJS.Timeout | null = null;
       try {
         // Create abort controller for timeout
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+        timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
         const botResponse = await fetch(`${botApiUrl}/server-members`, {
           headers: {
@@ -294,7 +295,10 @@ router.get('/analytics/non-staff', requireAdmin, requirePermission('VIEW_ANALYTI
           signal: controller.signal,
         });
 
-        clearTimeout(timeoutId);
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
 
         if (botResponse.ok) {
           const botData = await botResponse.json() as { members?: typeof discordMembers };
@@ -304,6 +308,11 @@ router.get('/analytics/non-staff', requireAdmin, requirePermission('VIEW_ANALYTI
           // Continue with empty array - will return empty result
         }
       } catch (fetchError: any) {
+        // Always clear timeout in case of error
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
         // Handle timeout or network errors gracefully
         if (fetchError.name === 'AbortError' || fetchError.name === 'TimeoutError' || fetchError.message?.includes('aborted')) {
           console.error('Bot API request timed out or was aborted');

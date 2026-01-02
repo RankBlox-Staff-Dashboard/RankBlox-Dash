@@ -87,8 +87,24 @@ export function cleanupExpiredCooldowns(): void {
   }
 }
 
-// Run cleanup every 5 minutes
-setInterval(cleanupExpiredCooldowns, 5 * 60 * 1000);
+// Run cleanup every 5 minutes - store reference for cleanup
+let cooldownCleanupInterval: NodeJS.Timeout | null = null;
+cooldownCleanupInterval = setInterval(cleanupExpiredCooldowns, 5 * 60 * 1000);
+
+// Cleanup on shutdown
+process.on('SIGTERM', () => {
+  if (cooldownCleanupInterval) {
+    clearInterval(cooldownCleanupInterval);
+    cooldownCleanupInterval = null;
+  }
+});
+
+process.on('SIGINT', () => {
+  if (cooldownCleanupInterval) {
+    clearInterval(cooldownCleanupInterval);
+    cooldownCleanupInterval = null;
+  }
+});
 
 /**
  * Format a cooldown message for the user.

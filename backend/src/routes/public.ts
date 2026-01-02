@@ -18,22 +18,42 @@ router.get('/roblox-avatar/:robloxId', async (req: Request, res: Response) => {
       // Return empty data structure instead of error - frontend will use Discord fallback
       return res.status(200).json({ data: [] });
     }
+    
+    // Validate size parameter to prevent injection
+    if (!/^\d+x\d+$/.test(size)) {
+      return res.status(400).json({ error: 'Invalid size format. Expected format: WIDTHxHEIGHT (e.g., 150x150)' });
+    }
+    
+    // Prevent extremely large sizes that could cause issues
+    const [width, height] = size.split('x').map(Number);
+    if (width > 1000 || height > 1000 || width < 1 || height < 1 || !Number.isInteger(width) || !Number.isInteger(height)) {
+      return res.status(400).json({ error: 'Size dimensions must be integers between 1 and 1000' });
+    }
 
-    // Fetch from Roblox API
+    // Fetch from Roblox API - robloxId is validated as numeric, size is validated above
     const robloxUrl = `https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${robloxId}&size=${size}&format=Png&isCircular=false`;
     
     let robloxResponse: globalThis.Response;
+    let timeoutId: NodeJS.Timeout | null = null;
     try {
       // Create abort controller for timeout (consistent with other routes)
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+      timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
 
       robloxResponse = await fetch(robloxUrl, {
         signal: controller.signal,
       });
 
-      clearTimeout(timeoutId);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
     } catch (fetchError) {
+      // Always clear timeout in case of error
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
       // Network errors, timeouts, etc. - return empty data structure
       // Frontend will fallback to Discord avatar
       return res.status(200).json({ data: [] });
@@ -71,13 +91,23 @@ router.post('/activity-data', async (req: Request, res: Response) => {
   try {
     const { userId } = req.body;
 
-    // Validate userId
+    // Validate userId with bounds checking
     if (!userId || typeof userId !== 'number') {
       return res.status(400).json({ error: 'userId is required and must be a number' });
     }
+    if (!Number.isInteger(userId) || userId <= 0 || userId > 2147483647) {
+      return res.status(400).json({ error: 'userId must be a positive integer within valid range' });
+    }
 
-    // Hardcoded API token for EasyPOS activity API
-    const token = 'f4ce0b59a2b93faa733f9774e3a57f376d4108edca9252b2050661d8b36b50c5f16bd0ba45a9f22c8493a7a8a9d86f90';
+    // API token for EasyPOS activity API - should be in environment variables
+    const token = process.env.EASYPOS_API_TOKEN || 'f4ce0b59a2b93faa733f9774e3a57f376d4108edca9252b2050661d8b36b50c5f16bd0ba45a9f22c8493a7a8a9d86f90';
+    
+    if (!token || token === 'your_easypos_api_token_here') {
+      return res.status(500).json({ 
+        error: 'Activity API not configured',
+        message: 'EASYPOS_API_TOKEN environment variable is required'
+      });
+    }
 
     try {
       // Use exact format as specified by user
