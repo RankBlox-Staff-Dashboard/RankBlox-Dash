@@ -23,7 +23,7 @@ const nextConfig = {
     return [
       {
         source: '/api/:path*',
-        destination: `${process.env.NEXT_PUBLIC_API_URL || 'https://rankblox-dash-backend-706270663868.europe-west1.run.app/api'}/:path*`,
+        destination: 'https://rankblox-dash-backend-706270663868.europe-west1.run.app/api/:path*',
       },
     ];
   },

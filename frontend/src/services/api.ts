@@ -1,11 +1,10 @@
 import axios from 'axios';
 import type { User, Stats, Infraction, Ticket, Analytics, PermissionFlag, LOARequest } from '../types';
 
-const DEFAULT_PROD_API_URL = 'https://rankblox-dash-backend-706270663868.europe-west1.run.app/api';
+// Hardcoded backend API URL
+const HARDCODED_API_URL = 'https://rankblox-dash-backend-706270663868.europe-west1.run.app/api';
 
-export const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  (process.env.NODE_ENV === 'production' ? DEFAULT_PROD_API_URL : '/api');
+export const API_URL = HARDCODED_API_URL;
 
 export function getApiBaseUrl(): string {
   return API_URL.replace(/\/$/, '');

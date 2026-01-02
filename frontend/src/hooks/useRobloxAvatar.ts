@@ -33,7 +33,8 @@ export function useRobloxAvatar(robloxId: string | null, size: '150x150' | '420x
 
       try {
         // Use backend proxy to avoid CORS issues
-        const API_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
+        // Hardcoded backend API URL
+        const API_URL = 'https://rankblox-dash-backend-706270663868.europe-west1.run.app/api';
         const proxyUrl = `${API_URL}/public/roblox-avatar/${robloxId}?size=${size}`;
         
         const response = await fetch(proxyUrl, {
