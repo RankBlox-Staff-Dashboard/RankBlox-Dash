@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useManagement } from '@/hooks/useManagement';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -74,7 +74,7 @@ export default function ManagementPage() {
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncFeedback, setSyncFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  const staffUsers = useMemo(() => users.filter((u) => u.rank !== null), [users]);
+  const staffUsers = useMemo(() => users.filter((u: StaffAnalytics) => u.rank !== null), [users]);
 
   useEffect(() => {
     if (activeTab === 'loa') {
@@ -377,7 +377,7 @@ export default function ManagementPage() {
           )}
 
           <div className="space-y-3">
-            {staffUsers.map((u) => (
+            {staffUsers.map((u: StaffAnalytics) => (
                 <div key={u.id} className="p-4 rounded-xl bg-white/5 hover:bg-white/10 transition">
                   <div className="flex items-center gap-3 mb-3">
                     <RobloxAvatar
@@ -472,7 +472,7 @@ export default function ManagementPage() {
 
           <div className="space-y-2">
             {channels.length === 0 && <div className="text-white/50 text-sm text-center py-4">No tracked channels</div>}
-            {channels.map((ch) => (
+            {channels.map((ch: { id: number; discord_channel_id: string; channel_name: string }) => (
               <div key={ch.id} className="flex items-center justify-between p-3 rounded-xl bg-white/5">
                 <div>
                   <div className="text-white font-medium text-sm">{ch.channel_name}</div>
@@ -508,7 +508,7 @@ export default function ManagementPage() {
             <div className="text-center py-8 text-white/50">No LOA requests</div>
           ) : (
             <div className="space-y-3">
-              {loaRequests.map((loa) => (
+              {loaRequests.map((loa: LOARequest) => (
                 <div key={loa.id} className="p-4 rounded-xl bg-white/5">
                   <div className="flex items-center justify-between mb-2">
                     <div>
@@ -567,7 +567,7 @@ export default function ManagementPage() {
             <div className="text-center py-8 text-white/50">No infractions</div>
           ) : (
             <div className="space-y-3">
-              {allInfractions.map((inf) => (
+              {allInfractions.map((inf: Infraction) => (
                 <div key={inf.id} className={`p-4 rounded-xl ${inf.voided ? 'bg-white/5 opacity-60' : inf.type === 'strike' ? 'bg-red-500/10 border border-red-500/20' : 'bg-yellow-500/10 border border-yellow-500/20'}`}>
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
@@ -615,7 +615,7 @@ export default function ManagementPage() {
                   className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-blue-500/50"
                 >
                   <option value="">Select a user</option>
-                  {staffUsers.filter((u) => !isImmuneRank(u.rank)).map((u) => (
+                  {staffUsers.filter((u: StaffAnalytics) => !isImmuneRank(u.rank)).map((u: StaffAnalytics) => (
                     <option key={u.id} value={u.id}>
                       {u.roblox_username || u.discord_username}
                     </option>
