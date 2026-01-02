@@ -29,7 +29,6 @@ export function useStats() {
       console.log('[useStats] Stats received:', {
         messages_sent: statsData.messages_sent,
         messages_quota: statsData.messages_quota,
-        quota_met: statsData.quota_met,
         minutes: statsData.minutes,
         tickets_claimed: statsData.tickets_claimed,
         tickets_resolved: statsData.tickets_resolved,
