@@ -6,9 +6,9 @@
 ```bash
 # MongoDB connection string
 # Can use either MONGODB_URI or DATABASE_URL
-MONGODB_URI=mongodb://localhost:27017
+MONGODB_URI=mongodb+srv://blakeflyz1_db_user:hswGdJ3sqfdjOLAw@rankbloxstaff.xdjanot.mongodb.net/?appName=RankBloxStaff
 # OR
-DATABASE_URL=mongodb://localhost:27017
+DATABASE_URL=mongodb+srv://blakeflyz1_db_user:hswGdJ3sqfdjOLAw@rankbloxstaff.xdjanot.mongodb.net/?appName=RankBloxStaff
 
 # Database name (optional, defaults to 'rankblox_staff')
 DB_NAME=rankblox_staff
@@ -86,7 +86,7 @@ GUILD_ID=your_discord_guild_id
 
 ```bash
 # Database
-MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/rankblox_staff
+MONGODB_URI=mongodb+srv://blakeflyz1_db_user:hswGdJ3sqfdjOLAw@rankbloxstaff.xdjanot.mongodb.net/?appName=RankBloxStaff
 DB_NAME=rankblox_staff
 
 # Discord OAuth
