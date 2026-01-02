@@ -5,9 +5,8 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "npm install --include=dev && tsc",
-    "start": "node dist/index.js",
-    "postinstall": "npm run build"
+    "build": "tsc",
+    "start": "node dist/index.js"
   },
   "keywords": [],
   "author": "",

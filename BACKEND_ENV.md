@@ -101,7 +101,7 @@ JWT_SECRET=your-strong-random-secret-key-generated-with-openssl-rand-hex-32
 ROBLOX_GROUP_ID=5097017
 
 # Frontend
-FRONTEND_URL=https://rankblox.com
+FRONTEND_URL=https://staff.rankblox.xyz
 
 # Bot Integration
 BOT_API_TOKEN=your-long-random-secret-token-must-match-bot

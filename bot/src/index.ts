@@ -340,90 +340,165 @@ server.on('error', (error: NodeJS.ErrnoException) => {
 // Load commands
 const commands = new Collection<any, any>();
 
-const commandsPath = join(__dirname, 'commands');
-const commandFiles = readdirSync(commandsPath).filter((file) => file.endsWith('.js'));
-
-for (const file of commandFiles) {
-  const filePath = join(commandsPath, file);
-  const command = require(filePath);
-  if ('data' in command && 'execute' in command) {
-    commands.set(command.data.name, command);
-  } else {
-    console.log(`[WARNING] The command at ${filePath} is missing a required "data" or "execute" property.`);
+try {
+  const commandsPath = join(__dirname, 'commands');
+  console.log(`[Startup] Loading commands from: ${commandsPath}`);
+  
+  if (!require('fs').existsSync(commandsPath)) {
+    console.error(`[Startup] ERROR: Commands directory not found: ${commandsPath}`);
+    console.error(`[Startup] Make sure TypeScript has been compiled. Run: npm run build`);
+    process.exit(1);
   }
+  
+  const commandFiles = readdirSync(commandsPath).filter((file) => file.endsWith('.js'));
+  console.log(`[Startup] Found ${commandFiles.length} command file(s)`);
+  
+  for (const file of commandFiles) {
+    try {
+      const filePath = join(commandsPath, file);
+      const command = require(filePath);
+      if ('data' in command && 'execute' in command) {
+        commands.set(command.data.name, command);
+        console.log(`[Startup] Loaded command: ${command.data.name}`);
+      } else {
+        console.warn(`[Startup] WARNING: The command at ${filePath} is missing a required "data" or "execute" property.`);
+      }
+    } catch (error: any) {
+      console.error(`[Startup] Error loading command ${file}:`, error.message);
+    }
+  }
+} catch (error: any) {
+  console.error('[Startup] Failed to load commands:', error.message);
+  process.exit(1);
 }
 
 // Load events
-const eventsPath = join(__dirname, 'events');
-const eventFiles = readdirSync(eventsPath).filter((file) => file.endsWith('.js'));
-
-for (const file of eventFiles) {
-  const filePath = join(eventsPath, file);
-  const event = require(filePath);
-  if (event.name && event.execute) {
-    if (event.once) {
-      client.once(event.name, (...args) => event.execute(...args));
-    } else {
-      client.on(event.name, (...args) => event.execute(...args));
+try {
+  const eventsPath = join(__dirname, 'events');
+  console.log(`[Startup] Loading events from: ${eventsPath}`);
+  
+  if (!require('fs').existsSync(eventsPath)) {
+    console.error(`[Startup] ERROR: Events directory not found: ${eventsPath}`);
+    console.error(`[Startup] Make sure TypeScript has been compiled. Run: npm run build`);
+    process.exit(1);
+  }
+  
+  const eventFiles = readdirSync(eventsPath).filter((file) => file.endsWith('.js'));
+  console.log(`[Startup] Found ${eventFiles.length} event file(s)`);
+  
+  for (const file of eventFiles) {
+    try {
+      const filePath = join(eventsPath, file);
+      const event = require(filePath);
+      if (event.name && event.execute) {
+        if (event.once) {
+          client.once(event.name, (...args) => event.execute(...args));
+        } else {
+          client.on(event.name, (...args) => event.execute(...args));
+        }
+        console.log(`[Startup] Loaded event: ${event.name} (${event.once ? 'once' : 'on'})`);
+      } else {
+        console.warn(`[Startup] WARNING: Event at ${filePath} is missing "name" or "execute" property.`);
+      }
+    } catch (error: any) {
+      console.error(`[Startup] Error loading event ${file}:`, error.message);
     }
   }
+} catch (error: any) {
+  console.error('[Startup] Failed to load events:', error.message);
+  process.exit(1);
 }
 
 // Register slash commands
 client.once(Events.ClientReady, async (readyClient) => {
-  console.log(`Ready! Logged in as ${readyClient.user.tag}`);
+  console.log('========================================');
+  console.log('✅ Discord bot is ready!');
+  console.log(`🤖 Logged in as: ${readyClient.user.tag}`);
+  console.log(`🆔 Bot ID: ${readyClient.user.id}`);
+  console.log(`📊 Guilds: ${readyClient.guilds.cache.size}`);
+  console.log('========================================');
 
   // Register commands
   try {
     const commandsData = Array.from(commands.values()).map((cmd) => cmd.data.toJSON());
     
-    // Register globally (can take up to an hour to propagate)
-    // For faster testing, use guild commands instead
-    if (process.env.GUILD_ID) {
-      const guild = readyClient.guilds.cache.get(process.env.GUILD_ID);
-      if (guild) {
-        await guild.commands.set(commandsData);
-        console.log(`Registered ${commandsData.length} commands to guild ${guild.name}`);
-      }
+    if (commandsData.length === 0) {
+      console.warn('[Startup] WARNING: No commands to register!');
     } else {
-      await readyClient.application?.commands.set(commandsData);
-      console.log(`Registered ${commandsData.length} commands globally`);
+      // Register globally (can take up to an hour to propagate)
+      // For faster testing, use guild commands instead
+      if (process.env.GUILD_ID) {
+        const guild = readyClient.guilds.cache.get(process.env.GUILD_ID);
+        if (guild) {
+          await guild.commands.set(commandsData);
+          console.log(`[Commands] Registered ${commandsData.length} commands to guild: ${guild.name}`);
+        } else {
+          console.warn(`[Commands] WARNING: Guild ${process.env.GUILD_ID} not found. Registering globally instead.`);
+          await readyClient.application?.commands.set(commandsData);
+          console.log(`[Commands] Registered ${commandsData.length} commands globally`);
+        }
+      } else {
+        await readyClient.application?.commands.set(commandsData);
+        console.log(`[Commands] Registered ${commandsData.length} commands globally`);
+      }
     }
-  } catch (error) {
-    console.error('Error registering commands:', error);
+  } catch (error: any) {
+    console.error('[Commands] Error registering commands:', error.message || error);
   }
 
   // Sync existing ticket channels on startup
   try {
+    console.log('[TicketSync] Starting ticket channel sync...');
     const TICKET_CATEGORIES = ['980275354704953415', '993210302185345124'];
     
+    // Ensure botAPI is available
+    if (!botAPI) {
+      console.error('[TicketSync] ERROR: botAPI is not available');
+      return;
+    }
+    
     let syncedCount = 0;
+    let errorCount = 0;
+    
     for (const guild of readyClient.guilds.cache.values()) {
-      // Fetch all channels to ensure cache is populated
-      await guild.channels.fetch();
-      
-      for (const channel of guild.channels.cache.values()) {
-        if (channel.isTextBased() && !channel.isDMBased()) {
-          const textChannel = channel as any;
-          if (textChannel.parentId && TICKET_CATEGORIES.includes(textChannel.parentId)) {
-            try {
-              await botAPI.createTicket(textChannel.id, null);
-              syncedCount++;
-            } catch (error: any) {
-              // Ignore "already exists" errors
-              if (error.response?.status !== 400 || !error.response?.data?.error?.includes('already exists')) {
-                console.error(`[TicketSync] Error syncing channel ${textChannel.id}:`, error.message);
+      try {
+        // Fetch all channels to ensure cache is populated
+        await guild.channels.fetch();
+        
+        for (const channel of guild.channels.cache.values()) {
+          if (channel.isTextBased() && !channel.isDMBased()) {
+            const textChannel = channel as any;
+            if (textChannel.parentId && TICKET_CATEGORIES.includes(textChannel.parentId)) {
+              try {
+                await botAPI.createTicket(textChannel.id, undefined);
+                syncedCount++;
+              } catch (error: any) {
+                // Ignore "already exists" errors
+                if (error.response?.status !== 400 || !error.response?.data?.error?.includes('already exists')) {
+                  console.error(`[TicketSync] Error syncing channel ${textChannel.id}:`, error.message);
+                  errorCount++;
+                }
               }
             }
           }
         }
+      } catch (guildError: any) {
+        console.error(`[TicketSync] Error processing guild ${guild.name}:`, guildError.message);
+        errorCount++;
       }
     }
+    
     if (syncedCount > 0) {
-      console.log(`[TicketSync] Synced ${syncedCount} existing ticket channels`);
+      console.log(`[TicketSync] ✅ Synced ${syncedCount} existing ticket channels`);
+    } else {
+      console.log(`[TicketSync] No ticket channels found to sync`);
     }
-  } catch (error) {
-    console.error('[TicketSync] Error during startup sync:', error);
+    
+    if (errorCount > 0) {
+      console.warn(`[TicketSync] ⚠️  Encountered ${errorCount} error(s) during sync`);
+    }
+  } catch (error: any) {
+    console.error('[TicketSync] ❌ Error during startup sync:', error.message || error);
   }
 });
 
@@ -527,13 +602,40 @@ process.on('uncaughtException', (error) => {
 });
 
 // Log startup
-console.log('Starting Discord bot...');
-console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-console.log(`Port: ${PORT}`);
+console.log('========================================');
+console.log('🚀 Starting Discord bot...');
+console.log(`📦 Environment: ${process.env.NODE_ENV || 'development'}`);
+console.log(`🌐 Port: ${PORT}`);
+console.log(`📁 Commands loaded: ${commands.size}`);
+console.log('========================================');
+
+// Validate token before attempting login
+if (!token || token.trim().length === 0) {
+  console.error('========================================');
+  console.error('❌ DISCORD_BOT_TOKEN is not set or is empty!');
+  console.error('========================================');
+  process.exit(1);
+}
 
 // Login to Discord
-client.login(token).catch((error) => {
-  console.error('Failed to login to Discord:', error);
-  process.exit(1);
-});
+console.log('[Startup] Attempting to connect to Discord...');
+client.login(token)
+  .then(() => {
+    console.log('[Startup] ✅ Login successful, waiting for ready event...');
+  })
+  .catch((error: any) => {
+    console.error('========================================');
+    console.error('❌ Failed to login to Discord:');
+    console.error(`   Error: ${error.message || error}`);
+    if (error.code) {
+      console.error(`   Code: ${error.code}`);
+    }
+    console.error('========================================');
+    console.error('Common issues:');
+    console.error('  - Invalid bot token');
+    console.error('  - Bot not added to server');
+    console.error('  - Network connectivity issues');
+    console.error('========================================');
+    process.exit(1);
+  });
 

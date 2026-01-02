@@ -22,7 +22,7 @@ export async function execute(channel: Channel) {
 
   try {
     // Create ticket record in database
-    await botAPI.createTicket(textChannel.id, null);
+    await botAPI.createTicket(textChannel.id, undefined);
     console.log(`[TicketTracker] Auto-created ticket for channel ${textChannel.id} (${textChannel.name}) in guild ${textChannel.guild?.name || 'unknown'}`);
   } catch (error: any) {
     // If ticket already exists, that's fine (might be a duplicate event)

@@ -16,13 +16,13 @@ import adminRoutes from './routes/admin';
 import publicRoutes from './routes/public';
 import cron from 'node-cron';
 import { db } from './models/database';
-import { startAutoSync } from './services/groupSync';
+import { startAutoSync, stopAutoSync } from './services/groupSync';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 8080;
-const DEFAULT_FRONTEND_URL = 'https://staff.ahscampus.com';
+const DEFAULT_FRONTEND_URL = 'https://staff.rankblox.xyz';
 const FRONTEND_URL = process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL;
 const normalizeOrigin = (value?: string) => {
   if (!value) return '';
@@ -82,18 +82,6 @@ app.use(rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 }));
-
-// Initialize database and start auto-sync
-connectDatabase()
-  .then(() => initializeDatabase())
-  .then(() => {
-    // Start automatic group rank synchronization
-    startAutoSync();
-  })
-  .catch(err => {
-    console.error('Failed to initialize database:', err);
-    process.exit(1);
-  });
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -209,34 +197,52 @@ cron.schedule('0 0 * * 1', checkWeeklyQuotas, {
   timezone: 'UTC',
 });
 
-// Start server and store instance for graceful shutdown
-const server = app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`Frontend URL(s): ${FRONTEND_URLS.join(', ')}`);
-});
+// Initialize database and start server
+async function startServer() {
+  try {
+    console.log('[Startup] Connecting to database...');
+    await connectDatabase();
+    
+    console.log('[Startup] Initializing database schema...');
+    await initializeDatabase();
+    
+    console.log('[Startup] Starting automatic group rank synchronization...');
+    startAutoSync();
+    
+    // Start server after database is ready
+    const server = app.listen(PORT, () => {
+      console.log('========================================');
+      console.log('✅ Server started successfully!');
+      console.log(`📡 Server running on port ${PORT}`);
+      console.log(`🌐 Frontend URL(s): ${FRONTEND_URLS.join(', ')}`);
+      console.log('========================================');
+    });
+    
+        // Graceful shutdown handlers
+    const shutdown = (signal: string) => {
+      console.log(`${signal} received, closing server gracefully...`);
+      // Stop group sync interval
+      stopAutoSync();
+      server.close(() => {
+        console.log('Server closed');
+        db.close().then(() => {
+          console.log('Database connection closed');
+          process.exit(0);
+        }).catch((err) => {
+          console.error('Error closing database:', err);
+          process.exit(1);
+        });
+      });
+    };
+    
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    process.on('SIGINT', () => shutdown('SIGINT'));
+    
+  } catch (error) {
+    console.error('[Startup] ❌ Failed to start server:', error);
+    process.exit(1);
+  }
+}
 
-// Import group sync stop function
-import { stopAutoSync } from './services/groupSync';
-
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('SIGTERM received, closing server gracefully...');
-  // Stop group sync interval
-  stopAutoSync();
-  server.close(() => {
-    console.log('Server closed');
-    db.close();
-    process.exit(0);
-  });
-});
-
-process.on('SIGINT', () => {
-  console.log('SIGINT received, closing server gracefully...');
-  // Stop group sync interval
-  stopAutoSync();
-  server.close(() => {
-    console.log('Server closed');
-    db.close();
-    process.exit(0);
-  });
-});
+// Start the server
+startServer();

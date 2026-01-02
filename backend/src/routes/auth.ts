@@ -9,7 +9,7 @@ import crypto from 'crypto';
 const router = Router();
 
 function getFrontendUrl(): string {
-  const fallback = 'https://staff.ahscampus.com';
+  const fallback = 'https://staff.rankblox.xyz';
   if (process.env.FRONTEND_URL) return process.env.FRONTEND_URL;
   const first = process.env.FRONTEND_URLS?.split(',')?.[0]?.trim();
   return first || fallback;
