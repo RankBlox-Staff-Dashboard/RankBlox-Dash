@@ -1,6 +1,9 @@
 import { Events, Channel, TextChannel } from 'discord.js';
 import { botAPI } from '../services/api';
 
+// Main server ID - only track tickets in this server
+const MAIN_SERVER_ID = '980206068628074566';
+
 // Categories to monitor for tickets (from main Discord server)
 const TICKET_CATEGORIES = [
   '980275354704953415', // Category 1
@@ -15,7 +18,10 @@ export async function execute(channel: Channel) {
 
   const textChannel = channel as TextChannel;
   
-  // Check if channel is in a monitored category (works across all servers the bot is in)
+  // Only track tickets in main server
+  if (textChannel.guild?.id !== MAIN_SERVER_ID) return;
+  
+  // Check if channel is in a monitored category
   if (!textChannel.parentId || !TICKET_CATEGORIES.includes(textChannel.parentId)) {
     return;
   }

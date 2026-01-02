@@ -2,10 +2,10 @@ import { Events, Message } from 'discord.js';
 import { botAPI, MessageData } from '../services/api';
 import { isImmuneRank } from '../utils/immunity';
 
-// Cache for tracked channels
-let trackedChannels: string[] = [];
-let lastChannelFetch = 0;
-const CHANNEL_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+// Staff server ID - track messages globally in this server
+const STAFF_SERVER_ID = '1342858249694613524';
+// Main server ID - track tickets in this server
+const MAIN_SERVER_ID = '980206068628074566';
 
 // Cache for user verification (to avoid hitting API for every message)
 const userCache = new Map<string, { isActive: boolean; rank: number | null; cachedAt: number }>();
@@ -16,23 +16,7 @@ const messageQueue: MessageData[] = [];
 const BATCH_INTERVAL = 5000; // 5 seconds
 const MAX_BATCH_SIZE = 50;
 
-async function getTrackedChannels(): Promise<string[]> {
-  const now = Date.now();
-  if (now - lastChannelFetch < CHANNEL_CACHE_TTL && trackedChannels.length > 0) {
-    return trackedChannels;
-  }
-
-  try {
-    const response = await botAPI.getTrackedChannels();
-    trackedChannels = response.data.map((ch: any) => ch.discord_channel_id);
-    lastChannelFetch = now;
-    console.log(`[MessageTracker] Loaded ${trackedChannels.length} tracked channels`);
-    return trackedChannels;
-  } catch (error) {
-    console.error('[MessageTracker] Error fetching tracked channels:', error);
-    return trackedChannels; // Return cached on error
-  }
-}
+// Removed getTrackedChannels - now tracking globally in staff server
 
 async function isUserAllowed(discordId: string): Promise<boolean> {
   const now = Date.now();
@@ -100,9 +84,12 @@ export async function execute(message: Message) {
   // Ignore DMs
   if (!message.guild) return;
 
-  // Handle !claim command in ticket channels
+  // Handle !claim command in ticket channels (only in main server)
   if (message.content.toLowerCase().trim() === '!claim') {
     const channel = message.channel;
+    
+    // Only process !claim in main server
+    if (message.guild?.id !== MAIN_SERVER_ID) return;
     
     // Check if channel is in a ticket category
     if (channel.isTextBased() && !channel.isDMBased()) {
@@ -164,9 +151,8 @@ export async function execute(message: Message) {
     }
   }
 
-  // Check if channel is tracked for message quota
-  const channels = await getTrackedChannels();
-  if (!channels.includes(message.channel.id)) return;
+  // Track messages globally in staff server only
+  if (message.guild?.id !== STAFF_SERVER_ID) return;
 
   const discordId = message.author.id;
 

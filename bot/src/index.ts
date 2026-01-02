@@ -449,6 +449,7 @@ client.once(Events.ClientReady, async (readyClient) => {
   // Sync existing ticket channels on startup
   try {
     console.log('[TicketSync] Starting ticket channel sync...');
+    const MAIN_SERVER_ID = '980206068628074566';
     const TICKET_CATEGORIES = ['980275354704953415', '993210302185345124'];
     
     // Ensure botAPI is available
@@ -460,15 +461,21 @@ client.once(Events.ClientReady, async (readyClient) => {
     let syncedCount = 0;
     let errorCount = 0;
     
-    for (const guild of readyClient.guilds.cache.values()) {
-      try {
-        // Fetch all channels to ensure cache is populated
-        await guild.channels.fetch();
-        
-        for (const channel of guild.channels.cache.values()) {
-          if (channel.isTextBased() && !channel.isDMBased()) {
-            const textChannel = channel as any;
-            if (textChannel.parentId && TICKET_CATEGORIES.includes(textChannel.parentId)) {
+    // Only sync tickets from main server
+    const mainGuild = readyClient.guilds.cache.get(MAIN_SERVER_ID);
+    if (!mainGuild) {
+      console.warn(`[TicketSync] Main server ${MAIN_SERVER_ID} not found. Skipping ticket sync.`);
+      return;
+    }
+    
+    try {
+      // Fetch all channels to ensure cache is populated
+      await mainGuild.channels.fetch();
+      
+      for (const channel of mainGuild.channels.cache.values()) {
+        if (channel.isTextBased() && !channel.isDMBased()) {
+          const textChannel = channel as any;
+          if (textChannel.parentId && TICKET_CATEGORIES.includes(textChannel.parentId)) {
               try {
                 await botAPI.createTicket(textChannel.id, undefined);
                 syncedCount++;
@@ -483,10 +490,9 @@ client.once(Events.ClientReady, async (readyClient) => {
           }
         }
       } catch (guildError: any) {
-        console.error(`[TicketSync] Error processing guild ${guild.name}:`, guildError.message);
+        console.error(`[TicketSync] Error processing main server:`, guildError.message);
         errorCount++;
       }
-    }
     
     if (syncedCount > 0) {
       console.log(`[TicketSync] ✅ Synced ${syncedCount} existing ticket channels`);
