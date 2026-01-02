@@ -273,27 +273,25 @@ class DatabaseWrapper {
       const match = normalized.match(/^UPDATE\s+(\w+)\s+SET\s+(.+?)(?:\s+WHERE\s+(.+))?$/i);
       if (match) {
         const [, table, setClause, whereClause] = match;
-        const filter = this.parseWhere(whereClause, params);
         const update: any = {};
         
-        // Parse SET clause
+        // Parse SET clause first - parameters come before WHERE parameters in SQL
         const sets = setClause.split(',').map(s => s.trim());
+        let setParamIdx = 0;
         sets.forEach(set => {
           const [col, val] = set.split('=').map(s => s.trim());
           const fieldName = this.convertColumnName(col);
           if (val === '?') {
-            const paramIdx = params.findIndex((_, i) => !filter.paramsUsed?.includes(i));
-            if (paramIdx >= 0) {
-              update[fieldName] = params[paramIdx];
-              if (!filter.paramsUsed) filter.paramsUsed = [];
-              filter.paramsUsed.push(paramIdx);
-            }
+            update[fieldName] = params[setParamIdx++];
           } else if (val === 'NOW()') {
             update[fieldName] = new Date();
           } else {
             update[fieldName] = this.parseValue(val);
           }
         });
+        
+        // Parse WHERE clause starting after SET parameters
+        const filter = this.parseWhere(whereClause, params, setParamIdx);
         
         return { type: 'updateOne', collection: table, filter, update: { $set: update } };
       }
@@ -361,11 +359,11 @@ class DatabaseWrapper {
     throw new Error(`Unable to parse SQL: ${sql}`);
   }
 
-  private parseWhere(whereClause: string | undefined, params: any[]): Filter<any> {
+  private parseWhere(whereClause: string | undefined, params: any[], paramOffset: number = 0): Filter<any> {
     if (!whereClause) return {};
     
     const filter: any = {};
-    let paramIdx = 0;
+    let paramIdx = paramOffset;
     
     // Simple WHERE parsing - handles: col = ?, col IS NULL, col IS NOT NULL, col IN (?)
     const conditions = whereClause.split(/\s+AND\s+/i).map(c => c.trim());
