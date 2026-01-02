@@ -20,6 +20,7 @@ function cookieOptions() {
     secure: isProd,
     sameSite: 'lax' as const,
     path: '/',
+    domain: undefined, // Let browser set domain automatically
   };
 }
 
@@ -47,8 +48,16 @@ router.get('/discord/callback', async (req: Request, res: Response) => {
   }
 
   const expectedState = (req as any)?.cookies?.oauth_state as string | undefined;
+  
+  // Log for debugging
+  console.log('[OAuth Callback] State from query:', state);
+  console.log('[OAuth Callback] State from cookie:', expectedState);
+  console.log('[OAuth Callback] Cookies:', req.headers.cookie);
+  
   res.clearCookie('oauth_state', cookieOptions());
+  
   if (!state || !expectedState || state !== expectedState) {
+    console.error('[OAuth Callback] State mismatch - redirecting to login');
     return res.redirect(`${getFrontendUrl()}/login?error=invalid_state`);
   }
 
