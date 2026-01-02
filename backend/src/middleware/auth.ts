@@ -67,7 +67,7 @@ export async function authenticateToken(
   try {
     const decoded = jwt.verify(token, jwtSecret, { algorithms: ['HS256'] }) as JwtPayload;
     
-    // Verify session still exists and is valid (MySQL syntax with NOW())
+    // Verify session still exists and is valid (NOW() is converted to current date by MongoDB wrapper)
     let session: { id: string; user_id: number; token: string; expires_at: Date } | undefined;
     try {
       session = await db
@@ -90,7 +90,7 @@ export async function authenticateToken(
       return;
     }
 
-    // Get FRESH user info from database (MySQL uses backticks for reserved words)
+    // Get FRESH user info from database (backticks around 'rank' are for SQL compatibility, handled by MongoDB wrapper)
     const user = await db
       .prepare('SELECT id, discord_id, discord_username, roblox_id, roblox_username, `rank`, status FROM users WHERE id = ?')
       .get(session.user_id) as { 

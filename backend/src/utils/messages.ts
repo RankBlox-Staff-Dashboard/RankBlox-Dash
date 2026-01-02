@@ -13,7 +13,8 @@ export function getCurrentWeekStart(): string {
 }
 
 /**
- * Get current week start datetime string for SQL queries (YYYY-MM-DD 00:00:00)
+ * Get current week start datetime string for database queries (YYYY-MM-DD 00:00:00)
+ * Works with MongoDB wrapper which handles date string comparisons
  */
 export function getCurrentWeekStartDateTime(): string {
   const weekStart = getCurrentWeekStart();

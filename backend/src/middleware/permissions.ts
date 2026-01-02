@@ -26,7 +26,7 @@ const DEFAULT_ADMIN_PERMISSIONS: PermissionFlag[] = [
  * Get all permissions for a user (defaults + overrides)
  */
 export async function getUserPermissions(userId: number): Promise<Set<PermissionFlag>> {
-  // Note: `rank` must be escaped with backticks because it's a MySQL reserved keyword
+  // Note: `rank` uses backticks for SQL compatibility (handled by MongoDB wrapper)
   const user = await db
     .prepare('SELECT `rank`, status FROM users WHERE id = ?')
     .get(userId) as { rank: number | null; status: string } | undefined;

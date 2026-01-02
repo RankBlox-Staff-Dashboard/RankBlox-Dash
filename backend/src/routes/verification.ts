@@ -150,13 +150,14 @@ router.post('/roblox/verify', async (req: Request, res: Response) => {
     // Note: `rank` uses backticks for SQL compatibility (handled by MongoDB wrapper)
     await db.prepare(
       `UPDATE users 
-       SET roblox_id = ?, roblox_username = ?, \`rank\` = ?, rank_name = ?, status = 'active', updated_at = NOW()
+       SET roblox_id = ?, roblox_username = ?, \`rank\` = ?, rank_name = ?, status = ?, updated_at = NOW()
        WHERE id = ?`
     ).run(
       verificationResult.userId.toString(),
       verificationResult.username,
       verificationResult.rank,
       verificationResult.rankName,
+      'active',
       req.user.id
     );
 
@@ -207,7 +208,7 @@ router.get('/roblox/status', async (req: Request, res: Response) => {
     return res.status(401).json({ error: 'Authentication required' });
   }
 
-  // Note: `rank` must be escaped with backticks because it's a MySQL reserved keyword
+  // Note: `rank` uses backticks for SQL compatibility (handled by MongoDB wrapper)
   const user = await db
     .prepare('SELECT roblox_id, roblox_username, `rank`, rank_name, status FROM users WHERE id = ?')
     .get(req.user.id) as any;

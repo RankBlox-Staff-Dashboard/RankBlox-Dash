@@ -250,7 +250,7 @@ class DatabaseWrapper {
         const document: any = {};
         columns.forEach((col, idx) => {
           const value = params[idx];
-          // Convert MySQL column names to MongoDB field names
+          // Convert SQL column names to MongoDB field names (removes backticks, handles reserved keywords)
           const fieldName = this.convertColumnName(col);
           // Handle special values
           if (value === null || value === undefined) {
@@ -502,14 +502,17 @@ class DatabaseWrapper {
     if (value === 'false' || value === 'FALSE') return false;
     if (value === 'true' || value === 'TRUE') return true;
     if (!isNaN(Number(value))) return Number(value);
+    // Strip single quotes from string literals (e.g., 'active' -> active)
+    if ((value.startsWith("'") && value.endsWith("'")) || (value.startsWith('"') && value.endsWith('"'))) {
+      return value.slice(1, -1);
+    }
     return value;
   }
 
   private convertColumnName(col: string): string {
-    // Remove backticks and convert MySQL reserved keywords
+    // Remove backticks from SQL identifiers (used for reserved keywords like 'rank')
     const cleaned = col.replace(/`/g, '').trim();
-    // Handle MySQL reserved keywords
-    if (cleaned === 'rank') return 'rank';
+    // Field names are used as-is in MongoDB
     return cleaned;
   }
 }

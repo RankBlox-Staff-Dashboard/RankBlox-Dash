@@ -183,7 +183,7 @@ async function checkWeeklyQuotas() {
       let infractionsIssued = 0;
 
       for (const log of activityLogs) {
-        // Check if infraction already issued for this week (MySQL syntax)
+        // Check if infraction already issued for this week (DATE_SUB converted to date subtraction by MongoDB wrapper)
         const existing = await tx
           .prepare(
             `SELECT id FROM infractions 

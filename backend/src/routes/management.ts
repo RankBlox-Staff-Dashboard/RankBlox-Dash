@@ -41,7 +41,7 @@ router.use((req: Request, res: Response, next: any) => {
 });
 
 /**
- * List all staff with current week message counts from MySQL
+ * List all staff with current week message counts from MongoDB
  */
 router.get('/users', async (req: Request, res: Response) => {
   try {
@@ -701,7 +701,7 @@ router.post('/tracked-channels', async (req: Request, res: Response) => {
 
       res.json({ message: 'Tracked channel added successfully' });
     } catch (error: any) {
-      // MongoDB duplicate key error (code 11000) or MySQL duplicate key error
+      // MongoDB duplicate key error (code 11000)
       if (error.code === 11000 || error.code === 'ER_DUP_ENTRY' || error.errno === 1062) {
         return res.status(400).json({ error: 'Channel already tracked' });
       }
