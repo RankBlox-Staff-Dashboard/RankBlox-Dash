@@ -28,6 +28,9 @@ export default function LoginPageContent() {
         case 'no_code':
           errorMessage = 'No authorization code received from Discord';
           break;
+        case 'invalid_state':
+          errorMessage = 'Security validation failed. Please try logging in again.';
+          break;
         case 'token_exchange_failed':
           errorMessage = 'Failed to authenticate with Discord. Please try again.';
           break;
@@ -44,7 +47,7 @@ export default function LoginPageContent() {
           errorMessage = 'No authentication token received';
           break;
         default:
-          errorMessage = messageParam || 'An error occurred during login';
+          errorMessage = messageParam || `An error occurred during login (${errorParam})`;
       }
       
       setError(errorMessage);

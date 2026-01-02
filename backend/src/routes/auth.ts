@@ -109,11 +109,18 @@ router.get('/discord/callback', async (req: Request, res: Response) => {
   
   try {
     // Validate state from database (primary method)
-    const oauthStatesCollection = getCollection('oauth_states');
-    const stateRecord = await oauthStatesCollection.findOne({
-      state: state,
-      expires_at: { $gt: new Date() }, // Not expired
-    });
+    let stateRecord = null;
+    try {
+      const oauthStatesCollection = getCollection('oauth_states');
+      stateRecord = await oauthStatesCollection.findOne({
+        state: state,
+        expires_at: { $gt: new Date() }, // Not expired
+      });
+    } catch (dbError: any) {
+      console.error('[OAuth Callback] ❌ Database error accessing oauth_states collection:', dbError);
+      console.error('[OAuth Callback] Error details:', dbError.message);
+      // Fall through to cookie fallback
+    }
     
     if (!stateRecord) {
       console.error('[OAuth Callback] ❌ State not found in database or expired');
@@ -121,31 +128,40 @@ router.get('/discord/callback', async (req: Request, res: Response) => {
       console.error('[OAuth Callback]   1. State was never stored');
       console.error('[OAuth Callback]   2. State expired (>10 minutes)');
       console.error('[OAuth Callback]   3. Invalid/forged state parameter');
+      console.error('[OAuth Callback]   4. Database connection issue');
       
       // Fallback: try cookie (for backwards compatibility)
       const cookieState = (req as any)?.cookies?.oauth_state as string | undefined;
       if (cookieState && cookieState === state) {
         console.warn('[OAuth Callback] ⚠️  State not in DB but cookie matches - using cookie as fallback');
+        // Continue with authentication using cookie validation
       } else {
         console.error('[OAuth Callback] ❌ Cookie fallback also failed');
+        console.error('[OAuth Callback] Cookie state:', cookieState ? 'present' : 'missing');
         res.clearCookie('oauth_state', cookieOptions());
-        return res.redirect(`${getFrontendUrl()}/login?error=invalid_state`);
+        return res.redirect(`${getFrontendUrl()}/login?error=invalid_state&message=State validation failed. Please try again.`);
       }
     } else {
       console.log('[OAuth Callback] ✅ State found in database');
+      
+      // Delete the state record (one-time use)
+      try {
+        const oauthStatesCollection = getCollection('oauth_states');
+        await oauthStatesCollection.deleteOne({ state: state });
+        console.log('[OAuth Callback] ✅ State record deleted (one-time use)');
+      } catch (deleteError: any) {
+        console.warn('[OAuth Callback] ⚠️  Failed to delete state record (non-critical):', deleteError.message);
+      }
     }
-    
-    // Delete the state record (one-time use)
-    await oauthStatesCollection.deleteOne({ state: state });
-    console.log('[OAuth Callback] ✅ State record deleted (one-time use)');
     
     // Also clear cookie if present
     res.clearCookie('oauth_state', cookieOptions());
     
     console.log('[OAuth Callback] ✅ State validated successfully');
   } catch (error: any) {
-    console.error('[OAuth Callback] ❌ Database error during state validation:', error);
-    return res.redirect(`${getFrontendUrl()}/login?error=server_error`);
+    console.error('[OAuth Callback] ❌ Unexpected error during state validation:', error);
+    console.error('[OAuth Callback] Error stack:', error.stack);
+    return res.redirect(`${getFrontendUrl()}/login?error=server_error&message=${encodeURIComponent(error.message || 'Unexpected error during authentication')}`);
   }
 
   try {

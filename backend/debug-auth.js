@@ -6,7 +6,7 @@
 const axios = require('axios');
 
 const BACKEND_URL = process.env.BACKEND_URL || 'https://rankblox-dash-backend-706270663868.europe-west1.run.app';
-const FRONTEND_URL = process.env.FRONTEND_URL || 'https://rank-blox-dash.vercel.app';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://staff.rankblox.xyz';
 
 console.log('🔍 Authentication Debug Test');
 console.log('================================');

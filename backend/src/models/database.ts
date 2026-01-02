@@ -38,7 +38,7 @@ console.log('[Database] ========================================');
 }
 
 // Helper function to get a collection
-function getCollection<T extends Document = Document>(name: string): Collection<T> {
+export function getCollection<T extends Document = Document>(name: string): Collection<T> {
   if (!db) {
     throw new Error('Database not initialized. Call connectDatabase() first.');
   }
@@ -545,7 +545,7 @@ export async function initializeDatabase() {
 
 // Export database instance and helper functions
 export { dbWrapper as db };
-export { getCollection };
+// getCollection is already exported above
 
 // Helper functions for direct MongoDB operations (for complex queries)
 export async function query(collectionName: string, filter: Filter<any> = {}, options: any = {}) {
