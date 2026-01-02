@@ -9,13 +9,24 @@ export function useTickets(status?: Ticket['status']) {
 
   const refreshInternal = useCallback(async (signal?: AbortSignal) => {
     try {
+      console.log('[useTickets] Fetching tickets, status filter:', status || 'all');
       setLoading(true);
       setError(null);
       const res = await ticketsAPI.list(status);
+      console.log('[useTickets] Tickets received:', {
+        count: res.data.length,
+        statuses: res.data.map(t => t.status),
+      });
       if (!signal?.aborted) {
         setTickets(res.data);
       }
     } catch (err: any) {
+      console.error('[useTickets] Error fetching tickets:', err);
+      console.error('[useTickets] Error details:', {
+        status: err.response?.status,
+        message: err.message,
+        responseData: err.response?.data,
+      });
       if (!signal?.aborted) {
         setError(err.response?.data?.error || 'Failed to fetch tickets');
       }

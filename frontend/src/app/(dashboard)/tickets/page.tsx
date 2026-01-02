@@ -32,6 +32,14 @@ export default function TicketsPage() {
   const [status, setStatus] = useState<TicketType['status'] | 'all'>('all');
   const { tickets, loading, error, refresh } = useTickets(status === 'all' ? undefined : status);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
+  
+  console.log('[Tickets Page] Render:', {
+    userId: user?.id,
+    statusFilter: status,
+    ticketsCount: tickets.length,
+    loading,
+    hasError: !!error,
+  });
 
   const counts = useMemo(() => {
     const c = { all: tickets.length, open: 0, claimed: 0, resolved: 0, closed: 0 } as Record<string, number>;
@@ -60,24 +68,44 @@ export default function TicketsPage() {
   };
 
   const handleClaimTicket = async (ticketId: number) => {
+    console.log('[Tickets] Claiming ticket:', ticketId);
     setActionLoading(ticketId);
     try {
-      await ticketsAPI.claim(ticketId);
+      const response = await ticketsAPI.claim(ticketId);
+      console.log('[Tickets] Ticket claimed successfully:', {
+        ticketId,
+        response: response.data,
+      });
       await refresh();
-    } catch (err) {
-      console.error('Error claiming ticket:', err);
+    } catch (err: any) {
+      console.error('[Tickets] Error claiming ticket:', err);
+      console.error('[Tickets] Error details:', {
+        status: err.response?.status,
+        message: err.message,
+        responseData: err.response?.data,
+      });
     } finally {
       setActionLoading(null);
     }
   };
 
   const handleResolveTicket = async (ticketId: number) => {
+    console.log('[Tickets] Resolving ticket:', ticketId);
     setActionLoading(ticketId);
     try {
-      await ticketsAPI.resolve(ticketId);
+      const response = await ticketsAPI.resolve(ticketId);
+      console.log('[Tickets] Ticket resolved successfully:', {
+        ticketId,
+        response: response.data,
+      });
       await refresh();
-    } catch (err) {
-      console.error('Error resolving ticket:', err);
+    } catch (err: any) {
+      console.error('[Tickets] Error resolving ticket:', err);
+      console.error('[Tickets] Error details:', {
+        status: err.response?.status,
+        message: err.message,
+        responseData: err.response?.data,
+      });
     } finally {
       setActionLoading(null);
     }

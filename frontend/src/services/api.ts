@@ -21,6 +21,13 @@ const api = axios.create({
 api.interceptors.request.use((config) => {
   if (typeof window !== 'undefined') {
     const token = localStorage.getItem('token');
+    console.log('[API Request]', {
+      method: config.method?.toUpperCase(),
+      url: config.url,
+      baseURL: config.baseURL,
+      hasToken: !!token,
+      tokenLength: token?.length || 0,
+    });
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -33,11 +40,29 @@ let isRedirecting = false;
 
 // Handle auth errors
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    console.log('[API Response]', {
+      status: response.status,
+      url: response.config.url,
+      method: response.config.method?.toUpperCase(),
+      dataKeys: response.data ? Object.keys(response.data) : [],
+    });
+    return response;
+  },
   (error) => {
+    console.error('[API Error]', {
+      status: error.response?.status,
+      url: error.config?.url,
+      method: error.config?.method?.toUpperCase(),
+      message: error.message,
+      responseData: error.response?.data,
+      isNetworkError: !error.response,
+    });
+    
     // Only handle 401 errors for automatic redirect
     // 403 errors mean user is authenticated but not authorized (e.g., not verified)
     if (error.response?.status === 401) {
+      console.warn('[API] 401 Unauthorized - redirecting to login');
       if (typeof window !== 'undefined' && !isRedirecting) {
         // Check if we're NOT already on login-related pages to prevent loops
         const currentPath = window.location.pathname;
@@ -45,9 +70,12 @@ api.interceptors.response.use(
                           currentPath.startsWith('/auth/') ||
                           currentPath === '/';
         
+        console.log('[API] Current path:', currentPath, 'isAuthPage:', isAuthPage);
+        
         if (!isAuthPage) {
           isRedirecting = true;
           localStorage.removeItem('token');
+          console.log('[API] Removing token and redirecting to /login');
           // Use replace to prevent back button issues
           window.location.replace('/login');
           

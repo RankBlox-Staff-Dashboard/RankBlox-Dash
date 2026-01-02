@@ -88,22 +88,45 @@ export default function ManagementPage() {
 
   const fetchSyncStatus = async () => {
     try {
+      console.log('[Management] Fetching group sync status...');
       const res = await managementAPI.getGroupSyncStatus();
+      console.log('[Management] Sync status received:', {
+        isSyncing: res.data.isSyncing,
+        lastSyncTime: res.data.lastSyncTime,
+        hasLastResult: !!res.data.lastSyncResult,
+      });
       setSyncStatus(res.data);
-    } catch (err) {
-      console.error('Error fetching sync status:', err);
+    } catch (err: any) {
+      console.error('[Management] Error fetching sync status:', err);
+      console.error('[Management] Error details:', {
+        status: err.response?.status,
+        message: err.message,
+        responseData: err.response?.data,
+      });
     }
   };
 
   const triggerGroupSync = async () => {
-    if (syncLoading || syncStatus?.isSyncing) return;
+    if (syncLoading || syncStatus?.isSyncing) {
+      console.log('[Management] Sync already in progress, skipping');
+      return;
+    }
     
+    console.log('[Management] Triggering group sync...');
     setSyncLoading(true);
     setSyncFeedback(null);
     
     try {
       const res = await managementAPI.triggerGroupSync();
       const result = res.data.result;
+      
+      console.log('[Management] Group sync result:', {
+        success: result.success,
+        totalUsers: result.totalUsers,
+        updatedUsers: result.updatedUsers,
+        failedUsers: result.failedUsers,
+        errors: result.errors?.length || 0,
+      });
       
       if (result.success) {
         setSyncFeedback({
@@ -118,8 +141,15 @@ export default function ManagementPage() {
       }
       
       // Refresh users and sync status
+      console.log('[Management] Refreshing users and sync status after sync...');
       await Promise.all([refresh(), fetchSyncStatus()]);
     } catch (err: any) {
+      console.error('[Management] Error triggering group sync:', err);
+      console.error('[Management] Error details:', {
+        status: err.response?.status,
+        message: err.message,
+        responseData: err.response?.data,
+      });
       const message = err.response?.data?.error || 'Failed to trigger sync';
       setSyncFeedback({ type: 'error', message });
     } finally {
@@ -131,11 +161,21 @@ export default function ManagementPage() {
 
   const fetchLOARequests = async () => {
     try {
+      console.log('[Management] Fetching LOA requests...');
       setLoaLoading(true);
       const res = await managementAPI.getLOARequests();
+      console.log('[Management] LOA requests received:', {
+        count: res.data.length,
+        statuses: res.data.map((l: any) => l.status),
+      });
       setLoaRequests(res.data);
-    } catch (err) {
-      console.error('Error fetching LOA requests:', err);
+    } catch (err: any) {
+      console.error('[Management] Error fetching LOA requests:', err);
+      console.error('[Management] Error details:', {
+        status: err.response?.status,
+        message: err.message,
+        responseData: err.response?.data,
+      });
     } finally {
       setLoaLoading(false);
     }
@@ -143,11 +183,21 @@ export default function ManagementPage() {
 
   const fetchInfractions = async () => {
     try {
+      console.log('[Management] Fetching infractions...');
       setInfractionsLoading(true);
       const res = await managementAPI.getAllInfractions();
+      console.log('[Management] Infractions received:', {
+        count: res.data.length,
+        types: res.data.map((i: any) => i.type),
+      });
       setAllInfractions(res.data);
-    } catch (err) {
-      console.error('Error fetching infractions:', err);
+    } catch (err: any) {
+      console.error('[Management] Error fetching infractions:', err);
+      console.error('[Management] Error details:', {
+        status: err.response?.status,
+        message: err.message,
+        responseData: err.response?.data,
+      });
     } finally {
       setInfractionsLoading(false);
     }

@@ -96,13 +96,28 @@ class DatabaseWrapper {
         if (parsed.type === 'insertOne') {
           // Add numeric ID if not present
           if (!parsed.document.id) {
-            parsed.document.id = await getNextId(parsed.collection);
+            try {
+              parsed.document.id = await getNextId(parsed.collection);
+            } catch (idError: any) {
+              console.error(`[Database] Error getting next ID for ${parsed.collection}:`, idError);
+              throw new Error(`Failed to generate ID for ${parsed.collection}: ${idError.message}`);
+            }
           }
-          const result = await collection.insertOne(parsed.document);
-          return {
-            lastInsertRowid: parsed.document.id,
-            changes: result.acknowledged ? 1 : 0,
-          };
+          try {
+            const result = await collection.insertOne(parsed.document);
+            return {
+              lastInsertRowid: parsed.document.id,
+              changes: result.acknowledged ? 1 : 0,
+            };
+          } catch (insertError: any) {
+            // Re-throw with more context
+            console.error(`[Database] Insert error for ${parsed.collection}:`, {
+              code: insertError.code,
+              message: insertError.message,
+              document: JSON.stringify(parsed.document).substring(0, 200),
+            });
+            throw insertError;
+          }
         } else if (parsed.type === 'updateOne') {
           const result = await collection.updateOne(parsed.filter, parsed.update);
           return {

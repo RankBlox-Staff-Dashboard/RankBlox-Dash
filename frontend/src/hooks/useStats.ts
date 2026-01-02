@@ -11,9 +11,13 @@ export function useStats() {
   const [error, setError] = useState<string | null>(null);
 
   const fetchStats = useCallback(async () => {
-    if (!user) return;
+    if (!user) {
+      console.log('[useStats] No user, skipping fetch');
+      return;
+    }
     
     try {
+      console.log('[useStats] Fetching stats for user:', user.id);
       setLoading(true);
       setError(null);
       
@@ -22,6 +26,15 @@ export function useStats() {
       const response = await dashboardAPI.getStats();
       const statsData = response.data;
       
+      console.log('[useStats] Stats received:', {
+        messages_sent: statsData.messages_sent,
+        messages_quota: statsData.messages_quota,
+        quota_met: statsData.quota_met,
+        minutes: statsData.minutes,
+        tickets_claimed: statsData.tickets_claimed,
+        tickets_resolved: statsData.tickets_resolved,
+      });
+      
       // Minutes are already included in the stats response from the database
       // The backend queries activity_logs table which has the minutes column
       // No external API call needed - all data comes from the database
@@ -29,6 +42,11 @@ export function useStats() {
       setStats(statsData);
     } catch (err: any) {
       console.error('[useStats] Error fetching stats:', err);
+      console.error('[useStats] Error details:', {
+        status: err.response?.status,
+        message: err.message,
+        responseData: err.response?.data,
+      });
       setError(err.response?.data?.error || 'Failed to fetch stats');
     } finally {
       setLoading(false);

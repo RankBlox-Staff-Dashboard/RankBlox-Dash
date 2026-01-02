@@ -35,12 +35,19 @@ export function useStaffStats() {
 
   const fetchStaffStats = useCallback(async () => {
     try {
+      console.log('[useStaffStats] Fetching staff stats...');
       setLoading(true);
       setError(null);
 
       const response = await managementAPI.getUsers();
+      console.log('[useStaffStats] API response received:', {
+        hasData: !!response.data,
+        isArray: Array.isArray(response.data),
+        dataLength: Array.isArray(response.data) ? response.data.length : 0,
+      });
 
       if (!response || !response.data) {
+        console.error('[useStaffStats] Invalid response from server');
         throw new Error('Invalid response from server');
       }
 

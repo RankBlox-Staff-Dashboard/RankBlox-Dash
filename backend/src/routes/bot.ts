@@ -271,34 +271,62 @@ router.post('/tickets', async (req: Request, res: Response) => {
     }
 
     // Check if ticket already exists
-    const existing = await db
-      .prepare('SELECT * FROM tickets WHERE discord_channel_id = ?')
-      .get(discord_channel_id) as any;
+    let existing = null;
+    try {
+      existing = await db
+        .prepare('SELECT * FROM tickets WHERE discord_channel_id = ?')
+        .get(discord_channel_id) as any;
+    } catch (checkError: any) {
+      console.error('[Ticket Creation] Error checking for existing ticket:', checkError);
+      // Continue with creation attempt - might be a race condition
+    }
 
     if (existing) {
+      console.log(`[Ticket Creation] Ticket already exists for channel ${discord_channel_id}`);
       return res.status(400).json({ error: 'Ticket already exists for this channel' });
     }
 
     // Create ticket
-    const result = await db
-      .prepare(
-        'INSERT INTO tickets (discord_channel_id, discord_message_id, status) VALUES (?, ?, ?)'
-      )
-      .run(discord_channel_id, discord_message_id || null, 'open');
-
-    res.json({
-      message: 'Ticket created successfully',
-      ticket_id: result.lastInsertRowid,
-    });
+    let result;
+    try {
+      result = await db
+        .prepare(
+          'INSERT INTO tickets (discord_channel_id, discord_message_id, status) VALUES (?, ?, ?)'
+        )
+        .run(discord_channel_id, discord_message_id || null, 'open');
+      
+      console.log(`[Ticket Creation] ✅ Ticket created successfully for channel ${discord_channel_id}, ID: ${result.lastInsertRowid}`);
+      
+      res.json({
+        message: 'Ticket created successfully',
+        ticket_id: result.lastInsertRowid,
+      });
+    } catch (insertError: any) {
+      // Handle duplicate key error (MongoDB error code 11000)
+      if (insertError.code === 11000 || insertError.message?.includes('duplicate key') || insertError.message?.includes('E11000')) {
+        console.log(`[Ticket Creation] Duplicate key error for channel ${discord_channel_id} - ticket already exists`);
+        return res.status(400).json({ error: 'Ticket already exists for this channel' });
+      }
+      
+      // Re-throw to be caught by outer catch block
+      throw insertError;
+    }
   } catch (error: any) {
-    console.error('[Ticket Creation] Error creating ticket:', error);
+    console.error('[Ticket Creation] ❌ Error creating ticket:', error);
     console.error('[Ticket Creation] Error details:', {
       message: error.message,
       code: error.code,
-      stack: error.stack,
-      discord_channel_id: discord_channel_id,
-      discord_message_id: discord_message_id,
+      name: error.name,
+      stack: error.stack?.substring(0, 500), // Limit stack trace length
+      discord_channel_id: req.body.discord_channel_id,
+      discord_message_id: req.body.discord_message_id,
     });
+    
+    // Check for duplicate key error again (in case it wasn't caught above)
+    if (error.code === 11000 || error.message?.includes('duplicate key') || error.message?.includes('E11000')) {
+      return res.status(400).json({ error: 'Ticket already exists for this channel' });
+    }
+    
     res.status(500).json({ 
       error: 'Failed to create ticket',
       details: error.message || 'Unknown error'

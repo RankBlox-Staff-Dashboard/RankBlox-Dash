@@ -14,6 +14,7 @@ import { NavigationTabs } from '@/components/NavigationTabs';
 import { Card } from '@/components/ui/Card';
 
 export default function OverviewPage() {
+  console.log('[Overview] Page rendered');
   return (
     <div className="space-y-4">
       {/* Profile Card */}

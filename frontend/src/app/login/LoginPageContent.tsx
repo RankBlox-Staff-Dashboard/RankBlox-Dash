@@ -17,11 +17,23 @@ export default function LoginPageContent() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    console.log('[Login] useEffect triggered:', {
+      loading,
+      hasUser: !!user,
+      hasVerification: !!verification,
+      isFullyVerified,
+      pathname: typeof window !== 'undefined' ? window.location.pathname : 'server',
+    });
+    
     // Check for OAuth errors
     const errorParam = searchParams.get('error');
     const messageParam = searchParams.get('message');
     
     if (errorParam) {
+      console.error('[Login] OAuth error detected:', {
+        error: errorParam,
+        message: messageParam,
+      });
       let errorMessage = 'Login failed';
       
       switch (errorParam) {
@@ -50,22 +62,32 @@ export default function LoginPageContent() {
           errorMessage = messageParam || `An error occurred during login (${errorParam})`;
       }
       
+      console.log('[Login] Setting error message:', errorMessage);
       setError(errorMessage);
     }
 
     // Use backend-computed verification status (single source of truth)
     if (!loading && user && verification) {
+      console.log('[Login] User and verification loaded:', {
+        userId: user.id,
+        verification,
+        isFullyVerified,
+      });
+      
       if (isFullyVerified) {
         // Fully verified - go to dashboard
+        console.log('[Login] User fully verified, redirecting to /overview');
         router.replace('/overview');
         return;
       }
       
       // Check what verification step is needed
       if (verification.next_step === 'roblox') {
+        console.log('[Login] Roblox verification needed, showing verify step');
         // Discord done, need Roblox verification
         setStep('verify');
       } else if (verification.discord && !verification.complete) {
+        console.log('[Login] Discord verified but incomplete, showing verify step');
         // Discord done but something else is blocking - show verify step
         setStep('verify');
       }
@@ -74,20 +96,31 @@ export default function LoginPageContent() {
 
   const handleDiscordLogin = () => {
     // Prefer explicit backend URL (static hosting) but still support local `/api` rewrite.
-    window.location.href = `${getApiBaseUrl()}/auth/discord`;
+    const authUrl = `${getApiBaseUrl()}/auth/discord`;
+    console.log('[Login] Initiating Discord OAuth, redirecting to:', authUrl);
+    window.location.href = authUrl;
   };
 
   const handleRequestCode = async () => {
     try {
+      console.log('[Login] Requesting verification code...');
       setCodeLoading(true);
       setError(null);
       const response = await verificationAPI.requestCode();
+      console.log('[Login] Verification code received:', response.data.emoji_code);
       setEmojiCode(response.data.emoji_code);
     } catch (err: any) {
+      console.error('[Login] Error requesting verification code:', err);
+      console.error('[Login] Error details:', {
+        status: err.response?.status,
+        message: err.message,
+        responseData: err.response?.data,
+      });
       const errorMsg = err.response?.data?.error || 'Failed to generate verification code';
       setError(errorMsg);
       // If unauthorized, refresh user state
       if (err.response?.status === 401) {
+        console.log('[Login] 401 error, refreshing user state');
         await refreshUser();
       }
     } finally {
@@ -97,32 +130,58 @@ export default function LoginPageContent() {
 
   const handleVerify = async () => {
     if (!robloxUsername || !emojiCode) {
+      console.warn('[Login] Verification attempted without username or code');
       setError('Please enter your Roblox username and get a verification code');
       return;
     }
 
     try {
+      console.log('[Login] Verifying Roblox account:', {
+        robloxUsername,
+        emojiCodeLength: emojiCode.length,
+      });
       setVerifying(true);
       setError(null);
       
       const response = await verificationAPI.verify(robloxUsername, emojiCode);
+      console.log('[Login] Verification response:', {
+        message: response.data.message,
+        hasToken: !!response.data.token,
+        roblox_username: response.data.roblox_username,
+        rank: response.data.rank,
+      });
       
       // If backend returns a new token (with updated rank), save it
       if (response.data.token) {
+        console.log('[Login] New token received, updating...');
         updateToken(response.data.token);
       }
       
       // Refresh user data to get updated status from backend
+      console.log('[Login] Refreshing user data after verification...');
       const updatedUser = await refreshUser();
+      console.log('[Login] Updated user:', {
+        id: updatedUser?.id,
+        verificationComplete: updatedUser?.verification?.complete,
+        nextStep: updatedUser?.verification?.next_step,
+      });
       
       // Check if verification is now complete
       if (updatedUser?.verification?.complete) {
+        console.log('[Login] Verification complete, redirecting to /overview');
         router.push('/overview');
       } else {
+        console.warn('[Login] Verification incomplete:', updatedUser?.verification);
         // Something else still needs verification
         setError('Verification incomplete. Please contact support.');
       }
     } catch (err: any) {
+      console.error('[Login] Verification error:', err);
+      console.error('[Login] Verification error details:', {
+        status: err.response?.status,
+        message: err.message,
+        responseData: err.response?.data,
+      });
       const errorMsg = err.response?.data?.error || 'Verification failed. Make sure the emoji code is in your Roblox bio/status.';
       setError(errorMsg);
     } finally {
