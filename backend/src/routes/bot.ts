@@ -214,9 +214,9 @@ router.post('/messages/batch', async (req: Request, res: Response) => {
  * Bot ticket creation endpoint
  */
 router.post('/tickets', async (req: Request, res: Response) => {
+  const { discord_channel_id, discord_message_id } = req.body;
+  
   try {
-    const { discord_channel_id, discord_message_id } = req.body;
-
     if (!discord_channel_id || typeof discord_channel_id !== 'string') {
       return res.status(400).json({ error: 'discord_channel_id is required' });
     }
@@ -244,9 +244,19 @@ router.post('/tickets', async (req: Request, res: Response) => {
       message: 'Ticket created successfully',
       ticket_id: result.lastInsertRowid,
     });
-  } catch (error) {
-    console.error('Error creating ticket:', error);
-    res.status(500).json({ error: 'Failed to create ticket' });
+  } catch (error: any) {
+    console.error('[Ticket Creation] Error creating ticket:', error);
+    console.error('[Ticket Creation] Error details:', {
+      message: error.message,
+      code: error.code,
+      stack: error.stack,
+      discord_channel_id: discord_channel_id,
+      discord_message_id: discord_message_id,
+    });
+    res.status(500).json({ 
+      error: 'Failed to create ticket',
+      details: error.message || 'Unknown error'
+    });
   }
 });
 
