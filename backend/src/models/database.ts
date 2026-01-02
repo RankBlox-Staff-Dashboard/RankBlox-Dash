@@ -191,7 +191,54 @@ class DatabaseWrapper {
             const joinFilter: any = {};
             joinFilter[parsed.join.foreignField] = doc[parsed.join.localField];
             const joined = await joinCollection.findOne(joinFilter);
-            return { ...doc, [parsed.join.as]: joined };
+            
+            // Flatten joined document - extract common fields from users table
+            // This handles SELECT queries like: u.discord_username as issued_by_username
+            if (parsed.joinCollection === 'users') {
+              const flattened: any = { ...doc };
+              // Extract common fields that might be aliased in SELECT clause
+              // LEFT JOIN may return null, so check for joined existence
+              if (joined) {
+                if (joined.discord_username !== undefined) {
+                  // Check which alias to use based on the join field name
+                  // If joining on issued_by, alias as issued_by_username
+                  // If joining on reviewed_by, alias as reviewed_by_username
+                  // If joining on claimed_by, alias as claimed_by_username
+                  // If joining on user_id, alias as user_discord_username
+                  if (parsed.join.localField === 'issued_by') {
+                    flattened.issued_by_username = joined.discord_username;
+                  } else if (parsed.join.localField === 'reviewed_by') {
+                    flattened.reviewed_by_username = joined.discord_username;
+                  } else if (parsed.join.localField === 'claimed_by') {
+                    flattened.claimed_by_username = joined.discord_username;
+                  } else if (parsed.join.localField === 'user_id') {
+                    flattened.user_discord_username = joined.discord_username;
+                  }
+                }
+                if (joined.roblox_username !== undefined) {
+                  if (parsed.join.localField === 'user_id') {
+                    flattened.user_roblox_username = joined.roblox_username;
+                  } else if (parsed.join.localField === 'claimed_by') {
+                    flattened.claimed_by_roblox = joined.roblox_username;
+                  }
+                }
+              } else {
+                // LEFT JOIN returned null - set fields to null
+                if (parsed.join.localField === 'issued_by') {
+                  flattened.issued_by_username = null;
+                } else if (parsed.join.localField === 'reviewed_by') {
+                  flattened.reviewed_by_username = null;
+                } else if (parsed.join.localField === 'claimed_by') {
+                  flattened.claimed_by_username = null;
+                } else if (parsed.join.localField === 'user_id') {
+                  flattened.user_discord_username = null;
+                }
+              }
+              return flattened;
+            }
+            
+            // Default: return nested structure if not users table
+            return { ...doc, [parsed.join.as]: joined || null };
           }));
           return results;
         } else if (parsed.type === 'count') {
@@ -318,45 +365,73 @@ class DatabaseWrapper {
       // This is important because COUNT queries need special handling
       const isCountQuery = normalized.match(/COUNT\(\*\)/i);
       
-      // Use a more robust regex that captures the full WHERE clause
-      // Match everything from WHERE to ORDER BY, LIMIT, or end of string
-      const match = normalized.match(/FROM\s+(\w+)(?:\s+WHERE\s+((?:(?!\s+ORDER\s+BY|\s+LIMIT|$).)+))?(?:\s+ORDER\s+BY\s+((?:(?!\s+LIMIT|$).)+))?(?:\s+LIMIT\s+(\d+))?$/i);
-      if (match) {
-        const [, table, whereClause, orderBy, limit] = match;
-        const filter = whereClause ? this.parseWhere(whereClause.trim(), params) : {};
-        const sort = orderBy ? this.parseOrderBy(orderBy.trim()) : undefined;
-        const limitNum = limit ? parseInt(limit) : undefined;
-        
-        // Check if it's a COUNT query
-        if (isCountQuery) {
-          // For COUNT, use MongoDB countDocuments
-          return { type: 'count', collection: table, filter };
+      // Check if it's a JOIN query FIRST (before parsing WHERE clause)
+      const hasJoin = normalized.match(/LEFT\s+JOIN/i) || normalized.match(/JOIN/i);
+      
+      let table: string;
+      let whereClause: string | undefined;
+      let orderBy: string | undefined;
+      let limitNum: number | undefined;
+      
+      if (hasJoin) {
+        // For JOIN queries, extract WHERE clause from after JOIN ON clause
+        // Pattern: ... JOIN ... ON ... [WHERE ...] [ORDER BY ...] [LIMIT ...]
+        // Note: Whitespace after JOIN ON is made optional with \s* to handle cases with/without WHERE
+        const joinWhereMatch = normalized.match(/(?:LEFT\s+)?JOIN\s+\w+\s+\w+\s+ON\s+\w+\.\w+\s*=\s*\w+\.\w+\s*(?:WHERE\s+((?:(?!\s+ORDER\s+BY|\s+LIMIT|$).)+))?(?:\s+ORDER\s+BY\s+((?:(?!\s+LIMIT|$).)+))?(?:\s+LIMIT\s+(\d+))?$/i);
+        if (joinWhereMatch) {
+          whereClause = joinWhereMatch[1];
+          orderBy = joinWhereMatch[2];
+          limitNum = joinWhereMatch[3] ? parseInt(joinWhereMatch[3]) : undefined;
         }
-        
-        // Handle JOIN queries - for now, we'll do a simple find and manually join
-        if (normalized.match(/LEFT\s+JOIN/i) || normalized.match(/JOIN/i)) {
-          // Extract the main table and joined table
-          const joinMatch = normalized.match(/FROM\s+(\w+)\s+(?:LEFT\s+)?JOIN\s+(\w+)\s+ON\s+(\w+)\.(\w+)\s*=\s*(\w+)\.(\w+)/i);
-          if (joinMatch) {
-            const [, mainTable, joinTable, mainTableAlias, mainCol, joinTableAlias, joinCol] = joinMatch;
-            return { 
-              type: 'findWithJoin', 
-              collection: mainTable, 
-              joinCollection: joinTable,
-              filter,
-              join: {
-                localField: mainCol,
-                foreignField: joinCol,
-                as: joinTable
-              },
-              sort,
-              limit: limitNum
-            };
-          }
+        // Extract main table name
+        const tableMatch = normalized.match(/FROM\s+(\w+)/i);
+        table = tableMatch ? tableMatch[1] : '';
+      } else {
+        // For non-JOIN queries, use existing regex
+        const match = normalized.match(/FROM\s+(\w+)(?:\s+WHERE\s+((?:(?!\s+ORDER\s+BY|\s+LIMIT|$).)+))?(?:\s+ORDER\s+BY\s+((?:(?!\s+LIMIT|$).)+))?(?:\s+LIMIT\s+(\d+))?$/i);
+        if (match) {
+          table = match[1];
+          whereClause = match[2];
+          orderBy = match[3];
+          limitNum = match[4] ? parseInt(match[4]) : undefined;
+        } else {
+          throw new Error(`Unable to parse SQL: ${sql}`);
         }
-        
-        return { type: 'find', collection: table, filter, sort, limit: limitNum };
       }
+      
+      const filter = whereClause ? this.parseWhere(whereClause.trim(), params) : {};
+      const sort = orderBy ? this.parseOrderBy(orderBy.trim()) : undefined;
+      
+      // Check if it's a COUNT query
+      if (isCountQuery) {
+        // For COUNT, use MongoDB countDocuments
+        return { type: 'count', collection: table, filter };
+      }
+      
+      // Handle JOIN queries
+      if (hasJoin) {
+        // Extract the main table and joined table (handle table aliases)
+        // Regex matches: FROM table [alias] [LEFT] JOIN table [alias] ON alias.col = alias.col
+        const joinMatch = normalized.match(/FROM\s+(\w+)\s+(\w+)?\s*(?:LEFT\s+)?JOIN\s+(\w+)\s+(\w+)?\s+ON\s+(\w+)\.(\w+)\s*=\s*(\w+)\.(\w+)/i);
+        if (joinMatch) {
+          const [, mainTable, mainAlias, joinTable, joinAlias, leftTableAlias, mainCol, rightTableAlias, joinCol] = joinMatch;
+          return { 
+            type: 'findWithJoin', 
+            collection: mainTable, 
+            joinCollection: joinTable,
+            filter,
+            join: {
+              localField: mainCol,  // Field from main table (e.g., issued_by)
+              foreignField: joinCol, // Field from join table (e.g., id)
+              as: joinTable
+            },
+            sort,
+            limit: limitNum
+          };
+        }
+      }
+      
+      return { type: 'find', collection: table, filter, sort, limit: limitNum };
     }
     
     // CREATE TABLE IF NOT EXISTS -> create collection
@@ -542,7 +617,13 @@ class DatabaseWrapper {
 
   private convertColumnName(col: string): string {
     // Remove backticks from SQL identifiers (used for reserved keywords like 'rank')
-    const cleaned = col.replace(/`/g, '').trim();
+    let cleaned = col.replace(/`/g, '').trim();
+    // Strip table aliases (e.g., "i.user_id" -> "user_id", "l.created_at" -> "created_at")
+    // This handles JOIN queries where columns are prefixed with table aliases
+    if (cleaned.includes('.')) {
+      const parts = cleaned.split('.');
+      cleaned = parts[parts.length - 1]; // Take the last part (the actual column name)
+    }
     // Field names are used as-is in MongoDB
     return cleaned;
   }

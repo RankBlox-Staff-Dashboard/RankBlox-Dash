@@ -140,9 +140,20 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Not found' });
 });
 
-// Error handler (avoid leaking internals)
-app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error('Unhandled error:', err);
+// Error handler (avoid leaking internals, but log details for debugging)
+app.use((err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  // Log error details for debugging (server-side only)
+  console.error('[Error Handler] Unhandled error:', {
+    message: err.message,
+    stack: err.stack,
+    name: err.name,
+    code: err.code,
+    path: req.path,
+    method: req.method,
+    timestamp: new Date().toISOString(),
+  });
+  
+  // Return generic error to client (don't leak internals)
   res.status(500).json({ error: 'Internal server error' });
 });
 

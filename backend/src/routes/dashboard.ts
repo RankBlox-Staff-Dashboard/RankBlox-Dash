@@ -122,9 +122,15 @@ router.get('/infractions', requirePermission('VIEW_INFRACTIONS'), async (req: Re
       )
       .all(req.user.id) as any[];
 
-    res.json(infractions);
-  } catch (error) {
-    console.error('Error fetching infractions:', error);
+    // Ensure we always return an array (never undefined or null)
+    res.json(infractions || []);
+  } catch (error: any) {
+    console.error('[Dashboard/Infractions] Error fetching infractions:', {
+      error: error.message,
+      stack: error.stack,
+      userId: req.user?.id,
+      timestamp: new Date().toISOString(),
+    });
     res.status(500).json({ error: 'Failed to fetch infractions' });
   }
 });
@@ -403,9 +409,15 @@ router.get('/loa', async (req: Request, res: Response) => {
       )
       .all(req.user.id) as any[];
 
-    res.json(loaRequests);
-  } catch (error) {
-    console.error('Error fetching LOA requests:', error);
+    // Ensure we always return an array (never undefined or null)
+    res.json(loaRequests || []);
+  } catch (error: any) {
+    console.error('[Dashboard/LOA] Error fetching LOA requests:', {
+      error: error.message,
+      stack: error.stack,
+      userId: req.user?.id,
+      timestamp: new Date().toISOString(),
+    });
     res.status(500).json({ error: 'Failed to fetch LOA requests' });
   }
 });
