@@ -1,4 +1,4 @@
-import { MongoClient, Db, Collection, ObjectId, Filter, UpdateFilter } from 'mongodb';
+import { MongoClient, Db, Collection, ObjectId, Filter, UpdateFilter, Document } from 'mongodb';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -38,7 +38,7 @@ console.log('[Database] ========================================');
 }
 
 // Helper function to get a collection
-function getCollection<T = any>(name: string): Collection<T> {
+function getCollection<T extends Document = Document>(name: string): Collection<T> {
   if (!db) {
     throw new Error('Database not initialized. Call connectDatabase() first.');
   }
@@ -47,7 +47,7 @@ function getCollection<T = any>(name: string): Collection<T> {
 
 // Get next numeric ID for a collection (using counter pattern)
 async function getNextId(collectionName: string): Promise<number> {
-  const countersCollection = getCollection('counters');
+  const countersCollection = getCollection<{ _id: string; seq: number }>('counters');
   const result = await countersCollection.findOneAndUpdate(
     { _id: collectionName },
     { $inc: { seq: 1 } },
